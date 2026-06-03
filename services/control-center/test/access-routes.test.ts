@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import { buildApp } from "../src/app";
+
+describe("access prototype routes", () => {
+  it("returns front door access overview", async () => {
+    const app = buildApp();
+    const response = await app.inject({ method: "GET", url: "/api/access" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      primary: {
+        id: "front-door",
+        name: "Front Door",
+        locked: true,
+        battery: 85,
+      },
+      keys: [
+        { holder: "Mom", status: "active" },
+        { holder: "Dad", status: "active" },
+        { holder: "Alex", status: "temporary" },
+      ],
+      accessPoints: [
+        { id: "garage", name: "Garage" },
+        { id: "back-door", name: "Back Door" },
+      ],
+    });
+  });
+
+  it("creates a temporary guest key for the share guest action", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "Guest", hours: 4 },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().key).toMatchObject({
+      holder: "Guest",
+      role: "Guest Access",
+      status: "temporary",
+    });
+  });
+});
