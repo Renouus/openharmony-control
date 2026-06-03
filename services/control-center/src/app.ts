@@ -11,6 +11,7 @@ import { registerCommandRoutes } from "./routes/commands";
 import { registerDemoRoutes } from "./routes/demo";
 import { createDemoFaultState } from "./routes/demo-fault-state";
 import { registerDeviceRoutes } from "./routes/devices";
+import { registerFamilyRoutes } from "./routes/family";
 import { registerSceneRoutes } from "./routes/scenes";
 import { SceneRegistry } from "./scenes/scene-registry";
 
@@ -36,6 +37,7 @@ export function buildApp(
     await registerDeviceRoutes(scope, registry);
     await registerAccessRoutes(scope, registry);
     await registerCameraRoutes(scope);
+    await registerFamilyRoutes(scope);
     await registerCommandRoutes(scope, {
       registry,
       secret,
