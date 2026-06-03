@@ -74,6 +74,10 @@ struct Index {
       // Keep the current safe access state when only the access endpoint fails.
     }
 
+    await this.refreshCameras();
+  }
+
+  async refreshCameras(): Promise<void> {
     try {
       this.cameras = await this.api.getCameraOverview();
     } catch (error) {
@@ -135,10 +139,10 @@ struct Index {
     try {
       await this.api.toggleCameraRecording(camera.id, !camera.recording);
       this.feedback = camera.recording ? '录像已暂停' : '录像已开启';
-      await this.refreshAll();
+      await this.refreshCameras();
     } catch (error) {
       this.feedback = '摄像头录像切换失败';
-      await this.refreshAll();
+      await this.refreshCameras();
     }
   }
 
