@@ -4,6 +4,7 @@ import {
   AccessOverview,
   AccessPointSnapshot,
   BrightnessPayload,
+  CameraSnapshot,
   ColorTemperaturePayload,
   CommandHistoryEntry,
   DeviceApi,
@@ -33,6 +34,7 @@ struct Index {
   @State devices: DeviceSnapshot[] = [];
   @State scenes: SceneSnapshot[] = [];
   @State history: CommandHistoryEntry[] = [];
+  @State cameras: CameraSnapshot[] = [];
   @State feedback: string = '';
   @State accessOverview: AccessOverview = {
     primary: { id: 'front-door', name: 'Front Door', locked: true, battery: 100 },
@@ -70,6 +72,12 @@ struct Index {
       this.accessOverview = await this.api.getAccessOverview();
     } catch (error) {
       // Keep the current safe access state when only the access endpoint fails.
+    }
+
+    try {
+      this.cameras = await this.api.getCameraOverview();
+    } catch (error) {
+      // Keep the current safe camera state when only the camera endpoint fails.
     }
   }
 
@@ -119,6 +127,17 @@ struct Index {
       await this.refreshAll();
     } catch (error) {
       this.feedback = '访客钥匙分享失败';
+      await this.refreshAll();
+    }
+  }
+
+  async toggleCameraRecording(camera: CameraSnapshot): Promise<void> {
+    try {
+      await this.api.toggleCameraRecording(camera.id, !camera.recording);
+      this.feedback = camera.recording ? '录像已暂停' : '录像已开启';
+      await this.refreshAll();
+    } catch (error) {
+      this.feedback = '摄像头录像切换失败';
       await this.refreshAll();
     }
   }
@@ -185,6 +204,31 @@ struct Index {
 
   accessPointSubtitle(point: AccessPointSnapshot): string {
     return `${point.locked ? '已上锁' : '未上锁'} · ${point.battery}% 电量`;
+  }
+
+  primaryCamera(): CameraSnapshot | undefined {
+    if (this.cameras.length === 0) {
+      return undefined;
+    }
+    return this.cameras[0];
+  }
+
+  cameraStatusLabel(camera: CameraSnapshot | undefined): string {
+    if (camera === undefined) {
+      return '等待连接';
+    }
+    if (!camera.online) {
+      return '离线';
+    }
+    return camera.recording ? '实时录像' : '实时预览';
+  }
+
+  cameraMotionText(camera: CameraSnapshot): string {
+    if (camera.lastMotionAt === undefined) {
+      return '暂无移动记录';
+    }
+    const minutes = Math.max(1, Math.round((Date.now() - camera.lastMotionAt) / 60000));
+    return `${minutes} 分钟前侦测到移动`;
   }
 
   lightDevices(): DeviceSnapshot[] {
@@ -263,6 +307,8 @@ struct Index {
             this.LightingTab()
           } else if (this.activePage === 'access') {
             this.AccessTab()
+          } else if (this.activePage === 'camera') {
+            this.CameraTab()
           } else if (this.activePage === 'home') {
             this.HomeTab()
           } else if (this.activePage === 'automation') {
@@ -430,6 +476,42 @@ struct Index {
       })
 
       Column({ space: 10 }) {
+        Row() {
+          Column({ space: 4 }) {
+            Text('摄像头监控')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(COLOR_TEXT)
+            Text('前门、庭院与最近移动记录')
+              .fontSize(12)
+              .fontColor(COLOR_TEXT_MUTED)
+          }
+          .layoutWeight(1)
+          Text(this.cameraStatusLabel(this.primaryCamera()))
+            .fontSize(13)
+            .fontColor(COLOR_PRIMARY)
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .borderRadius(14)
+            .backgroundColor(COLOR_PRIMARY_SOFT)
+        }
+        .width('100%')
+
+        Row({ space: 8 }) {
+          this.MetricPill('在线', `${this.cameras.filter((camera: CameraSnapshot) => camera.online).length}/${this.cameras.length}`)
+          this.MetricPill('录像', `${this.cameras.filter((camera: CameraSnapshot) => camera.recording).length} 路`)
+        }
+        .width('100%')
+      }
+      .padding(16)
+      .borderRadius(18)
+      .backgroundColor(COLOR_SURFACE)
+      .border({ width: 1, color: COLOR_BORDER })
+      .width('100%')
+      .onClick(() => {
+        this.activePage = 'camera';
+      })
+
+      Column({ space: 10 }) {
         this.SectionHeader('快捷自动化', '一键切换全屋状态')
         Row({ space: 8 }) {
           ForEach(this.scenes.slice(0, 3), (scene: SceneSnapshot) => {
@@ -573,6 +655,157 @@ struct Index {
         ForEach(this.accessOverview.accessPoints, (point: AccessPointSnapshot) => {
           this.AccessPointCard(point)
         }, (point: AccessPointSnapshot) => point.id)
+      }
+
+      if (this.feedback.length > 0) {
+        Text(this.feedback)
+          .fontSize(13)
+          .fontColor(COLOR_PRIMARY)
+          .padding(12)
+          .borderRadius(12)
+          .backgroundColor(COLOR_PRIMARY_SOFT)
+          .width('100%')
+      }
+    }
+  }
+
+  @Builder
+  CameraTab() {
+    Column({ space: 16 }) {
+      this.FeatureHeader('摄像头监控', '实时查看入口安全、录像与移动提醒')
+
+      Column({ space: 14 }) {
+        Row() {
+          Column({ space: 4 }) {
+            Text('安防状态')
+              .fontSize(15)
+              .fontColor(COLOR_PRIMARY)
+              .fontWeight(FontWeight.Medium)
+            Text(this.cameras.length === 0 ? '等待摄像头连接' : '全屋摄像头在线守护')
+              .fontSize(24)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(COLOR_TEXT)
+          }
+          .layoutWeight(1)
+          Text(`${this.cameras.filter((camera: CameraSnapshot) => camera.recording).length} 路录像`)
+            .fontSize(13)
+            .fontColor(COLOR_PRIMARY)
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .borderRadius(14)
+            .backgroundColor(COLOR_PRIMARY_SOFT)
+        }
+        .width('100%')
+
+        Row({ space: 8 }) {
+          this.MetricPill('在线摄像头', `${this.cameras.filter((camera: CameraSnapshot) => camera.online).length}/${this.cameras.length}`)
+          this.MetricPill('最近移动', this.primaryCamera() === undefined ? '暂无' : this.cameraMotionText(this.primaryCamera() as CameraSnapshot))
+        }
+        .width('100%')
+      }
+      .padding(18)
+      .borderRadius(18)
+      .backgroundColor(COLOR_SURFACE)
+      .border({ width: 1, color: COLOR_BORDER })
+      .width('100%')
+
+      Column({ space: 14 }) {
+        Row() {
+          Column({ space: 4 }) {
+            Text(this.primaryCamera() === undefined ? '主摄像头' : (this.primaryCamera() as CameraSnapshot).name)
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(COLOR_TEXT)
+            Text(this.primaryCamera() === undefined ? '暂无可用画面' : (this.primaryCamera() as CameraSnapshot).location)
+              .fontSize(13)
+              .fontColor(COLOR_TEXT_MUTED)
+          }
+          .layoutWeight(1)
+          Text(this.cameraStatusLabel(this.primaryCamera()))
+            .fontSize(12)
+            .fontColor('#FFFFFF')
+            .fontWeight(FontWeight.Medium)
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .borderRadius(14)
+            .backgroundColor(COLOR_PRIMARY)
+        }
+        .width('100%')
+
+        Stack() {
+          Column({ space: 10 }) {
+            Text('LIVE')
+              .fontSize(12)
+              .fontColor('#FFFFFF')
+              .fontWeight(FontWeight.Bold)
+              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+              .borderRadius(12)
+              .backgroundColor(COLOR_PRIMARY)
+              .alignSelf(ItemAlign.Start)
+            Blank()
+            Text('CAM')
+              .fontSize(34)
+              .fontColor(COLOR_PRIMARY)
+              .fontWeight(FontWeight.Bold)
+              .textAlign(TextAlign.Center)
+              .width('100%')
+            Text('预览画面占位')
+              .fontSize(13)
+              .fontColor(COLOR_TEXT_MUTED)
+              .textAlign(TextAlign.Center)
+              .width('100%')
+            Blank()
+            Text(this.primaryCamera() === undefined ? '未连接' : this.cameraMotionText(this.primaryCamera() as CameraSnapshot))
+              .fontSize(12)
+              .fontColor(COLOR_TEXT_MUTED)
+              .textAlign(TextAlign.Center)
+              .width('100%')
+          }
+          .padding(16)
+          .width('100%')
+          .height('100%')
+        }
+        .width('100%')
+        .height(210)
+        .borderRadius(18)
+        .backgroundColor(COLOR_SURFACE_WARM)
+        .border({ width: 1, color: COLOR_BORDER })
+
+        if (this.primaryCamera() !== undefined) {
+          Row({ space: 8 }) {
+            this.CameraActionButton('麦克风', 'Mic', false)
+            this.CameraActionButton('快照', 'Shot', false)
+            Button((this.primaryCamera() as CameraSnapshot).recording ? '停止录像' : '开始录像')
+              .fontSize(12)
+              .fontColor('#FFFFFF')
+              .height(44)
+              .borderRadius(14)
+              .backgroundColor(COLOR_PRIMARY)
+              .layoutWeight(1)
+              .onClick(() => this.toggleCameraRecording(this.primaryCamera() as CameraSnapshot))
+            this.CameraActionButton('静音', 'Mute', false)
+          }
+          .width('100%')
+        }
+      }
+      .padding(18)
+      .borderRadius(20)
+      .backgroundColor(COLOR_SURFACE)
+      .border({ width: 1, color: COLOR_BORDER })
+      .width('100%')
+
+      Column({ space: 10 }) {
+        this.SectionHeader('摄像头列表', '查看各区域状态与最近移动')
+        if (this.cameras.length === 0) {
+          Text('暂无摄像头数据')
+            .fontSize(14)
+            .fontColor(COLOR_TEXT_MUTED)
+            .padding(16)
+            .borderRadius(16)
+            .backgroundColor(COLOR_SURFACE)
+            .width('100%')
+        }
+        ForEach(this.cameras, (camera: CameraSnapshot) => {
+          this.CameraRow(camera)
+        }, (camera: CameraSnapshot) => camera.id)
       }
 
       if (this.feedback.length > 0) {
@@ -1278,6 +1511,65 @@ struct Index {
       Text(`${point.battery}%`)
         .fontSize(12)
         .fontColor(COLOR_TEXT_MUTED)
+    }
+    .padding(14)
+    .borderRadius(16)
+    .backgroundColor(COLOR_SURFACE)
+    .border({ width: 1, color: COLOR_BORDER })
+    .width('100%')
+  }
+
+  @Builder
+  CameraActionButton(label: string, icon: string, selected: boolean) {
+    Column({ space: 3 }) {
+      Text(icon)
+        .fontSize(12)
+        .fontColor(selected ? '#FFFFFF' : COLOR_PRIMARY)
+        .fontWeight(FontWeight.Medium)
+        .textAlign(TextAlign.Center)
+        .width('100%')
+      Text(label)
+        .fontSize(10)
+        .fontColor(selected ? '#FFFFFF' : COLOR_TEXT_MUTED)
+        .textAlign(TextAlign.Center)
+        .width('100%')
+    }
+    .height(44)
+    .padding({ top: 7, bottom: 6 })
+    .borderRadius(14)
+    .backgroundColor(selected ? COLOR_PRIMARY : COLOR_SURFACE_WARM)
+    .layoutWeight(1)
+  }
+
+  @Builder
+  CameraRow(camera: CameraSnapshot) {
+    Row({ space: 12 }) {
+      Text(camera.recording ? 'REC' : 'CAM')
+        .fontSize(12)
+        .fontColor(camera.recording ? '#FFFFFF' : COLOR_PRIMARY)
+        .fontWeight(FontWeight.Medium)
+        .textAlign(TextAlign.Center)
+        .width(42)
+        .height(42)
+        .borderRadius(14)
+        .backgroundColor(camera.recording ? COLOR_PRIMARY : COLOR_PRIMARY_SOFT)
+      Column({ space: 3 }) {
+        Text(camera.name)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_TEXT)
+        Text(`${camera.location} · ${this.cameraMotionText(camera)}`)
+          .fontSize(12)
+          .fontColor(COLOR_TEXT_MUTED)
+      }
+      .layoutWeight(1)
+      Button(camera.recording ? '停止' : '录像')
+        .fontSize(12)
+        .fontColor(camera.recording ? '#FFFFFF' : COLOR_PRIMARY)
+        .height(36)
+        .borderRadius(12)
+        .backgroundColor(camera.recording ? COLOR_PRIMARY : COLOR_PRIMARY_SOFT)
+        .onClick(() => this.toggleCameraRecording(camera))
     }
     .padding(14)
     .borderRadius(16)
