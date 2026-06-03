@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  AccessPointId,
+  CameraId,
+  ClimateMode,
   createCommand,
   DeviceCapability,
   DeviceHealthName,
   DeviceKind,
+  isAccessPointId,
+  isCameraId,
+  isClimateMode,
   isCommandStatus,
   isSceneId,
   isTemperatureTarget,
@@ -46,6 +52,26 @@ describe("device contract", () => {
   it("keeps device health names stable for ArkTS display mapping", () => {
     const health: DeviceHealthName[] = ["online", "offline", "warning"];
     expect(health).toEqual(["online", "offline", "warning"]);
+  });
+
+  it("keeps access point ids stable for the access prototype", () => {
+    expect(isAccessPointId("front-door")).toBe(true);
+    expect(isAccessPointId("garage")).toBe(true);
+    expect(isAccessPointId("back-door")).toBe(true);
+    expect(isAccessPointId("unknown")).toBe(false);
+    expect(AccessPointId.FrontDoor).toBe("front-door");
+  });
+
+  it("keeps camera ids stable for the camera prototype", () => {
+    expect(isCameraId("entry-camera")).toBe(true);
+    expect(isCameraId("garden-camera")).toBe(true);
+    expect(isCameraId("unknown")).toBe(false);
+    expect(CameraId.Entry).toBe("entry-camera");
+  });
+
+  it("keeps climate modes stable for ArkTS controls", () => {
+    const modes: ClimateMode[] = ["heat", "cool", "auto", "off"];
+    expect(modes.every(isClimateMode)).toBe(true);
   });
 }
 );

@@ -65,6 +65,58 @@ export type DeviceHealthName =
 
 export type RoomName = "entry" | "living-room" | "bedroom" | "kitchen" | "bathroom";
 
+export const AccessPointId = {
+  FrontDoor: "front-door",
+  Garage: "garage",
+  BackDoor: "back-door",
+} as const;
+
+export type AccessPointIdName =
+  (typeof AccessPointId)[keyof typeof AccessPointId];
+
+export const CameraId = {
+  Entry: "entry-camera",
+  Garden: "garden-camera",
+} as const;
+
+export type CameraIdName = (typeof CameraId)[keyof typeof CameraId];
+
+export type ClimateMode = "heat" | "cool" | "auto" | "off";
+
+export type AccessKeyDescriptor = {
+  id: string;
+  holder: string;
+  role: string;
+  status: "active" | "temporary" | "expired";
+  expiresAt?: number;
+};
+
+export type CameraDescriptor = {
+  id: CameraIdName;
+  name: string;
+  location: string;
+  online: boolean;
+  recording: boolean;
+  lastMotionAt?: number;
+};
+
+export type FamilyMemberDescriptor = {
+  id: string;
+  name: string;
+  relation: string;
+  presence: "home" | "away";
+  lastActivity: string;
+};
+
+export type ClimateOverview = {
+  room: RoomName;
+  indoorTemperature: number;
+  humidity: number;
+  targetTemperature: number;
+  mode: ClimateMode;
+  weeklyUsageHours: number[];
+};
+
 export type EnhancedDeviceDescriptor = DeviceDescriptor & {
   room: RoomName;
   displayOrder: number;
@@ -161,4 +213,21 @@ export function isCommandStatus(value: unknown): value is CommandStatusName {
 
 export function isSceneId(value: unknown): value is SceneIdName {
   return Object.values(SceneId).includes(value as SceneIdName);
+}
+
+export function isAccessPointId(value: unknown): value is AccessPointIdName {
+  return Object.values(AccessPointId).includes(value as AccessPointIdName);
+}
+
+export function isCameraId(value: unknown): value is CameraIdName {
+  return Object.values(CameraId).includes(value as CameraIdName);
+}
+
+export function isClimateMode(value: unknown): value is ClimateMode {
+  return (
+    value === "heat" ||
+    value === "cool" ||
+    value === "auto" ||
+    value === "off"
+  );
 }
