@@ -7,6 +7,7 @@ import { CommandHistory } from "./history/command-history";
 import { DeviceRegistry } from "./registry/device-registry";
 import { registerAccessRoutes } from "./routes/access";
 import { registerCameraRoutes } from "./routes/camera";
+import { registerClimateRoutes } from "./routes/climate";
 import { registerCommandRoutes } from "./routes/commands";
 import { registerDemoRoutes } from "./routes/demo";
 import { createDemoFaultState } from "./routes/demo-fault-state";
@@ -38,6 +39,7 @@ export function buildApp(
     await registerAccessRoutes(scope, registry);
     await registerCameraRoutes(scope);
     await registerFamilyRoutes(scope);
+    await registerClimateRoutes(scope, registry);
     await registerCommandRoutes(scope, {
       registry,
       secret,
