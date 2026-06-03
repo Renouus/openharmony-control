@@ -384,7 +384,8 @@ export class DeviceApi {
     const client = http.createHttp();
     try {
       const request: CameraRecordingRequest = { recording };
-      const response = await client.request(`${this.baseUrl}/api/cameras/${cameraId}`, {
+      const encodedCameraId = encodeURIComponent(cameraId);
+      const response = await client.request(`${this.baseUrl}/api/cameras/${encodedCameraId}`, {
         method: http.RequestMethod.PATCH,
         header: { 'content-type': 'application/json' },
         extraData: JSON.stringify(request),
