@@ -1,0 +1,52 @@
+# User Guide
+
+## Demo Environment
+
+1. Install Node workspace dependencies from the repository root with `npm install`.
+2. Start the control center with `npm run dev:control-center`.
+3. Open `apps/openharmony-control` in DevEco Studio.
+4. Sync OHPM dependencies in DevEco Studio.
+5. Build the `entry` HAP module and install it on the target device or emulator.
+
+The ArkTS app currently calls `http://10.0.2.2:3443`. For a physical device, replace that base URL in `apps/openharmony-control/entry/src/main/ets/pages/Index.ets` with the host LAN address.
+
+## DevEco Notes
+
+- DevEco/hvigor rejects project paths containing Chinese characters. If building from this repository path, copy or map `apps/openharmony-control` to an ASCII-only path first.
+- This machine currently has DevEco tools under `E:\DevEco Studio`.
+- The local OpenHarmony SDK path reports `SDK management mode has changed`; the HarmonyOS SDK path reports `SDK component missing`. Repair or reinstall SDK components through DevEco Studio `Tools > SDK Manager` before running HAP packaging.
+
+## Main Operations
+
+1. Open the Chinese OmniHome dashboard on the `家` tab.
+2. Inspect the home status summary, online device counts, lighting, climate, and air quality.
+3. Toggle the living-room light and use quick brightness/color-temperature presets.
+4. Lock or verification-unlock the front door.
+5. Power the AC and change its target temperature.
+6. Open `自动化` and run or enable/disable the 回家、离家、睡眠、电影之夜 scenes.
+7. Open `通知` to review command and scene activity history.
+
+## Demo Faults
+
+Use `POST /api/demo/faults/offline` before recording the abnormal-state sequence, then set the device online again before normal control.
+
+Use `POST /api/demo/environment` to tune the health card data:
+
+```json
+{
+  "temperature": 32,
+  "humidity": 55,
+  "aqi": 28,
+  "filterLife": 64,
+  "purifierActive": true
+}
+```
+
+Use `POST /api/demo/faults/security` with `{ "forceUnauthorizedCommands": true }` to force visible command authorization failures, then send `{ "forceUnauthorizedCommands": false }` to restore normal command execution.
+
+## Frontend API Mapping
+
+- `家`: `GET /api/summary`, `GET /api/devices`
+- `自动化`: `GET /api/scenes`, `PATCH /api/scenes/:sceneId`, `POST /api/scenes/:sceneId/run`
+- `通知`: `GET /api/commands/history`
+- `我的`: local member/broadcast presentation data in this demo iteration

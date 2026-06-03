@@ -1,0 +1,11 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "openharmony-smart-home-control",
+  "version": "0.1.0",
+  "description": "OpenHarmony smart home control demo",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21"
+  }
+}

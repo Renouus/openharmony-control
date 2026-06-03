@@ -1,0 +1,229 @@
+import { describe, expect, it } from "vitest";
+import { buildApp } from "../src/app";
+
+async function sign(
+  app: ReturnType<typeof buildApp>,
+  payload: Record<string, unknown>,
+) {
+  const signed = await app.inject({
+    method: "POST",
+    url: "/api/demo/sign-command",
+    payload,
+  });
+
+  expect(signed.statusCode).toBe(200);
+  return signed.json();
+}
+
+describe("secure device commands", () => {
+  it("switches the living room light through a signed command", async () => {
+    const app = buildApp();
+    const envelope = await sign(app, {
+      requestId: "cmd-light-1",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "SUCCESS",
+      deviceId: "light-living-room",
+      state: { power: true },
+      historyEntry: {
+        requestId: "cmd-light-1",
+        status: "SUCCESS",
+      },
+    });
+  });
+
+  it("adjusts an individual bedroom light through a signed command", async () => {
+    const app = buildApp();
+    const envelope = await sign(app, {
+      requestId: "cmd-bedroom-light-1",
+      timestamp: Date.now(),
+      deviceId: "light-bedroom",
+      name: "set-brightness",
+      payload: { brightness: 72 },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "SUCCESS",
+      deviceId: "light-bedroom",
+      state: { brightness: 72 },
+    });
+  });
+
+  it("locks or unlocks the front door through one explicit command", async () => {
+    const app = buildApp();
+    const envelope = await sign(app, {
+      requestId: "cmd-door-1",
+      timestamp: Date.now(),
+      deviceId: "door-front",
+      name: "lock",
+      payload: { locked: false },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "SUCCESS",
+      deviceId: "door-front",
+      state: { locked: false },
+    });
+  });
+
+  it("rejects unsigned commands", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: {
+        requestId: "cmd-unsigned",
+        timestamp: Date.now(),
+        deviceId: "door-front",
+        name: "lock",
+        payload: { locked: false },
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      code: "COMMAND_UNAUTHORIZED",
+      status: "COMMAND_UNAUTHORIZED",
+    });
+  });
+
+  it("rejects replayed command envelopes", async () => {
+    const app = buildApp();
+    const envelope = await sign(app, {
+      requestId: "cmd-replay",
+      timestamp: Date.now(),
+      deviceId: "door-front",
+      name: "lock",
+      payload: { locked: false },
+    });
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(401);
+    expect(second.json()).toMatchObject({ code: "COMMAND_UNAUTHORIZED" });
+  });
+
+  it("records command history newest first", async () => {
+    const app = buildApp();
+    const light = await sign(app, {
+      requestId: "cmd-history-light",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    });
+    const door = await sign(app, {
+      requestId: "cmd-history-door",
+      timestamp: Date.now(),
+      deviceId: "door-front",
+      name: "lock",
+      payload: { locked: false },
+    });
+
+    await app.inject({ method: "POST", url: "/api/commands", payload: light });
+    await app.inject({ method: "POST", url: "/api/commands", payload: door });
+    const history = await app.inject({
+      method: "GET",
+      url: "/api/commands/history?limit=2",
+    });
+
+    expect(history.statusCode).toBe(200);
+    expect(history.json().entries).toMatchObject([
+      { requestId: "cmd-history-door", status: "SUCCESS" },
+      { requestId: "cmd-history-light", status: "SUCCESS" },
+    ]);
+  });
+
+  it("returns offline command status when the target is unavailable", async () => {
+    const app = buildApp();
+    await app.inject({
+      method: "POST",
+      url: "/api/demo/faults/offline",
+      payload: { deviceId: "light-living-room", offline: true },
+    });
+    const envelope = await sign(app, {
+      requestId: "cmd-offline-light",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      code: "DEVICE_OFFLINE",
+      status: "DEVICE_OFFLINE",
+      historyEntry: { requestId: "cmd-offline-light" },
+    });
+  });
+
+  it("can force visible security command failures for demos", async () => {
+    const app = buildApp();
+    await app.inject({
+      method: "POST",
+      url: "/api/demo/faults/security",
+      payload: { forceUnauthorizedCommands: true },
+    });
+    const envelope = await sign(app, {
+      requestId: "cmd-security-fault",
+      timestamp: Date.now(),
+      deviceId: "door-front",
+      name: "lock",
+      payload: { locked: false },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      code: "COMMAND_UNAUTHORIZED",
+      status: "COMMAND_UNAUTHORIZED",
+    });
+  });
+});

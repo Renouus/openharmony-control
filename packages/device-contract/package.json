@@ -1,0 +1,17 @@
+{
+  "name": "@smart-home/device-contract",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/device.ts",
+    "./security": "./src/security.ts"
+  },
+  "scripts": {
+    "test": "vitest --run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
