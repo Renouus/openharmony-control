@@ -28,17 +28,39 @@ describe("access prototype routes", () => {
 
   it("creates a temporary guest key for the share guest action", async () => {
     const app = buildApp();
+    const start = Date.now();
     const response = await app.inject({
       method: "POST",
       url: "/api/access/guest-keys",
       payload: { holder: "Guest", hours: 4 },
     });
+    const end = Date.now();
 
     expect(response.statusCode).toBe(201);
-    expect(response.json().key).toMatchObject({
+    const { key } = response.json();
+    expect(key).toMatchObject({
       holder: "Guest",
       role: "Guest Access",
       status: "temporary",
     });
+    expect(key.id).toMatch(/^guest-/);
+    expect(new Date(key.expiresAt).getTime()).toBeGreaterThanOrEqual(
+      start + 4 * 60 * 60 * 1000,
+    );
+    expect(new Date(key.expiresAt).getTime()).toBeLessThanOrEqual(
+      end + 4 * 60 * 60 * 1000,
+    );
+  });
+
+  it("rejects invalid guest key payloads with a stable error code", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "", hours: 0 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
   });
 });

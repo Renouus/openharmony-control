@@ -6,6 +6,21 @@ type GuestKeyRequest = {
   hours: number;
 };
 
+function isGuestKeyRequest(body: unknown): body is GuestKeyRequest {
+  if (body === null || typeof body !== "object") {
+    return false;
+  }
+
+  const candidate = body as Partial<GuestKeyRequest>;
+  return (
+    typeof candidate.holder === "string" &&
+    candidate.holder.trim().length > 0 &&
+    typeof candidate.hours === "number" &&
+    Number.isFinite(candidate.hours) &&
+    candidate.hours > 0
+  );
+}
+
 const demoKeys = [
   {
     id: "key-mom",
@@ -52,15 +67,20 @@ export async function registerAccessRoutes(
   });
 
   app.post("/api/access/guest-keys", async (request, reply) => {
-    const { holder, hours } = request.body as GuestKeyRequest;
+    if (!isGuestKeyRequest(request.body)) {
+      return reply.code(400).send({ code: "GUEST_KEY_INVALID" });
+    }
+
+    const { holder, hours } = request.body;
+    const now = Date.now();
 
     return reply.code(201).send({
       key: {
-        id: `guest-${Date.now()}`,
+        id: `guest-${now}`,
         holder,
         role: "Guest Access",
         status: "temporary",
-        expiresAt: Date.now() + hours * 60 * 60 * 1000,
+        expiresAt: now + hours * 60 * 60 * 1000,
       },
     });
   });
