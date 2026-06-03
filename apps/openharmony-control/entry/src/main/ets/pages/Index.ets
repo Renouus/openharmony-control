@@ -221,8 +221,10 @@ struct Index {
             this.AutomationTab()
           } else if (this.activePage === 'notifications') {
             this.NotificationTab()
-          } else {
+          } else if (this.activePage === 'profile') {
             this.ProfileTab()
+          } else {
+            this.HomeTab()
           }
         }
         .padding({ left: 20, right: 20, top: 16, bottom: 18 })
