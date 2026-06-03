@@ -63,4 +63,28 @@ describe("access prototype routes", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
   });
+
+  it("rejects guest keys with an overflowing expiry", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "Guest", hours: 1e308 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
+  });
+
+  it("trims guest key holder names before returning the key", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "  Guest  ", hours: 4 },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().key.holder).toBe("Guest");
+  });
 });

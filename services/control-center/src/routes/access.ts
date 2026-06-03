@@ -71,8 +71,14 @@ export async function registerAccessRoutes(
       return reply.code(400).send({ code: "GUEST_KEY_INVALID" });
     }
 
-    const { holder, hours } = request.body;
+    const { hours } = request.body;
+    const holder = request.body.holder.trim();
     const now = Date.now();
+    const expiresAt = now + hours * 60 * 60 * 1000;
+
+    if (!Number.isFinite(expiresAt)) {
+      return reply.code(400).send({ code: "GUEST_KEY_INVALID" });
+    }
 
     return reply.code(201).send({
       key: {
@@ -80,7 +86,7 @@ export async function registerAccessRoutes(
         holder,
         role: "Guest Access",
         status: "temporary",
-        expiresAt: now + hours * 60 * 60 * 1000,
+        expiresAt,
       },
     });
   });
