@@ -1,5 +1,8 @@
 import { DeviceSnapshot } from '../model/device-view-model';
 import {
+  AccessKey,
+  AccessOverview,
+  AccessPointSnapshot,
   BrightnessPayload,
   ColorTemperaturePayload,
   CommandHistoryEntry,
@@ -31,6 +34,11 @@ struct Index {
   @State scenes: SceneSnapshot[] = [];
   @State history: CommandHistoryEntry[] = [];
   @State feedback: string = '';
+  @State accessOverview: AccessOverview = {
+    primary: { id: 'front-door', name: 'Front Door', locked: true, battery: 100 },
+    keys: [],
+    accessPoints: [],
+  };
   @State summary: HomeSummary = {
     mode: 'home',
     security: { label: '正在连接', secure: true },
@@ -51,6 +59,7 @@ struct Index {
       this.devices = await this.api.listDevices();
       this.scenes = await this.api.listScenes();
       this.history = await this.api.listHistory(8);
+      this.accessOverview = await this.api.getAccessOverview();
       if (this.feedback === '控制中心暂不可用') {
         this.feedback = '';
       }
@@ -98,6 +107,17 @@ struct Index {
     }
   }
 
+  async shareGuestAccess(): Promise<void> {
+    try {
+      await this.api.shareGuestKey('Guest', 4);
+      this.feedback = '访客钥匙已分享';
+      await this.refreshAll();
+    } catch (error) {
+      this.feedback = '访客钥匙分享失败';
+      await this.refreshAll();
+    }
+  }
+
   findDevice(deviceId: string): DeviceSnapshot | undefined {
     return this.devices.find((device: DeviceSnapshot) => device.id === deviceId);
   }
@@ -139,6 +159,27 @@ struct Index {
       return '不重复';
     }
     return scene.repeat.join(' ');
+  }
+
+  accessKeyStatus(key: AccessKey): string {
+    if (key.status === 'temporary') {
+      return '临时';
+    }
+    if (key.status === 'expired') {
+      return '已过期';
+    }
+    return '可用';
+  }
+
+  accessKeySubtitle(key: AccessKey): string {
+    if (key.expiresAt !== undefined) {
+      return `${key.role} · 限时通行`;
+    }
+    return key.role;
+  }
+
+  accessPointSubtitle(point: AccessPointSnapshot): string {
+    return `${point.locked ? '已上锁' : '未上锁'} · ${point.battery}% 电量`;
   }
 
   lightDevices(): DeviceSnapshot[] {
@@ -215,6 +256,8 @@ struct Index {
         Column({ space: 16 }) {
           if (this.activePage === 'lighting') {
             this.LightingTab()
+          } else if (this.activePage === 'access') {
+            this.AccessTab()
           } else if (this.activePage === 'home') {
             this.HomeTab()
           } else if (this.activePage === 'automation') {
@@ -346,6 +389,42 @@ struct Index {
         })
 
       Column({ space: 10 }) {
+        Row() {
+          Column({ space: 4 }) {
+            Text('门禁控制')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(COLOR_TEXT)
+            Text('前门、访客钥匙与其他入口')
+              .fontSize(12)
+              .fontColor(COLOR_TEXT_MUTED)
+          }
+          .layoutWeight(1)
+          Text(this.accessOverview.primary.locked ? '安全' : '未上锁')
+            .fontSize(13)
+            .fontColor(COLOR_PRIMARY)
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .borderRadius(14)
+            .backgroundColor(COLOR_PRIMARY_SOFT)
+        }
+        .width('100%')
+
+        Row({ space: 8 }) {
+          this.MetricPill('前门', this.accessOverview.primary.locked ? '已上锁' : '未上锁')
+          this.MetricPill('电量', `${this.accessOverview.primary.battery}%`)
+        }
+        .width('100%')
+      }
+      .padding(16)
+      .borderRadius(18)
+      .backgroundColor(COLOR_SURFACE_WARM)
+      .border({ width: 1, color: COLOR_BORDER })
+      .width('100%')
+      .onClick(() => {
+        this.activePage = 'access';
+      })
+
+      Column({ space: 10 }) {
         this.SectionHeader('快捷自动化', '一键切换全屋状态')
         Row({ space: 8 }) {
           ForEach(this.scenes.slice(0, 3), (scene: SceneSnapshot) => {
@@ -367,6 +446,128 @@ struct Index {
         ForEach(this.devices, (device: DeviceSnapshot) => {
           this.DeviceRow(device)
         }, (device: DeviceSnapshot) => device.id)
+      }
+
+      if (this.feedback.length > 0) {
+        Text(this.feedback)
+          .fontSize(13)
+          .fontColor(COLOR_PRIMARY)
+          .padding(12)
+          .borderRadius(12)
+          .backgroundColor(COLOR_PRIMARY_SOFT)
+          .width('100%')
+      }
+    }
+  }
+
+  @Builder
+  AccessTab() {
+    Column({ space: 16 }) {
+      Row() {
+        Column({ space: 2 }) {
+          Text('OmniHome')
+            .fontSize(15)
+            .fontColor(COLOR_PRIMARY)
+            .fontWeight(FontWeight.Medium)
+          Text('门禁控制')
+            .fontSize(30)
+            .fontColor(COLOR_TEXT)
+            .fontWeight(FontWeight.Bold)
+        }
+        Blank()
+        Text('我')
+          .fontSize(14)
+          .fontColor('#FFFFFF')
+          .fontWeight(FontWeight.Medium)
+          .textAlign(TextAlign.Center)
+          .width(42)
+          .height(42)
+          .borderRadius(21)
+          .backgroundColor(COLOR_PRIMARY)
+      }
+      .width('100%')
+
+      Column({ space: 16 }) {
+        Row() {
+          Column({ space: 4 }) {
+            Text(this.accessOverview.primary.name)
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(COLOR_TEXT)
+            Text(this.accessOverview.primary.locked ? 'Secure · 门已上锁' : 'Attention · 门未上锁')
+              .fontSize(13)
+              .fontColor(COLOR_TEXT_MUTED)
+          }
+          .layoutWeight(1)
+          Text(this.accessOverview.primary.locked ? '安全' : '注意')
+            .fontSize(13)
+            .fontColor(COLOR_PRIMARY)
+            .fontWeight(FontWeight.Medium)
+        }
+        .width('100%')
+
+        Button(this.accessOverview.primary.locked ? '锁' : '开')
+          .fontSize(44)
+          .fontColor('#FFFFFF')
+          .fontWeight(FontWeight.Bold)
+          .width(128)
+          .height(128)
+          .borderRadius(64)
+          .backgroundColor(COLOR_PRIMARY)
+          .alignSelf(ItemAlign.Center)
+          .onClick(() => this.send('door-front', 'lock', { locked: !this.accessOverview.primary.locked } as LockPayload))
+
+        Text(this.accessOverview.primary.locked ? '点击解锁' : '点击上锁')
+          .fontSize(15)
+          .fontColor(COLOR_TEXT)
+          .fontWeight(FontWeight.Medium)
+          .textAlign(TextAlign.Center)
+          .width('100%')
+
+        Row({ space: 8 }) {
+          this.MetricPill('上锁时间', this.accessOverview.primary.locked ? '刚刚' : '未上锁')
+          this.MetricPill('电量', `${this.accessOverview.primary.battery}%`)
+        }
+        .width('100%')
+      }
+      .padding(20)
+      .borderRadius(20)
+      .backgroundColor(COLOR_SURFACE)
+      .border({ width: 1, color: COLOR_BORDER })
+      .width('100%')
+
+      Column({ space: 10 }) {
+        Row() {
+          Column({ space: 2 }) {
+            Text('Digital Keys')
+              .fontSize(20)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(COLOR_TEXT)
+            Text('家庭成员与临时访客权限')
+              .fontSize(12)
+              .fontColor(COLOR_TEXT_MUTED)
+          }
+          .layoutWeight(1)
+          Button('+ Share Guest')
+            .fontSize(12)
+            .fontColor(COLOR_PRIMARY)
+            .height(36)
+            .borderRadius(14)
+            .backgroundColor(COLOR_PRIMARY_SOFT)
+            .onClick(() => this.shareGuestAccess())
+        }
+        .width('100%')
+
+        ForEach(this.accessOverview.keys, (key: AccessKey) => {
+          this.AccessKeyRow(key)
+        }, (key: AccessKey) => key.id)
+      }
+
+      Column({ space: 10 }) {
+        this.SectionHeader('Other Access Points', '车库与后门状态')
+        ForEach(this.accessOverview.accessPoints, (point: AccessPointSnapshot) => {
+          this.AccessPointCard(point)
+        }, (point: AccessPointSnapshot) => point.id)
       }
 
       if (this.feedback.length > 0) {
@@ -983,6 +1184,75 @@ struct Index {
       .width('100%')
     }
     .padding(16)
+    .borderRadius(16)
+    .backgroundColor(COLOR_SURFACE)
+    .border({ width: 1, color: COLOR_BORDER })
+    .width('100%')
+  }
+
+  @Builder
+  AccessKeyRow(key: AccessKey) {
+    Row({ space: 12 }) {
+      Text(key.holder.substring(0, 1))
+        .fontSize(15)
+        .fontColor('#FFFFFF')
+        .fontWeight(FontWeight.Medium)
+        .textAlign(TextAlign.Center)
+        .width(38)
+        .height(38)
+        .borderRadius(19)
+        .backgroundColor(COLOR_PRIMARY)
+      Column({ space: 3 }) {
+        Text(key.holder)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_TEXT)
+        Text(this.accessKeySubtitle(key))
+          .fontSize(12)
+          .fontColor(COLOR_TEXT_MUTED)
+      }
+      .layoutWeight(1)
+      Text(this.accessKeyStatus(key))
+        .fontSize(12)
+        .fontColor(COLOR_PRIMARY)
+        .padding({ left: 9, right: 9, top: 5, bottom: 5 })
+        .borderRadius(12)
+        .backgroundColor(COLOR_PRIMARY_SOFT)
+    }
+    .padding(14)
+    .borderRadius(16)
+    .backgroundColor(COLOR_SURFACE)
+    .border({ width: 1, color: COLOR_BORDER })
+    .width('100%')
+  }
+
+  @Builder
+  AccessPointCard(point: AccessPointSnapshot) {
+    Row({ space: 12 }) {
+      Text(point.locked ? '锁' : '开')
+        .fontSize(16)
+        .fontColor(COLOR_PRIMARY)
+        .fontWeight(FontWeight.Medium)
+        .textAlign(TextAlign.Center)
+        .width(40)
+        .height(40)
+        .borderRadius(14)
+        .backgroundColor(COLOR_PRIMARY_SOFT)
+      Column({ space: 3 }) {
+        Text(point.name)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_TEXT)
+        Text(this.accessPointSubtitle(point))
+          .fontSize(12)
+          .fontColor(COLOR_TEXT_MUTED)
+      }
+      .layoutWeight(1)
+      Text(`${point.battery}%`)
+        .fontSize(12)
+        .fontColor(COLOR_TEXT_MUTED)
+    }
+    .padding(14)
     .borderRadius(16)
     .backgroundColor(COLOR_SURFACE)
     .border({ width: 1, color: COLOR_BORDER })
