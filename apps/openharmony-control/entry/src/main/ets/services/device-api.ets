@@ -112,6 +112,100 @@ export interface CommandHistoryResponse {
   entries: CommandHistoryEntry[];
 }
 
+export interface AccessPointSnapshot {
+  id: string;
+  name: string;
+  locked: boolean;
+  battery: number;
+}
+
+export interface AccessKey {
+  id: string;
+  holder: string;
+  role: string;
+  status: string;
+  expiresAt?: number;
+}
+
+export interface AccessOverview {
+  primary: AccessPointSnapshot;
+  keys: AccessKey[];
+  accessPoints: AccessPointSnapshot[];
+}
+
+export interface ShareGuestKeyRequest {
+  holder: string;
+  hours: number;
+}
+
+export interface GuestKeyResponse {
+  key: AccessKey;
+}
+
+export interface CameraSnapshot {
+  id: string;
+  name: string;
+  location: string;
+  online: boolean;
+  recording: boolean;
+  lastMotionAt?: number;
+}
+
+export interface CameraListResponse {
+  cameras: CameraSnapshot[];
+}
+
+export interface CameraRecordingRequest {
+  recording: boolean;
+}
+
+export interface CameraUpdateResponse {
+  camera: CameraSnapshot;
+}
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+  relation: string;
+  presence: string;
+  lastActivity: string;
+}
+
+export interface FamilyActivity {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: number;
+}
+
+export interface FamilyOverview {
+  presentCount: number;
+  members: FamilyMember[];
+  activities: FamilyActivity[];
+}
+
+export interface BroadcastRequest {
+  message: string;
+}
+
+export interface BroadcastResponse {
+  status: string;
+  activity: FamilyActivity;
+}
+
+export interface ClimateOverview {
+  room: string;
+  indoorTemperature: number;
+  humidity: number;
+  targetTemperature: number;
+  mode: string;
+  weeklyUsageHours: number[];
+}
+
+export interface ClimateModeRequest {
+  mode: string;
+}
+
 export interface LockPayload {
   locked: boolean;
 }
@@ -236,6 +330,131 @@ export class DeviceApi {
       });
       const body = JSON.parse(response.result as string) as CommandHistoryResponse;
       return body.entries;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async getAccessOverview(): Promise<AccessOverview> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/access`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as AccessOverview;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async shareGuestKey(holder: string, hours: number): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const request: ShareGuestKeyRequest = { holder, hours };
+      const response = await client.request(`${this.baseUrl}/api/access/guest-keys`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(request),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async getCameraOverview(): Promise<CameraSnapshot[]> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/cameras`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      const body = JSON.parse(response.result as string) as CameraListResponse;
+      return body.cameras;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async toggleCameraRecording(cameraId: string, recording: boolean): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const request: CameraRecordingRequest = { recording };
+      const response = await client.request(`${this.baseUrl}/api/cameras/${cameraId}`, {
+        method: http.RequestMethod.PATCH,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(request),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async getFamilyOverview(): Promise<FamilyOverview> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/family`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as FamilyOverview;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async sendBroadcast(message: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const request: BroadcastRequest = { message };
+      const response = await client.request(`${this.baseUrl}/api/family/broadcast`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(request),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async getClimateOverview(): Promise<ClimateOverview> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/climate`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as ClimateOverview;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateClimateMode(mode: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const request: ClimateModeRequest = { mode };
+      const response = await client.request(`${this.baseUrl}/api/climate`, {
+        method: http.RequestMethod.PATCH,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(request),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
     } finally {
       client.destroy();
     }
