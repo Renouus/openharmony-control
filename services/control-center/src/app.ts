@@ -6,6 +6,7 @@ import { LightDevice } from "./devices/light-device";
 import { CommandHistory } from "./history/command-history";
 import { DeviceRegistry } from "./registry/device-registry";
 import { registerAccessRoutes } from "./routes/access";
+import { registerCameraRoutes } from "./routes/camera";
 import { registerCommandRoutes } from "./routes/commands";
 import { registerDemoRoutes } from "./routes/demo";
 import { createDemoFaultState } from "./routes/demo-fault-state";
@@ -34,6 +35,7 @@ export function buildApp(
   void app.register(async (scope) => {
     await registerDeviceRoutes(scope, registry);
     await registerAccessRoutes(scope, registry);
+    await registerCameraRoutes(scope);
     await registerCommandRoutes(scope, {
       registry,
       secret,
