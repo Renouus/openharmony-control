@@ -58,6 +58,41 @@ describe("climate prototype routes", () => {
     expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
   });
 
+  it("rejects missing climate mode", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/climate",
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+  });
+
+  it("rejects empty climate payload", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/climate",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+  });
+
+  it("rejects null climate payload", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/climate",
+      payload: null as unknown as string,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+  });
+
   it("reflects signed AC target temperature commands", async () => {
     const app = buildApp();
     const envelope = await sign(app, {

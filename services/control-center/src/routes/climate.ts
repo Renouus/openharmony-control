@@ -31,12 +31,17 @@ export async function registerClimateRoutes(
   app.get("/api/climate", async () => readOverview());
 
   app.patch("/api/climate", async (request, reply) => {
-    const body = request.body as { mode?: unknown };
-    if (!isClimateMode(body.mode)) {
+    const body = request.body as unknown;
+    if (typeof body !== "object" || body === null) {
       return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
     }
 
-    mode = body.mode;
+    const requestedMode = (body as { mode?: unknown }).mode;
+    if (!isClimateMode(requestedMode)) {
+      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
+    }
+
+    mode = requestedMode;
     return readOverview();
   });
 }
