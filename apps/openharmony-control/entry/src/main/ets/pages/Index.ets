@@ -59,12 +59,17 @@ struct Index {
       this.devices = await this.api.listDevices();
       this.scenes = await this.api.listScenes();
       this.history = await this.api.listHistory(8);
-      this.accessOverview = await this.api.getAccessOverview();
       if (this.feedback === '控制中心暂不可用') {
         this.feedback = '';
       }
     } catch (error) {
       this.feedback = '控制中心暂不可用';
+    }
+
+    try {
+      this.accessOverview = await this.api.getAccessOverview();
+    } catch (error) {
+      // Keep the current safe access state when only the access endpoint fails.
     }
   }
 
