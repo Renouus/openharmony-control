@@ -526,6 +526,7 @@ struct Index {
         Row({ space: 8 }) {
           this.MetricPill('上锁时间', this.accessOverview.primary.locked ? '刚刚' : '未上锁')
           this.MetricPill('电量', `${this.accessOverview.primary.battery}%`)
+          this.MetricPill('供电', '正常')
         }
         .width('100%')
       }
