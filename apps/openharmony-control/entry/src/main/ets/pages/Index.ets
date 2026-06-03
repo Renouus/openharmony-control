@@ -26,6 +26,7 @@ const COLOR_BORDER: string = '#D8D0C8';
 struct Index {
   private readonly api: DeviceApi = new DeviceApi('http://10.0.2.2:3443');
   @State currentTab: number = 0;
+  @State activePage: string = 'home';
   @State devices: DeviceSnapshot[] = [];
   @State scenes: SceneSnapshot[] = [];
   @State history: CommandHistoryEntry[] = [];
@@ -212,13 +213,13 @@ struct Index {
     Column() {
       Scroll() {
         Column({ space: 16 }) {
-          if (this.currentTab === 4) {
+          if (this.activePage === 'lighting') {
             this.LightingTab()
-          } else if (this.currentTab === 0) {
+          } else if (this.activePage === 'home') {
             this.HomeTab()
-          } else if (this.currentTab === 1) {
+          } else if (this.activePage === 'automation') {
             this.AutomationTab()
-          } else if (this.currentTab === 2) {
+          } else if (this.activePage === 'notifications') {
             this.NotificationTab()
           } else {
             this.ProfileTab()
@@ -234,6 +235,39 @@ struct Index {
     .width('100%')
     .height('100%')
     .backgroundColor(COLOR_BG)
+  }
+
+  @Builder
+  FeatureHeader(title: string, subtitle: string, backPage: string = 'home') {
+    Row() {
+      Button('<')
+        .fontSize(22)
+        .fontColor(COLOR_PRIMARY)
+        .backgroundColor(COLOR_BG)
+        .onClick(() => {
+          this.activePage = backPage;
+          if (backPage === 'home') {
+            this.currentTab = 0;
+          } else if (backPage === 'automation') {
+            this.currentTab = 1;
+          } else if (backPage === 'notifications') {
+            this.currentTab = 2;
+          } else if (backPage === 'profile') {
+            this.currentTab = 3;
+          }
+        })
+      Column({ space: 2 }) {
+        Text(title)
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(COLOR_TEXT)
+        Text(subtitle)
+          .fontSize(12)
+          .fontColor(COLOR_TEXT_MUTED)
+      }
+      .layoutWeight(1)
+    }
+    .width('100%')
   }
 
   @Builder
@@ -306,7 +340,7 @@ struct Index {
         .backgroundColor(COLOR_PRIMARY)
         .width('100%')
         .onClick(() => {
-          this.currentTab = 4;
+          this.activePage = 'lighting';
         })
 
       Column({ space: 10 }) {
@@ -348,29 +382,7 @@ struct Index {
   @Builder
   LightingTab() {
     Column({ space: 16 }) {
-      Row() {
-        Column({ space: 2 }) {
-          Text('Sahara Smart')
-            .fontSize(13)
-            .fontColor(COLOR_PRIMARY)
-            .fontWeight(FontWeight.Medium)
-          Text('灯光控制中心')
-            .fontSize(28)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(COLOR_TEXT)
-        }
-        Blank()
-        Button('返回')
-          .fontSize(13)
-          .fontColor(COLOR_PRIMARY)
-          .height(36)
-          .borderRadius(18)
-          .backgroundColor(COLOR_PRIMARY_SOFT)
-          .onClick(() => {
-            this.currentTab = 0;
-          })
-      }
-      .width('100%')
+      this.FeatureHeader('灯光控制中心', '按房间管理整体氛围，也可以细调每一盏灯。')
 
       Text('按房间管理整体氛围，也可以细调每一盏灯。')
         .fontSize(13)
@@ -719,6 +731,15 @@ struct Index {
       .layoutWeight(1)
       .onClick(() => {
         this.currentTab = index;
+        if (index === 0) {
+          this.activePage = 'home';
+        } else if (index === 1) {
+          this.activePage = 'automation';
+        } else if (index === 2) {
+          this.activePage = 'notifications';
+        } else {
+          this.activePage = 'profile';
+        }
       })
   }
 
