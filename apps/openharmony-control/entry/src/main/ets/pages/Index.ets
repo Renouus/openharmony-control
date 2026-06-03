@@ -506,16 +506,15 @@ struct Index {
         }
         .width('100%')
 
-        Button(this.accessOverview.primary.locked ? '锁' : '开')
-          .fontSize(44)
-          .fontColor('#FFFFFF')
-          .fontWeight(FontWeight.Bold)
-          .width(128)
-          .height(128)
-          .borderRadius(64)
-          .backgroundColor(COLOR_PRIMARY)
-          .alignSelf(ItemAlign.Center)
-          .onClick(() => this.send('door-front', 'lock', { locked: !this.accessOverview.primary.locked } as LockPayload))
+        Stack() {
+          this.AccessLockIcon(this.accessOverview.primary.locked)
+        }
+        .width(128)
+        .height(128)
+        .borderRadius(64)
+        .backgroundColor(COLOR_PRIMARY)
+        .alignSelf(ItemAlign.Center)
+        .onClick(() => this.send('door-front', 'lock', { locked: !this.accessOverview.primary.locked } as LockPayload))
 
         Text(this.accessOverview.primary.locked ? '点击解锁' : '点击上锁')
           .fontSize(15)
@@ -1188,6 +1187,28 @@ struct Index {
     .backgroundColor(COLOR_SURFACE)
     .border({ width: 1, color: COLOR_BORDER })
     .width('100%')
+  }
+
+  @Builder
+  AccessLockIcon(locked: boolean) {
+    Column({ space: 0 }) {
+      Text(locked ? '∩' : '⌒')
+        .fontSize(36)
+        .fontColor('#FFFFFF')
+        .fontWeight(FontWeight.Bold)
+        .height(28)
+        .textAlign(TextAlign.Center)
+      Text(locked ? '锁' : '开')
+        .fontSize(30)
+        .fontColor(COLOR_PRIMARY)
+        .fontWeight(FontWeight.Bold)
+        .textAlign(TextAlign.Center)
+        .width(58)
+        .height(46)
+        .borderRadius(12)
+        .backgroundColor('#FFFFFF')
+    }
+    .alignItems(HorizontalAlign.Center)
   }
 
   @Builder
