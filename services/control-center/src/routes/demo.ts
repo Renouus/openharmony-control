@@ -1,3 +1,10 @@
+/**
+ * 演示与故障注入路由 —— 支持演示场景下的状态篡改。
+ *
+ * POST /api/demo/faults/offline   — 切换设备在线/离线
+ * POST /api/demo/environment       — 修改传感器读数（温度/湿度/AQI/滤芯）
+ * POST /api/demo/faults/security   — 强制启用安全拒绝模式
+ */
 import type { FastifyInstance } from "fastify";
 import type { DeviceState } from "@smart-home/device-contract";
 import type { DeviceRegistry } from "../registry/device-registry";
@@ -21,6 +28,7 @@ export async function registerDemoRoutes(
   registry: DeviceRegistry,
   faultState: DemoFaultState,
 ): Promise<void> {
+  /** 故障注入：切换设备在线/离线 */
   app.post("/api/demo/faults/offline", async (request, reply) => {
     const body = request.body as OfflineFaultRequest;
     if (!body.deviceId) {
@@ -40,6 +48,7 @@ export async function registerDemoRoutes(
     };
   });
 
+  /** 演示环境模拟：修改传感器读数（含范围校验） */
   app.post("/api/demo/environment", async (request, reply) => {
     const body = request.body as EnvironmentRequest;
     if (
@@ -67,6 +76,7 @@ export async function registerDemoRoutes(
     };
   });
 
+  /** 安全演示：强制拒绝所有命令 */
   app.post("/api/demo/faults/security", async (request) => {
     const body = request.body as { forceUnauthorizedCommands?: boolean };
     faultState.forceUnauthorizedCommands = body.forceUnauthorizedCommands === true;

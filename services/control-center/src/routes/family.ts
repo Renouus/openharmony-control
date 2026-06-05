@@ -1,3 +1,9 @@
+/**
+ * 家庭路由 —— 家庭成员状态与全屋广播。
+ *
+ * GET  /api/family           — 返回成员列表 + 活动时间线
+ * POST /api/family/broadcast — 发送全屋广播消息
+ */
 import type { FamilyMemberDescriptor } from "@smart-home/device-contract";
 import type { FastifyInstance } from "fastify";
 
@@ -12,6 +18,7 @@ type BroadcastRequest = {
   message: string;
 };
 
+/** 演示用家庭成员（3 人，均在家） */
 const members: FamilyMemberDescriptor[] = [
   {
     id: "mom",
@@ -36,6 +43,7 @@ const members: FamilyMemberDescriptor[] = [
   },
 ];
 
+/** 创建演示用家庭活动时间线 */
 function createActivities(): FamilyActivity[] {
   const now = Date.now();
 
@@ -61,6 +69,7 @@ function createActivities(): FamilyActivity[] {
   ];
 }
 
+/** 类型守卫：校验广播请求体 */
 function isBroadcastRequest(body: unknown): body is BroadcastRequest {
   if (body === null || typeof body !== "object") {
     return false;

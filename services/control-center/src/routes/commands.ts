@@ -1,3 +1,13 @@
+/**
+ * 命令路由 —— 设备命令的签名、验证、分发与执行入口。
+ *
+ * 处理流程：
+ * 1. POST /api/demo/sign-command   — 演示用 HMAC-SHA256 签名
+ * 2. POST /api/commands            — 签名信封验证 → 重放检测 → 设备查找 → 执行
+ * 3. GET  /api/commands/history    — 分页查询命令历史
+ *
+ * 安全层：故障注入模式下可强制返回 COMMAND_UNAUTHORIZED（安全演示）。
+ */
 import type { FastifyInstance } from "fastify";
 import {
   CommandStatus,
@@ -23,6 +33,7 @@ export type CommandRouteOptions = {
   replayGuard?: ReplayGuard;
 };
 
+/** 注册所有命令相关路由 */
 export async function registerCommandRoutes(
   app: FastifyInstance,
   options: CommandRouteOptions,
@@ -32,12 +43,16 @@ export async function registerCommandRoutes(
     options.simulators.map((simulator) => [simulator.deviceId, simulator]),
   );
 
+  // ── 演示用：对原始命令进行 HMAC 签名 ──
   app.post("/api/demo/sign-command", async (request) => {
     return signCommand(request.body as DeviceCommand, options.secret);
   });
 
+  // ── 核心命令执行（含签名验证、重放检测、设备路由、故障注入） ──
   app.post("/api/commands", async (request, reply) => {
     const unsignedCommand = request.body as Partial<DeviceCommand>;
+
+    // 安全演示模式：强制拒绝所有命令
     if (options.faultState.forceUnauthorizedCommands) {
       const historyEntry = options.history.add({
         requestId: unsignedCommand.requestId ?? "cmd-unauthorized",
@@ -53,6 +68,7 @@ export async function registerCommandRoutes(
       });
     }
 
+    // HMAC 签名信封验证 + 重放保护
     if (!verifyEnvelope(request.body, options.secret, replayGuard)) {
       const maybeEnvelope = request.body as { command?: Partial<DeviceCommand> };
       const command = maybeEnvelope.command ?? unsignedCommand;
@@ -71,11 +87,14 @@ export async function registerCommandRoutes(
     }
 
     const command = request.body.command;
+
+    // 设备是否存在？
     const device = options.registry.find(command.deviceId);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
+    // 设备是否在线？
     if (!device.state.online) {
       const historyEntry = options.history.add({
         requestId: command.requestId,
@@ -91,6 +110,7 @@ export async function registerCommandRoutes(
       });
     }
 
+    // 是否有对应的模拟器？
     const simulator = simulators.get(command.deviceId);
     if (!simulator) {
       const historyEntry = options.history.add({
@@ -107,6 +127,7 @@ export async function registerCommandRoutes(
       });
     }
 
+    // 执行命令并更新设备状态
     try {
       const result = simulator.execute(command);
       const updated = options.registry.update(command.deviceId, result.state);
@@ -139,6 +160,7 @@ export async function registerCommandRoutes(
     }
   });
 
+  // ── 命令历史查询（支持 limit 参数，默认 20 条） ──
   app.get("/api/commands/history", async (request) => {
     const query = request.query as { limit?: string };
     const limit = Number(query.limit ?? 20);

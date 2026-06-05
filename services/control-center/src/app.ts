@@ -1,3 +1,16 @@
+/**
+ * 控制中心应用构建器 —— 装配 Fastify 服务器及全部路由。
+ *
+ * 初始化顺序：
+ * 1. 创建设备注册表（含 7 个演示设备）
+ * 2. 创建命令历史、场景注册表、演示故障状态
+ * 3. 实例化 6 个设备模拟器
+ * 4. 注册 CORS 中间件
+ * 5. 依次注册设备 / 门禁 / 摄像头 / 家庭 / 气候 / 命令 / 场景 / 演示路由
+ *
+ * @param registry 设备注册表（可注入测试替身）
+ * @param secret HMAC 共享密钥（默认取环境变量 CONTROL_CENTER_SHARED_KEY）
+ */
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { AirConditionerDevice } from "./devices/air-conditioner-device";
@@ -24,6 +37,8 @@ export function buildApp(
   const history = new CommandHistory();
   const sceneRegistry = new SceneRegistry();
   const faultState = createDemoFaultState();
+
+  // 6 个设备模拟器：1 门锁 + 4 灯光 + 1 空调
   const simulators = [
     new DoorLockDevice(),
     new LightDevice(),
@@ -33,7 +48,10 @@ export function buildApp(
     new AirConditionerDevice(),
   ];
 
+  // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问）
   void app.register(cors, { origin: true });
+
+  // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
     await registerDeviceRoutes(scope, registry);
     await registerAccessRoutes(scope, registry);

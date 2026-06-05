@@ -1,3 +1,9 @@
+/**
+ * 空调设备模拟器 —— 委托 AirConditionerAdapter 处理具体品牌逻辑。
+ *
+ * 支持 switch 和 set-target-temperature 命令，
+ * 通过适配器模式隔离品牌差异（Haier / Gree / Midea）。
+ */
 import type { DeviceCommand, DeviceState } from "@smart-home/device-contract";
 import {
   SimulatedAirConditionerAdapter,

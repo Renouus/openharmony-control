@@ -18,13 +18,16 @@ The ArkTS app currently calls `http://10.0.2.2:3443`. For a physical device, rep
 
 ## Main Operations
 
-1. Open the Chinese OmniHome dashboard on the `家` tab.
+1. Open the OmniHome dashboard on the `家` tab.
 2. Inspect the home status summary, online device counts, lighting, climate, and air quality.
 3. Toggle the living-room light and use quick brightness/color-temperature presets.
-4. Lock or verification-unlock the front door.
-5. Power the AC and change its target temperature.
-6. Open `自动化` and run or enable/disable the 回家、离家、睡眠、电影之夜 scenes.
-7. Open `通知` to review command and scene activity history.
+4. Lock or verification-unlock the front door from the dashboard or `门禁控制`.
+5. Open `门禁控制` from the home page to inspect digital keys and other access points, then tap the main lock card or `+ Share Guest` for guest-key demos.
+6. Open `摄像头监控` from the home page to inspect the featured camera, recent motion, and per-camera recording state.
+7. Open `空调控制` from the home page to inspect indoor temperature and humidity, adjust target temperature with `- / +`, and switch Heat/Cool/Auto/Off modes.
+8. Open `我的` to view the Family Overview page, inspect recent activity, and tap `Tap to Record` to append a broadcast event.
+9. Open `自动化` and run or enable/disable the predefined scenes.
+10. Open `通知` to review command and scene activity history.
 
 ## Demo Faults
 
@@ -47,6 +50,9 @@ Use `POST /api/demo/faults/security` with `{ "forceUnauthorizedCommands": true }
 ## Frontend API Mapping
 
 - `家`: `GET /api/summary`, `GET /api/devices`
+- `门禁控制`: `GET /api/access`, `POST /api/access/guest-keys`
+- `摄像头监控`: `GET /api/cameras`, `PATCH /api/cameras/:cameraId`
+- `空调控制`: `GET /api/climate`, `PATCH /api/climate`
 - `自动化`: `GET /api/scenes`, `PATCH /api/scenes/:sceneId`, `POST /api/scenes/:sceneId/run`
 - `通知`: `GET /api/commands/history`
-- `我的`: local member/broadcast presentation data in this demo iteration
+- `我的 / Family Overview`: `GET /api/family`, `POST /api/family/broadcast`

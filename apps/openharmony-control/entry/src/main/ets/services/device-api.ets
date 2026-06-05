@@ -308,7 +308,7 @@ export class DeviceApi {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
-        method: http.RequestMethod.PATCH,
+        method: http.RequestMethod.PUT,
         header: { 'content-type': 'application/json' },
         extraData: JSON.stringify({ enabled }),
         expectDataType: http.HttpDataType.STRING,
@@ -386,7 +386,7 @@ export class DeviceApi {
       const request: CameraRecordingRequest = { recording };
       const encodedCameraId = encodeURIComponent(cameraId);
       const response = await client.request(`${this.baseUrl}/api/cameras/${encodedCameraId}`, {
-        method: http.RequestMethod.PATCH,
+        method: http.RequestMethod.PUT,
         header: { 'content-type': 'application/json' },
         extraData: JSON.stringify(request),
         expectDataType: http.HttpDataType.STRING,
@@ -448,7 +448,7 @@ export class DeviceApi {
     try {
       const request: ClimateModeRequest = { mode };
       const response = await client.request(`${this.baseUrl}/api/climate`, {
-        method: http.RequestMethod.PATCH,
+        method: http.RequestMethod.PUT,
         header: { 'content-type': 'application/json' },
         extraData: JSON.stringify(request),
         expectDataType: http.HttpDataType.STRING,

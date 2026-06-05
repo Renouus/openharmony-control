@@ -1,3 +1,8 @@
+/**
+ * 门锁设备模拟器 —— 处理 lock 命令。
+ *
+ * 只接受 locked: boolean 载荷，其余命令抛出 COMMAND_INVALID。
+ */
 import type { DeviceCommand } from "@smart-home/device-contract";
 import type {
   DeviceExecutionResult,

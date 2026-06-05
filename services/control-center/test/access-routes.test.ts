@@ -87,4 +87,28 @@ describe("access prototype routes", () => {
     expect(response.statusCode).toBe(201);
     expect(response.json().key.holder).toBe("Guest");
   });
+
+  it("returns the new guest key in the next access overview refresh", async () => {
+    const app = buildApp();
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "Guest", hours: 4 },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+
+    const overviewResponse = await app.inject({ method: "GET", url: "/api/access" });
+    expect(overviewResponse.statusCode).toBe(200);
+    expect(overviewResponse.json().keys).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          holder: "Guest",
+          role: "Guest Access",
+          status: "temporary",
+        }),
+      ]),
+    );
+  });
 });

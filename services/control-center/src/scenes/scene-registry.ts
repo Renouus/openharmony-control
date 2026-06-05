@@ -1,7 +1,17 @@
+/**
+ * 场景注册中心 —— 管理预设自动化场景及启停控制。
+ *
+ * 内置 4 个演示场景：
+ * - 回家 (home)：位置触发，开灯 + 空调 24°C
+ * - 离家 (away)：位置触发，锁门 + 关灯 + 关空调
+ * - 睡眠 (sleep)：定时触发，锁门 + 暗光 + 空调 26°C
+ * - 电影之夜 (movie)：手动触发，暗光氛围
+ */
 import type { SceneDescriptor, SceneIdName } from "@smart-home/device-contract";
 
 export class SceneRegistry {
   private readonly scenes: SceneDescriptor[] = [
+    // ── 回家场景：到家自动开灯 + 空调 ──
     {
       id: "home",
       name: "回家",
@@ -17,6 +27,7 @@ export class SceneRegistry {
         { deviceId: "ac-living-room", name: "set-target-temperature", payload: { targetTemperature: 24 } },
       ],
     },
+    // ── 离家场景：锁门 + 全关 ──
     {
       id: "away",
       name: "离家",
@@ -31,6 +42,7 @@ export class SceneRegistry {
         { deviceId: "ac-living-room", name: "switch", payload: { on: false } },
       ],
     },
+    // ── 睡眠场景：定时暗光 + 舒适温度 ──
     {
       id: "sleep",
       name: "睡眠",
@@ -46,6 +58,7 @@ export class SceneRegistry {
         { deviceId: "ac-living-room", name: "set-target-temperature", payload: { targetTemperature: 26 } },
       ],
     },
+    // ── 电影之夜：手动触发，暗光氛围 ──
     {
       id: "movie",
       name: "电影之夜",
@@ -62,6 +75,7 @@ export class SceneRegistry {
     },
   ];
 
+  /** 获取全部场景列表（深拷贝 commands 防止外部修改） */
   list(): SceneDescriptor[] {
     return this.scenes.map((scene) => ({
       ...scene,
@@ -69,10 +83,12 @@ export class SceneRegistry {
     }));
   }
 
+  /** 按 ID 查找场景 */
   find(sceneId: SceneIdName): SceneDescriptor | undefined {
     return this.list().find((scene) => scene.id === sceneId);
   }
 
+  /** 更新场景的 enabled 状态 */
   update(sceneId: SceneIdName, patch: { enabled?: boolean }): SceneDescriptor | undefined {
     const scene = this.scenes.find((item) => item.id === sceneId);
     if (!scene) {

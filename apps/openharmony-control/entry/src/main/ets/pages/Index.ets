@@ -1,3 +1,10 @@
+/**
+ * OmniHome 智能家居控制中心 —— 主入口页面
+ *
+ * 基于 OpenHarmony ArkUI 声明式框架构建，使用 Sahara 暖色视觉系统。
+ * 通过底部 Tab 导航在「家 / 自动化 / 通知 / 我的」四个主页面间切换，
+ * 并通过 activePage 支持门禁、摄像头、灯光控制等二级功能页面的展示。
+ */
 import { DeviceSnapshot } from '../model/device-view-model';
 import {
   AccessKey,
@@ -16,31 +23,52 @@ import {
   TemperaturePayload,
 } from '../services/device-api';
 
-const COLOR_BG: string = '#FAF5EE';
-const COLOR_SURFACE: string = '#FFFFFF';
-const COLOR_SURFACE_WARM: string = '#F6F0E8';
-const COLOR_PRIMARY: string = '#C2652A';
-const COLOR_PRIMARY_SOFT: string = '#FBE8D8';
-const COLOR_TEXT: string = '#3A302A';
-const COLOR_TEXT_MUTED: string = '#605850';
-const COLOR_BORDER: string = '#D8D0C8';
+// ── Sahara 暖色视觉系统 ──
+const COLOR_BG: string = '#FAF5EE';           // 页面背景 —— 温馨米白
+const COLOR_SURFACE: string = '#FFFFFF';       // 卡片表面 —— 纯白
+const COLOR_SURFACE_WARM: string = '#F6F0E8';  // 暖色卡片表面
+const COLOR_PRIMARY: string = '#C2652A';       // 主色调 —— 陶土橙
+const COLOR_PRIMARY_SOFT: string = '#FBE8D8';  // 主色调柔和版 —— 用于标签背景
+const COLOR_TEXT: string = '#3A302A';          // 主文字色 —— 深棕色
+const COLOR_TEXT_MUTED: string = '#605850';    // 次要文字色
+const COLOR_BORDER: string = '#D8D0C8';        // 边框色
 
 @Entry
 @Component
 struct Index {
+  /** 后端控制中心 API 客户端（模拟器默认地址为 10.0.2.2:3443） */
   private readonly api: DeviceApi = new DeviceApi('http://10.0.2.2:3443');
+
+  // ── 导航状态 ──
+  /** 底部 Tab 索引：0-家 1-自动化 2-通知 3-我的 */
   @State currentTab: number = 0;
+  /** 当前活动页面标识：home/lighting/access/camera/automation/notifications/profile */
   @State activePage: string = 'home';
+
+  // ── 设备与场景数据 ──
+  /** 全屋设备快照列表（门锁、灯光、空调、传感器等） */
   @State devices: DeviceSnapshot[] = [];
+  /** 自动化场景列表 */
   @State scenes: SceneSnapshot[] = [];
+  /** 命令执行历史（最近 N 条） */
   @State history: CommandHistoryEntry[] = [];
+  /** 摄像头设备列表 */
   @State cameras: CameraSnapshot[] = [];
+
+  // ── 用户反馈 ──
+  /** 操作反馈提示文本，展示在页面底部的暖色提示条中 */
   @State feedback: string = '';
+
+  // ── 门禁系统数据 ──
+  /** 门禁概览：主锁状态、数字钥匙列表、其他入口点 */
   @State accessOverview: AccessOverview = {
     primary: { id: 'front-door', name: 'Front Door', locked: true, battery: 100 },
     keys: [],
     accessPoints: [],
   };
+
+  // ── 首页仪表盘摘要 ──
+  /** 首页摘要：安全状态、设备统计、灯光/气候/环境指标、提醒列表 */
   @State summary: HomeSummary = {
     mode: 'home',
     security: { label: '正在连接', secure: true },
@@ -51,10 +79,17 @@ struct Index {
     alerts: [],
   };
 
+  /**
+   * 页面即将显示时的生命周期回调，触发首次全量数据加载。
+   */
   async aboutToAppear(): Promise<void> {
     await this.refreshAll();
   }
 
+  /**
+   * 刷新首页核心数据：摘要、设备列表、场景、命令历史、门禁、摄像头。
+   * 各模块独立 try-catch，单个接口失败不影响其他模块的展示。
+   */
   async refreshAll(): Promise<void> {
     try {
       this.summary = await this.api.getSummary();
@@ -68,23 +103,33 @@ struct Index {
       this.feedback = '控制中心暂不可用';
     }
 
+    // 门禁数据独立加载，失败时保留当前的本地安全状态
     try {
       this.accessOverview = await this.api.getAccessOverview();
     } catch (error) {
-      // Keep the current safe access state when only the access endpoint fails.
+      // 仅门禁接口失败时保留本地缓存的门禁状态
     }
 
     await this.refreshCameras();
   }
 
+  /**
+   * 刷新摄像头列表。失败时静默保留当前快照，不覆盖已有数据。
+   */
   async refreshCameras(): Promise<void> {
     try {
       this.cameras = await this.api.getCameraOverview();
     } catch (error) {
-      // Keep the current safe camera state when only the camera endpoint fails.
+      // 仅摄像头接口失败时保留本地缓存的摄像头状态
     }
   }
 
+  /**
+   * 向控制中心发送设备命令（HMAC 签名模式）。
+   * @param deviceId 目标设备 ID（如 door-front、light-living-room）
+   * @param name 命令名称（lock / switch / set-brightness 等）
+   * @param payload 命令载荷（锁定状态、开关值、亮度等）
+   */
   async send(deviceId: string, name: string, payload: DevicePayload): Promise<void> {
     try {
       await this.api.postDemoCommand({
@@ -102,6 +147,10 @@ struct Index {
     }
   }
 
+  /**
+   * 执行指定自动化场景。
+   * @param sceneId 场景 ID（home / away / sleep / movie）
+   */
   async runScene(sceneId: string): Promise<void> {
     try {
       await this.api.runScene(sceneId);
@@ -113,6 +162,11 @@ struct Index {
     }
   }
 
+  /**
+   * 启用或停用自动化场景。
+   * @param sceneId 场景 ID
+   * @param enabled true 启用 / false 停用
+   */
   async toggleScene(sceneId: string, enabled: boolean): Promise<void> {
     try {
       await this.api.updateScene(sceneId, enabled);
@@ -124,6 +178,9 @@ struct Index {
     }
   }
 
+  /**
+   * 分享访客临时钥匙（默认 4 小时有效）。
+   */
   async shareGuestAccess(): Promise<void> {
     try {
       await this.api.shareGuestKey('Guest', 4);
@@ -135,6 +192,10 @@ struct Index {
     }
   }
 
+  /**
+   * 切换摄像头录制状态（开启 ↔ 停止）。
+   * @param camera 目标摄像头快照
+   */
   async toggleCameraRecording(camera: CameraSnapshot): Promise<void> {
     try {
       await this.api.toggleCameraRecording(camera.id, !camera.recording);
@@ -146,10 +207,22 @@ struct Index {
     }
   }
 
+  // ── 设备查询工具方法 ──
+
+  /** 根据设备 ID 在本地设备列表中查找设备快照 */
   findDevice(deviceId: string): DeviceSnapshot | undefined {
     return this.devices.find((device: DeviceSnapshot) => device.id === deviceId);
   }
 
+  // ── 中文格式化工具方法 ──
+
+  /**
+   * 根据设备种类和在线状态返回中文状态描述文本。
+   * - 门锁：已上锁 / 未上锁
+   * - 灯光：XX% / 关闭
+   * - 空调：目标 XX°C / 关闭
+   * - 离线：离线
+   */
   formatStatus(device: DeviceSnapshot): string {
     if (!device.state.online) {
       return '离线';
@@ -166,6 +239,7 @@ struct Index {
     return '在线';
   }
 
+  /** 将命令历史条目映射为简短的中文操作名称 */
   formatHistory(entry: CommandHistoryEntry): string {
     if (entry.commandName === 'lock') {
       return '门锁操作';
@@ -182,6 +256,7 @@ struct Index {
     return entry.message;
   }
 
+  /** 将场景的重复周期数组转为可读字符串 */
   repeatText(scene: SceneSnapshot): string {
     if (scene.repeat.length === 0) {
       return '不重复';
@@ -189,6 +264,9 @@ struct Index {
     return scene.repeat.join(' ');
   }
 
+  // ── 门禁系统工具方法 ──
+
+  /** 将数字钥匙状态转为中文标签 */
   accessKeyStatus(key: AccessKey): string {
     if (key.status === 'temporary') {
       return '临时';
@@ -199,6 +277,7 @@ struct Index {
     return '可用';
   }
 
+  /** 生成数字钥匙的副标题文本（含角色与时效描述） */
   accessKeySubtitle(key: AccessKey): string {
     if (key.expiresAt !== undefined) {
       return `${key.role} · 限时通行`;
@@ -206,10 +285,14 @@ struct Index {
     return key.role;
   }
 
+  /** 生成入口点的副标题文本（上锁状态 + 电量） */
   accessPointSubtitle(point: AccessPointSnapshot): string {
     return `${point.locked ? '已上锁' : '未上锁'} · ${point.battery}% 电量`;
   }
 
+  // ── 摄像头工具方法 ──
+
+  /** 获取主摄像头（列表中第一个） */
   primaryCamera(): CameraSnapshot | undefined {
     if (this.cameras.length === 0) {
       return undefined;
@@ -217,6 +300,7 @@ struct Index {
     return this.cameras[0];
   }
 
+  /** 根据摄像头状态返回中文标签：等待连接 / 离线 / 实时录像 / 实时预览 */
   cameraStatusLabel(camera: CameraSnapshot | undefined): string {
     if (camera === undefined) {
       return '等待连接';
@@ -227,6 +311,7 @@ struct Index {
     return camera.recording ? '实时录像' : '实时预览';
   }
 
+  /** 根据最近移动时间戳生成可读文本（X 分钟前侦测到移动） */
   cameraMotionText(camera: CameraSnapshot): string {
     if (camera.lastMotionAt === undefined) {
       return '暂无移动记录';
@@ -235,14 +320,19 @@ struct Index {
     return `${minutes} 分钟前侦测到移动`;
   }
 
+  // ── 灯光设备工具方法 ──
+
+  /** 获取所有灯光类设备 */
   lightDevices(): DeviceSnapshot[] {
     return this.devices.filter((device: DeviceSnapshot) => device.kind === 'light');
   }
 
+  /** 按房间名筛选灯光设备 */
   roomLights(room: string): DeviceSnapshot[] {
     return this.lightDevices().filter((device: DeviceSnapshot) => device.room === room);
   }
 
+  /** 将房间键名映射为中文显示名 */
   roomName(room: string): string {
     if (room === 'living-room') {
       return '客厅';
@@ -259,6 +349,7 @@ struct Index {
     return room;
   }
 
+  /** 将房间键名映射为图标符号 */
   roomIcon(room: string): string {
     if (room === 'living-room') {
       return '⌂';
@@ -275,10 +366,12 @@ struct Index {
     return '□';
   }
 
+  /** 获取某房间内已开启灯光数量 */
   roomActive(room: string): number {
     return this.roomLights(room).filter((device: DeviceSnapshot) => device.state.power === true).length;
   }
 
+  /** 获取某房间内所有灯光的平均亮度百分比 */
   roomBrightness(room: string): number {
     const activeLights = this.roomLights(room).filter((device: DeviceSnapshot) => device.state.power === true);
     if (activeLights.length === 0) {
@@ -288,6 +381,9 @@ struct Index {
     return Math.round(total / activeLights.length);
   }
 
+  // ── 房间灯光批量控制 ──
+
+  /** 批量开关某房间内所有灯光 */
   async toggleRoom(room: string, on: boolean): Promise<void> {
     const lights = this.roomLights(room);
     for (const light of lights) {
@@ -295,6 +391,7 @@ struct Index {
     }
   }
 
+  /** 批量设置某房间内所有灯光亮度（先开灯再调亮度） */
   async setRoomBrightness(room: string, brightness: number): Promise<void> {
     const lights = this.roomLights(room);
     for (const light of lights) {
@@ -303,6 +400,10 @@ struct Index {
     }
   }
 
+  /**
+   * 顶层构建方法：Scroll 内容区 + 底部固定 Tab 栏。
+   * 通过 activePage 条件渲染不同的功能页面，实现类路由切换效果。
+   */
   build() {
     Column() {
       Scroll() {
@@ -330,6 +431,7 @@ struct Index {
       }
       .layoutWeight(1)
 
+      // 底部固定导航栏
       this.BottomTabs()
     }
     .width('100%')
@@ -337,6 +439,12 @@ struct Index {
     .backgroundColor(COLOR_BG)
   }
 
+  /**
+   * 功能页面通用头部：返回按钮 + 标题 + 副标题。
+   * @param title 页面标题
+   * @param subtitle 页面副标题
+   * @param backPage 点击返回后跳转的页面标识，默认为 home
+   */
   @Builder
   FeatureHeader(title: string, subtitle: string, backPage: string = 'home') {
     Row() {
@@ -370,6 +478,10 @@ struct Index {
     .width('100%')
   }
 
+  /**
+   * 首页 Tab：展示品牌头部、安全状态卡片、模式切换、
+   * 门禁/摄像头入口卡片、场景快捷按钮、设备列表。
+   */
   @Builder
   HomeTab() {
     Column({ space: 16 }) {
@@ -551,6 +663,10 @@ struct Index {
     }
   }
 
+  /**
+   * 门禁控制页面：展示前门智能锁、点击解锁/上锁交互、
+   * 数字钥匙列表、访客钥匙分享、其他入口点状态。
+   */
   @Builder
   AccessTab() {
     Column({ space: 16 }) {
@@ -673,6 +789,10 @@ struct Index {
     }
   }
 
+  /**
+   * 摄像头监控页面：展示安防状态概览、主摄像头预览框、
+   * 录制控制按钮、摄像头列表（含录制切换）。
+   */
   @Builder
   CameraTab() {
     Column({ space: 16 }) {
@@ -824,6 +944,10 @@ struct Index {
     }
   }
 
+  /**
+   * 灯光控制中心：全屋开关、场景预设（阅读/专注/晨起）、
+   * 按房间批量控制、单灯细调（亮度滑块 + 色温按钮）。
+   */
   @Builder
   LightingTab() {
     Column({ space: 16 }) {
@@ -895,6 +1019,10 @@ struct Index {
     }
   }
 
+  /**
+   * 自动化页面：展示场景列表，包含触发条件、执行动作、
+   * 启用/停用开关、立即运行和编辑入口，支持新建自动化。
+   */
   @Builder
   AutomationTab() {
     Column({ space: 16 }) {
@@ -1076,6 +1204,10 @@ struct Index {
     }
   }
 
+  /**
+   * 通知页面：展示命令执行历史列表，按时间倒序排列。
+   * 每条显示操作类型、结果状态和详细消息。
+   */
   @Builder
   NotificationTab() {
     Column({ space: 14 }) {
@@ -1119,6 +1251,9 @@ struct Index {
     }
   }
 
+  /**
+   * 我的页面：展示家庭成员头像与状态、全屋广播按钮。
+   */
   @Builder
   ProfileTab() {
     Column({ space: 14 }) {
@@ -1151,6 +1286,7 @@ struct Index {
     }
   }
 
+  /** 底部固定导航栏：家 / 自动化 / 通知 / 我的 */
   @Builder
   BottomTabs() {
     Row() {
@@ -1165,6 +1301,11 @@ struct Index {
     .width('100%')
   }
 
+  /**
+   * 单个底部 Tab 按钮，选中态使用主色调高亮。
+   * @param label 按钮文字
+   * @param index Tab 索引
+   */
   @Builder
   TabButton(label: string, index: number) {
     Button(label)
@@ -1188,6 +1329,12 @@ struct Index {
       })
   }
 
+  /**
+   * 设备行卡片：根据设备类型展示不同的控制界面。
+   * - 门锁：验证解锁 / 上锁按钮
+   * - 灯光：开关切换 + 柔和/明亮/暖光预设按钮
+   * - 空调：开关切换 + 温度调节按钮（- / °C / +）
+   */
   @Builder
   DeviceRow(device: DeviceSnapshot) {
     Column({ space: 12 }) {
@@ -1280,6 +1427,12 @@ struct Index {
     .width('100%')
   }
 
+  /**
+   * 灯光场景预设按钮。点击后同时设置所有房间的亮度和色温。
+   * @param label 按钮文字（阅读 / 专注 / 晨起）
+   * @param brightness 目标亮度百分比
+   * @param colorTemperature 目标色温（K）
+   */
   @Builder
   LightSceneButton(label: string, brightness: number, colorTemperature: number) {
     Button(label)
@@ -1300,6 +1453,10 @@ struct Index {
       })
   }
 
+  /**
+   * 房间灯光卡片：显示房间图标、名称、已开启数量，
+   * 提供总开关和亮度滑块进行批量控制。
+   */
   @Builder
   RoomLightCard(room: string) {
     Column({ space: 12 }) {
@@ -1356,6 +1513,10 @@ struct Index {
     .width('100%')
   }
 
+  /**
+   * 单个灯光设备详细卡片：开关切换、亮度滑块、
+   * 色温预设按钮（暖光 / 自然 / 冷白）。
+   */
   @Builder
   LightDeviceCard(device: DeviceSnapshot) {
     Column({ space: 12 }) {
@@ -1432,6 +1593,7 @@ struct Index {
     .width('100%')
   }
 
+  /** 门禁锁图标：圆形背景 + 锁定/解锁文字 */
   @Builder
   AccessLockIcon(locked: boolean) {
     Column({ space: 0 }) {
@@ -1454,6 +1616,7 @@ struct Index {
     .alignItems(HorizontalAlign.Center)
   }
 
+  /** 数字钥匙行：头像首字母 + 持有人信息 + 状态标签 */
   @Builder
   AccessKeyRow(key: AccessKey) {
     Row({ space: 12 }) {
@@ -1490,6 +1653,7 @@ struct Index {
     .width('100%')
   }
 
+  /** 其他入口点卡片：锁图标 + 名称状态 + 电量 */
   @Builder
   AccessPointCard(point: AccessPointSnapshot) {
     Row({ space: 12 }) {
@@ -1523,6 +1687,7 @@ struct Index {
     .width('100%')
   }
 
+  /** 摄像头操作按钮（麦克风 / 快照 / 静音） */
   @Builder
   CameraActionButton(label: string, icon: string, selected: boolean) {
     Column({ space: 3 }) {
@@ -1545,6 +1710,7 @@ struct Index {
     .layoutWeight(1)
   }
 
+  /** 摄像头列表行：录制状态指示 + 名称位置 + 录像/停止按钮 */
   @Builder
   CameraRow(camera: CameraSnapshot) {
     Row({ space: 12 }) {
@@ -1582,6 +1748,7 @@ struct Index {
     .width('100%')
   }
 
+  /** 指标药丸：标签 + 数值，均分宽度，暖色背景 */
   @Builder
   MetricPill(label: string, value: string) {
     Column({ space: 2 }) {
@@ -1599,6 +1766,7 @@ struct Index {
     .layoutWeight(1)
   }
 
+  /** 模式选择芯片：在家 / 离家 / 夜间，选中态为主色调 */
   @Builder
   ModeChip(label: string, selected: boolean) {
     Text(label)
@@ -1612,6 +1780,7 @@ struct Index {
       .border({ width: 1, color: selected ? COLOR_PRIMARY : COLOR_BORDER })
   }
 
+  /** 区块标题：大标题 + 灰色副标题 */
   @Builder
   SectionHeader(title: string, subtitle: string) {
     Row() {
@@ -1629,6 +1798,7 @@ struct Index {
     .width('100%')
   }
 
+  /** 页面大标题：加粗主标题 + 副标题，用于通知/我的等页面 */
   @Builder
   PageTitle(title: string, subtitle: string) {
     Column({ space: 4 }) {
@@ -1645,6 +1815,7 @@ struct Index {
     .width('100%')
   }
 
+  /** 家庭成员头像：圆形色块 + 首字 + 状态文字 */
   @Builder
   MemberAvatar(name: string, status: string) {
     Column({ space: 6 }) {

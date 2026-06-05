@@ -1,3 +1,13 @@
+/**
+ * 灯光设备模拟器 —— 处理 switch / set-brightness / set-color-temperature 命令。
+ *
+ * 支持 3 种命令：
+ * - switch：开关灯（需 on: boolean）
+ * - set-brightness：亮度 0-100
+ * - set-color-temperature：色温 2200K-6500K
+ *
+ * 构造函数支持自定义 deviceId 与初始状态，便于创建多盏灯。
+ */
 import type { DeviceCommand, DeviceState } from "@smart-home/device-contract";
 import type {
   DeviceExecutionResult,
@@ -6,6 +16,7 @@ import type {
 
 export class LightDevice implements DeviceSimulator {
   readonly deviceId: string;
+  /** 当前累积的设备状态 */
   private current: DeviceState;
 
   constructor(
@@ -24,6 +35,7 @@ export class LightDevice implements DeviceSimulator {
   }
 
   execute(command: DeviceCommand): DeviceExecutionResult {
+    // 开关控制
     if (command.name === "switch" && typeof command.payload.on === "boolean") {
       this.current = {
         ...this.current,
@@ -36,6 +48,7 @@ export class LightDevice implements DeviceSimulator {
       };
     }
 
+    // 亮度调节（0-100）
     if (
       command.name === "set-brightness" &&
       typeof command.payload.brightness === "number" &&
@@ -53,6 +66,7 @@ export class LightDevice implements DeviceSimulator {
       };
     }
 
+    // 色温调节（2200K-6500K）
     if (
       command.name === "set-color-temperature" &&
       typeof command.payload.colorTemperature === "number" &&

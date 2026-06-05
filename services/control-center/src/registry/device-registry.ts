@@ -1,3 +1,14 @@
+/**
+ * 设备注册中心 —— 管理全屋设备清单、元数据和运行状态。
+ *
+ * 核心职责：
+ * - 维护设备描述符（DeviceDescriptor）与元数据（房间、排序）的映射
+ * - 提供按 displayOrder 排序的列表查询
+ * - 支持设备状态部分更新（patch）
+ * - 将基础描述符增强为包含 room / health / displayOrder 的 EnhancedDeviceDescriptor
+ *
+ * 构造函数中注册了演示用的 7 个设备，覆盖 entry / living-room / kitchen / bedroom / bathroom 五间房。
+ */
 import {
   DeviceCapability,
   DeviceHealth,
@@ -8,6 +19,7 @@ import {
   type DeviceState,
 } from "@smart-home/device-contract";
 
+/** 设备元数据（注册时附加的房间归属与排序权重） */
 type DeviceMetadata = {
   room: EnhancedDeviceDescriptor["room"];
   displayOrder: number;
@@ -17,7 +29,11 @@ export class DeviceRegistry {
   private readonly devices = new Map<string, DeviceDescriptor>();
   private readonly metadata = new Map<string, DeviceMetadata>();
 
+  /**
+   * @param now 演示数据的统一时间戳（便于测试注入固定值）
+   */
   constructor(now = Date.now()) {
+    // ── 入口区域 ──
     this.register(
       {
         id: "door-front",
@@ -28,6 +44,7 @@ export class DeviceRegistry {
       },
       { room: "entry", displayOrder: 10 },
     );
+    // ── 客厅区域 ──
     this.register(
       {
         id: "sensor-living-room",
@@ -66,6 +83,7 @@ export class DeviceRegistry {
       },
       { room: "living-room", displayOrder: 30 },
     );
+    // ── 厨房 ──
     this.register(
       {
         id: "light-kitchen",
@@ -86,6 +104,7 @@ export class DeviceRegistry {
       },
       { room: "kitchen", displayOrder: 35 },
     );
+    // ── 主卧 ──
     this.register(
       {
         id: "light-bedroom",
@@ -106,6 +125,7 @@ export class DeviceRegistry {
       },
       { room: "bedroom", displayOrder: 36 },
     );
+    // ── 浴室 ──
     this.register(
       {
         id: "light-bathroom",
@@ -126,6 +146,7 @@ export class DeviceRegistry {
       },
       { room: "bathroom", displayOrder: 37 },
     );
+    // ── 客厅空调 ──
     this.register(
       {
         id: "ac-living-room",
@@ -147,6 +168,7 @@ export class DeviceRegistry {
     );
   }
 
+  /** 注册设备（或覆盖已有设备） */
   register(
     device: DeviceDescriptor,
     metadata: DeviceMetadata = { room: "living-room", displayOrder: 100 },
@@ -155,17 +177,20 @@ export class DeviceRegistry {
     this.metadata.set(device.id, metadata);
   }
 
+  /** 按 displayOrder 升序返回增强后的全部设备列表 */
   list(): EnhancedDeviceDescriptor[] {
     return [...this.devices.values()]
       .map((device) => this.enhance(device))
       .sort((left, right) => left.displayOrder - right.displayOrder);
   }
 
+  /** 按 ID 查找单个设备（增强描述符） */
   find(deviceId: string): EnhancedDeviceDescriptor | undefined {
     const device = this.devices.get(deviceId);
     return device ? this.enhance(device) : undefined;
   }
 
+  /** 部分更新设备状态（patch），自动刷新 updatedAt */
   update(deviceId: string, state: Partial<DeviceState>): EnhancedDeviceDescriptor | undefined {
     const device = this.devices.get(deviceId);
     if (!device) {
@@ -180,6 +205,7 @@ export class DeviceRegistry {
     return this.enhance(device);
   }
 
+  /** 将基础描述符增强为包含 room / displayOrder / health 的完整结构 */
   private enhance(device: DeviceDescriptor): EnhancedDeviceDescriptor {
     const metadata = this.metadata.get(device.id) ?? {
       room: "living-room",
@@ -193,6 +219,12 @@ export class DeviceRegistry {
     };
   }
 
+  /**
+   * 根据设备在线状态和传感器读数计算健康等级：
+   * - offline → Offline
+   * - 温度 > 30°C → Warning
+   * - 其余 → Online
+   */
   private toHealth(device: DeviceDescriptor): DeviceHealthName {
     if (!device.state.online) {
       return DeviceHealth.Offline;
