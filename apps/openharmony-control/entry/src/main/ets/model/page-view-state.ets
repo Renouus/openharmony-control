@@ -251,6 +251,7 @@ export interface ClimateViewState {
   modeLabel: string;
   statusLabel: string;
   totalUsageLabel: string;
+  isPowered: boolean;
   modes: ClimateModeState[];
   usageBars: ClimateUsageBarState[];
   feedback: string;
@@ -355,6 +356,7 @@ export function createEmptyClimateViewState(): ClimateViewState {
     modeLabel: 'Heat',
     statusLabel: 'Heating steadily',
     totalUsageLabel: '0 hrs total',
+    isPowered: true,
     modes: [],
     usageBars: [],
     feedback: '',

@@ -693,6 +693,7 @@ export function mapClimateViewState(overview: ClimateOverview, feedback: string)
     modeLabel: climateModeLabel(overview.mode),
     statusLabel: climateStatusLabel(overview.mode),
     totalUsageLabel: `${Math.round(total)} hrs total`,
+    isPowered: overview.mode !== 'off',
     modes,
     usageBars,
     feedback,
