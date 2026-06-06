@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+
+<html lang="zh"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OmniHome - 添加</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#964407",
+                      "on-tertiary": "#ffffff",
+                      "surface-bright": "#fff8f4",
+                      "surface-tint": "#99460a",
+                      "on-secondary-container": "#69615b",
+                      "on-background": "#201b14",
+                      "secondary-container": "#e9ded6",
+                      "background": "#fff8f4",
+                      "primary-fixed": "#ffdbca",
+                      "inverse-primary": "#ffb68e",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-fixed": "#ebe0d9",
+                      "primary-fixed-dim": "#ffb68e",
+                      "on-secondary-fixed": "#201b16",
+                      "on-primary": "#ffffff",
+                      "secondary-fixed-dim": "#cfc5bd",
+                      "on-secondary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "tertiary-fixed-dim": "#ffb3b0",
+                      "surface-container": "#f8ece1",
+                      "tertiary": "#944242",
+                      "on-tertiary-fixed": "#3f0308",
+                      "on-surface": "#201b14",
+                      "outline": "#887368",
+                      "on-error": "#ffffff",
+                      "surface-container-low": "#fef1e7",
+                      "surface-container-highest": "#ece0d6",
+                      "inverse-on-surface": "#fbefe4",
+                      "surface-dim": "#e4d8ce",
+                      "on-secondary-fixed-variant": "#4c4640",
+                      "error-container": "#ffdad6",
+                      "primary-container": "#b65c21",
+                      "on-tertiary-container": "#fffbff",
+                      "on-tertiary-fixed-variant": "#792e2f",
+                      "surface-container-high": "#f2e6dc",
+                      "tertiary-container": "#b35a59",
+                      "tertiary-fixed": "#ffdad8",
+                      "surface-variant": "#ece0d6",
+                      "on-error-container": "#93000a",
+                      "inverse-surface": "#362f28",
+                      "surface": "#fff8f4",
+                      "outline-variant": "#dbc1b5",
+                      "on-primary-fixed": "#331200",
+                      "on-primary-fixed-variant": "#773300",
+                      "on-primary-container": "#fffbff",
+                      "on-surface-variant": "#554339",
+                      "secondary": "#645d57",
+                      "accent": "#c2652a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {},
+              "fontFamily": {
+                      "headline": [
+                              "Eb Garamond"
+                      ],
+                      "display": [
+                              "Eb Garamond"
+                      ],
+                      "body": [
+                              "Manrope"
+                      ],
+                      "label": [
+                              "Manrope"
+                      ]
+              },
+              "fontSize": {}
+      },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .dropdown-enter {
+            animation: fadeInDown 0.2s ease-out forwards;
+        }
+        @keyframes fadeInDown {
+            from { transform: translateY(-10px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body h-screen w-screen overflow-hidden antialiased">
+<!-- Background Layer (Simulating Dashboard) -->
+<div class="fixed inset-0 z-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCAktL3sJFvaX6SZRPabdHRhb-DFOiLuiRvKe_MQfH1YdpWaPWecx7VQOZK9WR1FSdWzrvymo8L9KWfC-5D3NxyjR_vkhzE9P-J2Y88YYDLbTMEJ8HqL5sa8oOHejJ0WIkV9meteDjMpYxgMZR2GBuHrcox2-NdyDKRu3YnDeueXkHof9iW9QxcvEJqTVUxeoK-r893ZvE0dKJMZgZG6QypeDPnpsw5-gHGQQS3FbSbyHSQDFTwXPGJbKUz3o0FGVSbhmk8UyVY3oo');">
+<!-- Slightly dimmed overlay -->
+<div class="absolute inset-0 bg-on-background/20 z-10 transition-opacity duration-300 pointer-events-none"></div>
+</div>
+<!-- Top Navigation -->
+<header class="fixed top-0 w-full z-20 flex items-center justify-between px-6 py-4 border-b border-outline-variant/30 shadow-sm bg-surface/80 backdrop-blur-md">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary text-2xl">menu</span>
+</div>
+<h1 class="font-display text-2xl italic text-primary font-semibold leading-tight">OmniHome</h1>
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-full bg-primary/20 text-accent flex items-center justify-center transform rotate-45 transition-transform duration-300">
+<span class="material-symbols-outlined text-2xl">add</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-surface-container-highest overflow-hidden">
+<span class="material-symbols-outlined flex items-center justify-center h-full w-full text-on-surface-variant">person</span>
+</div>
+</div>
+</header>
+<!-- Dropdown Menu -->
+<main class="fixed top-[72px] right-6 z-40 w-56 pointer-events-auto dropdown-enter origin-top-right">
+<div class="bg-surface-container-low rounded-xl shadow-[0_4px_24px_rgba(58,48,42,0.15)] border border-outline-variant/30 overflow-hidden py-2">
+<!-- Add Device -->
+<button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-variant transition-colors text-left group">
+<span class="material-symbols-outlined text-accent group-hover:text-primary transition-colors">add_circle</span>
+<span class="font-body text-sm font-medium text-on-background">新增设备</span>
+</button>
+<!-- Create Scene -->
+<button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-variant transition-colors text-left group">
+<span class="material-symbols-outlined text-accent group-hover:text-primary transition-colors">palette</span>
+<span class="font-body text-sm font-medium text-on-background">创建场景</span>
+</button>
+<!-- New Automation -->
+<button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-variant transition-colors text-left group">
+<span class="material-symbols-outlined text-accent group-hover:text-primary transition-colors">bolt</span>
+<span class="font-body text-sm font-medium text-on-background">自动化策略</span>
+</button>
+<!-- Add Family -->
+<button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-variant transition-colors text-left group">
+<span class="material-symbols-outlined text-accent group-hover:text-primary transition-colors">person_add</span>
+<span class="font-body text-sm font-medium text-on-background">邀请家庭成员</span>
+</button>
+</div>
+</main>
+<!-- Bottom Nav Bar Context -->
+<nav class="fixed bottom-0 left-0 w-full z-20 flex justify-around items-center px-4 py-3 pb-safe bg-surface shadow-[0_-4px_24px_rgba(0,0,0,0.05)] rounded-t-xl md:hidden">
+<div class="flex flex-col items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined mb-1">dashboard</span>
+<span class="font-body text-[10px] uppercase tracking-wider">Dashboard</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined mb-1">router</span>
+<span class="font-body text-[10px] uppercase tracking-wider">Devices</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined mb-1">bolt</span>
+<span class="font-body text-[10px] uppercase tracking-wider">Automations</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined mb-1">settings</span>
+<span class="font-body text-[10px] uppercase tracking-wider">Settings</span>
+</div>
+</nav>
+<!-- Rotated FAB Context (Removed as replaced by top right menu) -->
+</body></html>

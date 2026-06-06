@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OmniHome - Add Device</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error": "#ffffff",
+                        "surface-dim": "#e4d8ce",
+                        "primary-fixed-dim": "#ffb68e",
+                        "on-background": "#201b14",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#944242",
+                        "on-tertiary-fixed-variant": "#792e2f",
+                        "tertiary-fixed": "#ffdad8",
+                        "surface-container-highest": "#ece0d6",
+                        "surface-container-high": "#f2e6dc",
+                        "on-secondary": "#ffffff",
+                        "background": "#fff8f4",
+                        "on-surface": "#201b14",
+                        "outline": "#887368",
+                        "surface-container-low": "#fef1e7",
+                        "on-secondary-fixed": "#201b16",
+                        "secondary-container": "#e9ded6",
+                        "secondary-fixed": "#ebe0d9",
+                        "primary-container": "#b65c21",
+                        "inverse-on-surface": "#fbefe4",
+                        "on-tertiary-container": "#fffbff",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#b35a59",
+                        "primary-fixed": "#ffdbca",
+                        "secondary": "#645d57",
+                        "inverse-primary": "#ffb68e",
+                        "surface-variant": "#ece0d6",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#99460a",
+                        "error": "#ba1a1a",
+                        "surface-container": "#f8ece1",
+                        "surface-bright": "#fff8f4",
+                        "primary": "#964407",
+                        "surface": "#fff8f4",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb3b0",
+                        "on-secondary-fixed-variant": "#4c4640",
+                        "on-surface-variant": "#554339",
+                        "on-primary-container": "#fffbff",
+                        "on-tertiary-fixed": "#3f0308",
+                        "on-secondary-container": "#69615b",
+                        "on-primary-fixed": "#331200",
+                        "inverse-surface": "#362f28",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#cfc5bd",
+                        "outline-variant": "#dbc1b5",
+                        "on-primary-fixed-variant": "#773300"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["EB Garamond", "serif"],
+                        "display": ["EB Garamond", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    },
+                    "fontSize": {}
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Manrope', sans-serif;
+        }
+        h1, h2, h3, h4, h5, h6, .font-headline {
+            font-family: 'EB Garamond', serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom Scan Line Animation */
+        @keyframes scan {
+            0% { top: 10%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 90%; opacity: 0; }
+        }
+        .scan-line {
+            position: absolute;
+            width: 80%;
+            height: 2px;
+            background-color: #c2652a; /* Sienna */
+            left: 10%;
+            box-shadow: 0 0 8px #c2652a;
+            animation: scan 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Bottom Sheet Animation */
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .bottom-sheet {
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background h-screen w-full overflow-hidden relative">
+<!-- Background Dashboard (Dimmed/Blurred) -->
+<div class="absolute inset-0 z-0 filter blur-sm brightness-75 transition-all duration-300">
+<!-- TopAppBar (From JSON) -->
+<header class="w-full top-0 sticky bg-surface text-primary flex justify-between items-center px-4 md:px-8 py-3 h-16 max-w-7xl mx-auto shadow-sm" style="box-shadow: 0 2px 16px rgba(58, 48, 42, 0.04);">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-2xl" data-icon="home_iot_device">home_iot_device</span>
+<span class="font-headline font-bold text-2xl tracking-tight">OmniHome</span>
+</div>
+<div>
+<img alt="User Profile" class="w-10 h-10 rounded-full border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDCLqMNYH3p429ilLeICGQGLEDb3xdkc2utTQ_0zZlxqa0JvaraVXAnHtXS1QXSaCEi3NQ9aGMurl1Qc1Pr0u96Yij8VV11qxbjaZYIPj1GBGpxNj2BzhCdBLBSmqj1jxA1WNjJjDkivjdk9o_ULM3D91EfS-aU6ZdVxpgSlu-S-fVQDinpsZhxjukLQQQ8W-xX6T-yDipYix18OLMU72WZRQG5LNJcLvwzES3e0zKayAtWujODQeDI14ljG2WrE111JHYd8PZF58"/>
+</div>
+</header>
+<!-- Dummy Content -->
+<main class="p-6 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 h-48"></div>
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 h-48"></div>
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 h-48 md:col-span-2"></div>
+</main>
+<!-- BottomNavBar (From JSON) - Hidden on md+ -->
+<nav class="fixed bottom-0 left-0 w-full z-10 flex justify-around items-center px-4 pb-4 h-[80px] bg-surface-container shadow-sm md:hidden">
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label text-xs mt-1">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="font-label text-xs mt-1">Devices</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1">
+<span class="material-symbols-outlined">palette</span>
+<span class="font-label text-xs mt-1">Scenes</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1">
+<span class="material-symbols-outlined">shield_with_heart</span>
+<span class="font-label text-xs mt-1">Security</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label text-xs mt-1">Family</span>
+</div>
+</nav>
+</div>
+<!-- Overlay Backdrop -->
+<div class="absolute inset-0 bg-on-background/40 z-40 backdrop-blur-sm transition-opacity" id="backdrop"></div>
+<!-- Bottom Sheet Container -->
+<div class="absolute bottom-0 left-0 w-full z-50 flex justify-center">
+<!-- The Sheet -->
+<div class="bottom-sheet bg-surface-container-low w-full max-w-2xl rounded-t-3xl shadow-[0_-8px_32px_rgba(58,48,42,0.1)] border-t border-outline-variant/40 flex flex-col max-h-[795px]">
+<!-- Handle & Header Area -->
+<div class="pt-4 pb-2 px-6 flex flex-col items-center relative">
+<!-- Swipe Handle -->
+<div class="w-12 h-1.5 bg-outline-variant rounded-full mb-4 cursor-grab"></div>
+<div class="w-full flex justify-between items-center">
+<h2 class="font-headline text-3xl font-medium text-on-surface tracking-tight">Add Device</h2>
+<button aria-label="Close" class="text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-full hover:bg-surface-container-highest">
+<span class="material-symbols-outlined text-2xl">close</span>
+</button>
+</div>
+</div>
+<!-- Scrollable Content Area -->
+<div class="overflow-y-auto px-6 pb-8 custom-scrollbar">
+<!-- Section 1: QR Code Scanner -->
+<div class="mt-4 mb-8">
+<p class="text-on-surface-variant text-sm mb-4 text-center">Scan the QR code on your device or its packaging.</p>
+<div class="relative w-full max-w-sm mx-auto aspect-square bg-surface-container-highest rounded-2xl overflow-hidden border border-outline-variant/50">
+<!-- Camera Placeholder Background -->
+<div class="absolute inset-0 bg-cover bg-center opacity-40" data-alt="A softly lit, warm minimalist interior room corner, featuring textured linen walls and a hint of a smart device setup in the background. The aesthetic is bright, calm, and utilizes warm beige and earthy tones." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCN1NjLlgZGdOmF8T6ht8WQXQB0SMaG5VXVzEGARsxLbRORoEEYh6NKUqBWACt6sJC7azWu2t55R1HKXYBYFr-dytMsSGfzQfcFlZrE3uUqRVueXAwbcYdQZyVoKzknIVxbwJA8Zi77N3cmoAo5EPh3Vu830rSngwEnkR48V-AF2eRsxBDlb4fECPEfCNwNhTBZXC1Q9QJvxcBtfzkOuCqq7nKo1a5ufAqYO2CTtdL2nz0l_KrrDRFKGOaTicR-7S-ddoMNTSeYvWM');"></div>
+<!-- Viewfinder Reticle -->
+<div class="absolute inset-8 border-2 border-primary/30 rounded-xl">
+<!-- Corners -->
+<div class="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl -mt-0.5 -ml-0.5"></div>
+<div class="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl -mt-0.5 -mr-0.5"></div>
+<div class="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl -mb-0.5 -ml-0.5"></div>
+<div class="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl -mb-0.5 -mr-0.5"></div>
+</div>
+<!-- Animated Scan Line -->
+<div class="scan-line"></div>
+<!-- Fallback Icon -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<span class="material-symbols-outlined text-6xl text-primary/20">qr_code_scanner</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 mb-8">
+<div class="h-px bg-outline-variant/50 flex-1"></div>
+<span class="text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Or</span>
+<div class="h-px bg-outline-variant/50 flex-1"></div>
+</div>
+<!-- Section 2: Manual Entry -->
+<div class="mb-8">
+<label class="block text-sm font-medium text-on-surface mb-2" for="setup-code">Manual Entry</label>
+<div class="flex gap-3">
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors placeholder:text-on-surface-variant/50" id="setup-code" placeholder="Enter setup code or device ID" type="text"/>
+<button class="bg-primary text-on-primary px-6 py-3 rounded-lg font-medium hover:bg-surface-tint transition-colors shadow-sm">
+                            Add
+                        </button>
+</div>
+</div>
+<!-- Section 3: Quick Actions -->
+<div class="grid grid-cols-2 gap-4">
+<button class="flex flex-col items-center justify-center p-6 bg-surface-container rounded-xl border border-outline-variant/30 hover:bg-surface-container-highest hover:border-outline-variant transition-all group">
+<div class="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bluetooth</span>
+</div>
+<span class="font-medium text-sm text-on-surface">Nearby Devices</span>
+<span class="text-xs text-on-surface-variant mt-1">Discover via Bluetooth</span>
+</button>
+<button class="flex flex-col items-center justify-center p-6 bg-surface-container rounded-xl border border-outline-variant/30 hover:bg-surface-container-highest hover:border-outline-variant transition-all group">
+<div class="w-12 h-12 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">category</span>
+</div>
+<span class="font-medium text-sm text-on-surface">By Category</span>
+<span class="text-xs text-on-surface-variant mt-1">Browse all supported</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+        // Simple script to handle backdrop click to 'close' (just visual for this demo)
+        document.getElementById('backdrop').addEventListener('click', function() {
+            const sheet = document.querySelector('.bottom-sheet');
+            sheet.style.animation = 'none'; // reset
+            // In a real app, you'd trigger a slide down animation here before removing the DOM node
+            sheet.style.transform = 'translateY(100%)';
+            sheet.style.transition = 'transform 0.3s ease-in';
+            this.style.opacity = '0';
+            setTimeout(() => {
+                // Just dimming for demonstration of closing interaction
+                alert('Close action triggered');
+                sheet.style.transform = 'translateY(0)';
+                this.style.opacity = '1';
+            }, 300);
+        });
+    </script>
+</body></html>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#F9E6D2"/>
+      <stop offset="100%" stop-color="#F3D2B5"/>
+    </linearGradient>
+    <linearGradient id="house" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#D18B58"/>
+      <stop offset="100%" stop-color="#B66535"/>
+    </linearGradient>
+    <linearGradient id="roof" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#8B553E"/>
+      <stop offset="100%" stop-color="#6F4132"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="128" fill="url(#sky)"/>
+  <circle cx="196" cy="62" r="24" fill="#F7C993" opacity="0.9"/>
+  <rect x="32" y="156" width="192" height="54" rx="27" fill="#E7C9AE"/>
+  <path d="M68 120L127 74L188 120V182C188 188 183 193 177 193H79C73 193 68 188 68 182V120Z" fill="url(#house)"/>
+  <path d="M56 124L127 60L200 124" fill="none" stroke="url(#roof)" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
+  <rect x="109" y="132" width="38" height="61" rx="12" fill="#F5E3D4"/>
+  <rect x="79" y="132" width="22" height="22" rx="6" fill="#FFF3E6"/>
+  <rect x="154" y="132" width="22" height="22" rx="6" fill="#FFF3E6"/>
+  <rect x="79" y="162" width="22" height="22" rx="6" fill="#FFF3E6"/>
+  <rect x="154" y="162" width="22" height="22" rx="6" fill="#FFF3E6"/>
+  <path d="M36 182C58 160 86 150 121 150C153 150 183 162 220 188" fill="none" opacity="0.28" stroke="#9E6138" stroke-linecap="round" stroke-width="10"/>
+</svg>

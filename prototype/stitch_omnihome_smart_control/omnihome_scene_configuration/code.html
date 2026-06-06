@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OmniHome - Edit Scene</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-tint": "#99460a",
+                        "surface-container-low": "#fef1e7",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#f2e6dc",
+                        "surface": "#fff8f4",
+                        "tertiary-fixed": "#ffdad8",
+                        "on-tertiary-fixed": "#3f0308",
+                        "on-primary-container": "#fffbff",
+                        "on-error": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#944242",
+                        "secondary-fixed": "#ebe0d9",
+                        "on-primary-fixed-variant": "#773300",
+                        "primary-fixed": "#ffdbca",
+                        "on-error-container": "#93000a",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#fffbff",
+                        "surface-container-highest": "#ece0d6",
+                        "on-surface": "#201b14",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#792e2f",
+                        "inverse-primary": "#ffb68e",
+                        "surface-bright": "#fff8f4",
+                        "secondary": "#645d57",
+                        "tertiary-container": "#b35a59",
+                        "on-primary-fixed": "#331200",
+                        "inverse-surface": "#362f28",
+                        "outline": "#887368",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#f8ece1",
+                        "secondary-container": "#e9ded6",
+                        "primary-container": "#b65c21",
+                        "on-secondary-fixed-variant": "#4c4640",
+                        "on-secondary-container": "#69615b",
+                        "tertiary-fixed-dim": "#ffb3b0",
+                        "inverse-on-surface": "#fbefe4",
+                        "primary": "#964407",
+                        "background": "#fff8f4",
+                        "secondary-fixed-dim": "#cfc5bd",
+                        "surface-variant": "#ece0d6",
+                        "outline-variant": "#dbc1b5",
+                        "on-secondary-fixed": "#201b16",
+                        "surface-dim": "#e4d8ce",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#ffb68e",
+                        "on-background": "#201b14",
+                        "on-surface-variant": "#554339"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["EB Garamond", "serif"],
+                        "display": ["EB Garamond", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            font-family: theme('fontFamily.body');
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom subtle scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: theme('colors.surface-variant');
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: theme('colors.outline-variant');
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="antialiased min-h-screen flex flex-col items-center pt-safe pb-safe">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface dark:bg-surface-dim z-40 shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+<div class="flex justify-between items-center px-6 py-4 w-full max-w-2xl mx-auto">
+<button aria-label="Go back" class="text-on-surface-variant dark:text-outline-variant hover:text-surface-tint dark:hover:text-primary-fixed transition-colors active:scale-95 transition-transform duration-200 p-2 -ml-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/20">
+<span class="material-symbols-outlined text-2xl" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline text-2xl font-medium tracking-tight text-primary dark:text-primary-fixed-dim">Edit Scene</h1>
+<button class="font-body text-sm font-semibold text-primary dark:text-primary-fixed-dim hover:text-surface-tint dark:hover:text-primary-fixed transition-colors active:scale-95 transition-transform duration-200 px-3 py-2 -mr-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20">
+                Save
+            </button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-grow w-full max-w-2xl mx-auto px-6 py-8 flex flex-col gap-10">
+<!-- Scene Identity Section -->
+<section aria-labelledby="scene-identity-heading" class="flex flex-col gap-6">
+<h2 class="sr-only" id="scene-identity-heading">Scene Identity</h2>
+<div class="bg-surface-container-low rounded-xl p-8 shadow-[0_2px_16px_rgba(58,48,42,0.04)] border border-outline-variant/30 flex flex-col items-center gap-6 relative overflow-hidden group">
+<!-- Decorative background subtle glow -->
+<div class="absolute inset-0 bg-gradient-to-br from-primary-fixed/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+<div class="relative w-24 h-24 rounded-full bg-surface-container flex items-center justify-center shadow-inner border border-outline-variant/50 group-hover:border-primary/30 transition-colors duration-300">
+<span class="material-symbols-outlined text-5xl text-primary" data-icon="movie" data-weight="fill">movie</span>
+<!-- Edit icon overlay -->
+<button aria-label="Edit Scene Icon" class="absolute bottom-0 right-0 w-8 h-8 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-md hover:bg-surface-tint transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface-container-low focus:ring-primary">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+</div>
+<div class="w-full max-w-sm">
+<label class="sr-only" for="scene-name">Scene Name</label>
+<input class="w-full bg-transparent border-0 border-b-2 border-outline-variant/60 text-center font-headline text-4xl text-on-surface focus:ring-0 focus:border-primary transition-colors placeholder:text-on-surface-variant/50 py-2" id="scene-name" placeholder="Enter scene name" type="text" value="Movie Night"/>
+</div>
+</div>
+</section>
+<!-- Device Actions Section -->
+<section aria-labelledby="device-actions-heading" class="flex flex-col gap-6">
+<div class="flex justify-between items-end mb-2">
+<h2 class="font-headline text-2xl text-on-surface font-medium tracking-tight" id="device-actions-heading">Sequence</h2>
+<span class="font-body text-sm text-on-surface-variant">4 Actions</span>
+</div>
+<div class="flex flex-col gap-4">
+<!-- Action Card 1 -->
+<div class="bg-surface-container-low rounded-xl p-5 shadow-[0_2px_16px_rgba(58,48,42,0.04)] border border-outline-variant/30 flex items-center gap-5 group hover:shadow-md transition-shadow duration-300 cursor-pointer">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="lightbulb">lightbulb</span>
+</div>
+<div class="flex-grow flex flex-col">
+<span class="font-headline text-lg font-medium text-on-surface">Living Room Lights</span>
+<span class="font-body text-sm text-primary font-medium">Dim to 20%</span>
+</div>
+<button aria-label="Remove action" class="text-on-surface-variant hover:text-error transition-colors p-2 rounded-full focus:outline-none focus:bg-surface-variant">
+<span class="material-symbols-outlined text-xl" data-icon="close">close</span>
+</button>
+</div>
+<!-- Action Card 2 -->
+<div class="bg-surface-container-low rounded-xl p-5 shadow-[0_2px_16px_rgba(58,48,42,0.04)] border border-outline-variant/30 flex items-center gap-5 group hover:shadow-md transition-shadow duration-300 cursor-pointer">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="blinds">blinds</span>
+</div>
+<div class="flex-grow flex flex-col">
+<span class="font-headline text-lg font-medium text-on-surface">Blackout Blinds</span>
+<span class="font-body text-sm text-primary font-medium">Close</span>
+</div>
+<button aria-label="Remove action" class="text-on-surface-variant hover:text-error transition-colors p-2 rounded-full focus:outline-none focus:bg-surface-variant">
+<span class="material-symbols-outlined text-xl" data-icon="close">close</span>
+</button>
+</div>
+<!-- Action Card 3 -->
+<div class="bg-surface-container-low rounded-xl p-5 shadow-[0_2px_16px_rgba(58,48,42,0.04)] border border-outline-variant/30 flex items-center gap-5 group hover:shadow-md transition-shadow duration-300 cursor-pointer">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="tv">tv</span>
+</div>
+<div class="flex-grow flex flex-col">
+<span class="font-headline text-lg font-medium text-on-surface">Smart TV</span>
+<span class="font-body text-sm text-primary font-medium">Turn On</span>
+</div>
+<button aria-label="Remove action" class="text-on-surface-variant hover:text-error transition-colors p-2 rounded-full focus:outline-none focus:bg-surface-variant">
+<span class="material-symbols-outlined text-xl" data-icon="close">close</span>
+</button>
+</div>
+<!-- Action Card 4 -->
+<div class="bg-surface-container-low rounded-xl p-5 shadow-[0_2px_16px_rgba(58,48,42,0.04)] border border-outline-variant/30 flex items-center gap-5 group hover:shadow-md transition-shadow duration-300 cursor-pointer">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="air">air</span>
+</div>
+<div class="flex-grow flex flex-col">
+<span class="font-headline text-lg font-medium text-on-surface">Air Purifier</span>
+<span class="font-body text-sm text-primary font-medium">Set to Quiet Mode</span>
+</div>
+<button aria-label="Remove action" class="text-on-surface-variant hover:text-error transition-colors p-2 rounded-full focus:outline-none focus:bg-surface-variant">
+<span class="material-symbols-outlined text-xl" data-icon="close">close</span>
+</button>
+</div>
+</div>
+<!-- Add Action Button -->
+<button class="mt-4 w-full py-4 rounded-xl border-2 border-dashed border-outline-variant/60 text-on-surface-variant font-body font-medium flex items-center justify-center gap-2 hover:border-primary hover:text-primary hover:bg-surface-container-low transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-[0.98]">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                Add Action
+            </button>
+</section>
+</main>
+<!-- Bottom Nav Suppressed intentionally as this is a task-focused sub-page -->
+<script>
+        // Simple micro-interaction for input focus
+        document.addEventListener('DOMContentLoaded', () => {
+            const sceneNameInput = document.getElementById('scene-name');
+            const iconContainer = document.querySelector('.bg-surface-container.rounded-full');
+            
+            sceneNameInput.addEventListener('focus', () => {
+                iconContainer.classList.add('border-primary');
+                iconContainer.classList.remove('border-outline-variant/50');
+            });
+            
+            sceneNameInput.addEventListener('blur', () => {
+                iconContainer.classList.remove('border-primary');
+                iconContainer.classList.add('border-outline-variant/50');
+            });
+        });
+    </script>
+</body></html>

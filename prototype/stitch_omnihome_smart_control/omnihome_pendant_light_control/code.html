@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Living Room Pendant</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600;800&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#ffb3b0",
+                        "surface-dim": "#e4d8ce",
+                        "on-tertiary-fixed": "#3f0308",
+                        "secondary-fixed-dim": "#cfc5bd",
+                        "primary-container": "#b65c21",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-container": "#fffbff",
+                        "on-primary-fixed-variant": "#773300",
+                        "surface-tint": "#99460a",
+                        "surface-container-low": "#fef1e7",
+                        "on-surface": "#201b14",
+                        "on-surface-variant": "#554339",
+                        "inverse-surface": "#362f28",
+                        "on-secondary-fixed": "#201b16",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#645d57",
+                        "secondary-fixed": "#ebe0d9",
+                        "secondary-container": "#e9ded6",
+                        "outline-variant": "#dbc1b5",
+                        "background": "#fff8f4",
+                        "surface": "#fff8f4",
+                        "outline": "#887368",
+                        "inverse-on-surface": "#fbefe4",
+                        "on-error-container": "#93000a",
+                        "on-background": "#201b14",
+                        "surface-container-highest": "#ece0d6",
+                        "primary": "#964407",
+                        "primary-fixed": "#ffdbca",
+                        "primary-fixed-dim": "#ffb68e",
+                        "surface-container-high": "#f2e6dc",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#944242",
+                        "on-secondary-container": "#69615b",
+                        "on-primary-fixed": "#331200",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#ffdad8",
+                        "surface-container": "#f8ece1",
+                        "inverse-primary": "#ffb68e",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed-variant": "#4c4640",
+                        "surface-bright": "#fff8f4",
+                        "on-tertiary-fixed-variant": "#792e2f",
+                        "on-primary-container": "#fffbff",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#ece0d6",
+                        "tertiary-container": "#b35a59",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["EB Garamond", "serif"],
+                        "display": ["EB Garamond", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'EB Garamond', serif; }
+        
+        /* Custom slider styles for warm minimalism */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #964407; /* primary color */
+            cursor: pointer;
+            margin-top: -10px;
+            box-shadow: 0 2px 8px rgba(150, 68, 7, 0.3);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #dbc1b5; /* outline-variant */
+            border-radius: 2px;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        .temp-gradient {
+            background: linear-gradient(to right, #ffb68e, #fef1e7, #ffffff, #e4d8ce);
+        }
+        
+        .dial-container {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            margin: 0 auto;
+        }
+        
+        .dial-track {
+            stroke: #e9ded6; /* secondary-container */
+            stroke-width: 8;
+            fill: none;
+        }
+        
+        .dial-progress {
+            stroke: #964407; /* primary */
+            stroke-width: 8;
+            fill: none;
+            stroke-linecap: round;
+            stroke-dasharray: 628; /* 2 * pi * r (100) */
+            stroke-dashoffset: 157; /* 25% empty for 75% full */
+            transition: stroke-dashoffset 0.5s ease;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col pb-24 selection:bg-primary/20 selection:text-primary-fixed-variant">
+<!-- TopAppBar Semantic Shell: Suppressed on this Task-Focused screen -->
+<header class="w-full top-0 flex items-center justify-between px-6 py-4 max-w-md mx-auto z-50">
+<button aria-label="Back" class="p-2 -ml-2 rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface">arrow_back</span>
+</button>
+<h1 class="font-headline text-2xl font-semibold text-primary">Living Room Pendant</h1>
+<button aria-label="Settings" class="p-2 -mr-2 rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface">settings</span>
+</button>
+</header>
+<main class="flex-1 max-w-md mx-auto w-full px-6 flex flex-col gap-10 pt-4">
+<!-- Hero: Brightness Dial -->
+<section class="flex flex-col items-center justify-center pt-8 pb-4">
+<div class="dial-container mb-6 group cursor-pointer">
+<svg class="-rotate-90" height="240" viewbox="0 0 240 240" width="240">
+<circle class="dial-track" cx="120" cy="120" r="100"></circle>
+<circle class="dial-progress group-hover:stroke-primary-container transition-colors" cx="120" cy="120" r="100"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="material-symbols-outlined text-primary mb-2 text-3xl" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+<div class="font-headline text-5xl text-on-surface tracking-tight">75<span class="text-3xl text-on-surface-variant">%</span></div>
+<div class="font-label text-sm text-on-surface-variant mt-1 uppercase tracking-widest">Brightness</div>
+</div>
+</div>
+<!-- Quick Toggle -->
+<button class="flex items-center gap-2 px-6 py-3 bg-surface-container-high rounded-full hover:bg-secondary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">power_settings_new</span>
+<span class="font-body font-medium text-on-surface">Power On</span>
+</button>
+</section>
+<!-- Color Temperature Section -->
+<section class="bg-surface-container-low rounded-2xl p-6 shadow-sm border border-outline-variant/30">
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline text-xl text-on-surface">Color Temperature</h2>
+<span class="font-label text-sm text-on-surface-variant">3200K</span>
+</div>
+<div class="relative pt-4 pb-2">
+<div class="absolute w-full h-4 top-4 rounded-full temp-gradient opacity-60"></div>
+<input aria-label="Color Temperature" class="relative z-10 w-full" max="6500" min="2000" type="range" value="3200"/>
+<div class="flex justify-between mt-4 font-label text-xs text-on-surface-variant uppercase tracking-wider">
+<span>Warm</span>
+<span>Cool</span>
+</div>
+</div>
+</section>
+<!-- Presets Section -->
+<section>
+<h2 class="font-headline text-xl text-on-surface mb-4">Presets</h2>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex flex-col items-start p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 hover:border-primary/40 transition-colors shadow-sm text-left">
+<span class="material-symbols-outlined text-on-surface-variant mb-3">psychology</span>
+<span class="font-body font-medium text-on-surface">Focus</span>
+<span class="font-label text-xs text-on-surface-variant mt-1">Cool • 100%</span>
+</button>
+<button class="flex flex-col items-start p-4 rounded-xl bg-primary-container border border-transparent shadow-sm text-left">
+<span class="material-symbols-outlined text-on-primary-container mb-3" style="font-variation-settings: 'FILL' 1;">self_care</span>
+<span class="font-body font-medium text-on-primary-container">Relax</span>
+<span class="font-label text-xs text-on-primary-container/80 mt-1">Warm • 60%</span>
+</button>
+<button class="flex flex-col items-start p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 hover:border-primary/40 transition-colors shadow-sm text-left">
+<span class="material-symbols-outlined text-on-surface-variant mb-3">menu_book</span>
+<span class="font-body font-medium text-on-surface">Reading</span>
+<span class="font-label text-xs text-on-surface-variant mt-1">Warm • 80%</span>
+</button>
+<button class="flex flex-col items-start p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 hover:border-primary/40 transition-colors shadow-sm text-left">
+<span class="material-symbols-outlined text-on-surface-variant mb-3">bedtime</span>
+<span class="font-body font-medium text-on-surface">Night</span>
+<span class="font-label text-xs text-on-surface-variant mt-1">Warm • 10%</span>
+</button>
+</div>
+</section>
+<!-- Utilities Section -->
+<section class="mb-8">
+<div class="flex gap-4">
+<button class="flex-1 flex items-center justify-center gap-2 py-4 bg-surface-container-low rounded-xl border border-outline-variant/30 hover:bg-secondary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-on-surface-variant">timer</span>
+<span class="font-body font-medium text-on-surface">Timer</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-2 py-4 bg-surface-container-low rounded-xl border border-outline-variant/30 hover:bg-secondary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-on-surface-variant">event</span>
+<span class="font-body font-medium text-on-surface">Schedule</span>
+</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Semantic Shell: Suppressed because this is a task-focused device control screen -->
+<script>
+        // Simple micro-interaction for the dial
+        const dialContainer = document.querySelector('.dial-container');
+        const progressCircle = document.querySelector('.dial-progress');
+        
+        dialContainer.addEventListener('mousedown', () => {
+            progressCircle.style.strokeWidth = '10';
+        });
+        
+        window.addEventListener('mouseup', () => {
+            progressCircle.style.strokeWidth = '8';
+        });
+        
+        dialContainer.addEventListener('touchstart', () => {
+            progressCircle.style.strokeWidth = '10';
+        });
+        
+        window.addEventListener('touchend', () => {
+            progressCircle.style.strokeWidth = '8';
+        });
+    </script>
+</body></html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kitchen - OmniHome</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700;800&amp;family=Manrope:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#fef1e7",
+                        "primary-fixed-dim": "#ffb68e",
+                        "primary": "#964407",
+                        "on-tertiary": "#ffffff",
+                        "background": "#fff8f4",
+                        "surface-tint": "#99460a",
+                        "primary-container": "#b65c21",
+                        "on-error-container": "#93000a",
+                        "outline": "#887368",
+                        "tertiary-fixed-dim": "#ffb3b0",
+                        "tertiary-fixed": "#ffdad8",
+                        "surface-container-high": "#f2e6dc",
+                        "on-primary-fixed-variant": "#773300",
+                        "on-primary-container": "#fffbff",
+                        "on-secondary-fixed-variant": "#4c4640",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#944242",
+                        "surface-container-highest": "#ece0d6",
+                        "on-tertiary-fixed": "#3f0308",
+                        "surface-container": "#f8ece1",
+                        "on-background": "#201b14",
+                        "surface-bright": "#fff8f4",
+                        "on-tertiary-container": "#fffbff",
+                        "on-surface-variant": "#554339",
+                        "inverse-surface": "#362f28",
+                        "error": "#ba1a1a",
+                        "secondary": "#645d57",
+                        "primary-fixed": "#ffdbca",
+                        "outline-variant": "#dbc1b5",
+                        "surface-dim": "#e4d8ce",
+                        "on-secondary-fixed": "#201b16",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#e9ded6",
+                        "surface-variant": "#ece0d6",
+                        "on-secondary-container": "#69615b",
+                        "on-error": "#ffffff",
+                        "on-surface": "#201b14",
+                        "surface": "#fff8f4",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#cfc5bd",
+                        "inverse-on-surface": "#fbefe4",
+                        "secondary-fixed": "#ebe0d9",
+                        "tertiary-container": "#b35a59",
+                        "on-primary-fixed": "#331200",
+                        "on-tertiary-fixed-variant": "#792e2f",
+                        "on-primary": "#ffffff",
+                        "inverse-primary": "#ffb68e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["EB Garamond", "serif"],
+                        "display": ["EB Garamond", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .font-headline { font-family: 'EB Garamond', serif; }
+        
+        /* Hide scrollbar for horizontal scroll areas */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-background dark:bg-background z-40">
+<div class="flex justify-between items-center px-6 py-4 w-full">
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity active:scale-95 flex items-center justify-center p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-headline text-2xl font-bold text-primary dark:text-primary-fixed-dim tracking-tight">Kitchen</h1>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity active:scale-95 flex items-center justify-center p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="px-6 mx-auto max-w-4xl space-y-8 mt-2">
+<!-- Status Section -->
+<section class="text-center">
+<p class="font-body text-secondary text-sm font-medium tracking-wider uppercase">1 Device On • 23°C</p>
+</section>
+<!-- Hero Image -->
+<section class="w-full h-64 md:h-80 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(58,48,42,0.04)] relative">
+<img alt="Kitchen Hero" class="w-full h-full object-cover" data-alt="A bright, warm-toned image of a clean, modern kitchen with sienna accents. Sunlight streams through a large window, illuminating smooth countertops and minimalistic wooden cabinetry. The overall aesthetic is luxurious and sun-baked, fitting a 'warm minimalism' theme. High-key lighting emphasizes the clean lines and spacious feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBr4avUY58v20uu46VyOrQEGi85dvGPUqbasfxgVzY3Y8QWXw46trPLJZjkcQ-68v6_naRz9n6UTe_6APgHzgcOmO2BlPAF00-94D5BMCqMvSDkDEBMKiu0rPCkYck8FHk1ZFwk1kLsCMAK_WJHhlikrtbegqAeYrUWrhV25XgRPSmTo9sVuSqGLfP9PFrOE1e_-jGoIKhFhGY7xAiuCyO3ZXZP9GFd8ggat562BKOvWt8i2Fndomd9sUy7-u8-FzkFBD9QLi3kK4o"/>
+</section>
+<!-- Atmosphere Scenes -->
+<section class="space-y-4">
+<h2 class="font-headline text-xl text-primary font-semibold">Atmosphere</h2>
+<div class="flex overflow-x-auto no-scrollbar space-x-4 pb-2">
+<!-- Active Chip -->
+<button class="flex-shrink-0 px-6 py-3 rounded-full bg-primary-container text-on-primary-container border border-primary-container font-label text-sm font-medium transition-transform active:scale-95 shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+                    Cooking
+                </button>
+<!-- Inactive Chips -->
+<button class="flex-shrink-0 px-6 py-3 rounded-full bg-surface-container-low text-secondary border border-outline-variant/60 font-label text-sm font-medium hover:bg-surface-variant transition-colors active:scale-95 shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+                    Dining
+                </button>
+<button class="flex-shrink-0 px-6 py-3 rounded-full bg-surface-container-low text-secondary border border-outline-variant/60 font-label text-sm font-medium hover:bg-surface-variant transition-colors active:scale-95 shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+                    Morning Coffee
+                </button>
+<button class="flex-shrink-0 px-6 py-3 rounded-full bg-surface-container-low text-secondary border border-outline-variant/60 font-label text-sm font-medium hover:bg-surface-variant transition-colors active:scale-95 shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+                    Night Light
+                </button>
+</div>
+</section>
+<!-- Devices Grid -->
+<section class="space-y-4 pb-8">
+<h2 class="font-headline text-xl text-primary font-semibold">Devices</h2>
+<div class="grid grid-cols-2 md:grid-cols-2 gap-4">
+<!-- Smart Oven (Activeish) -->
+<div class="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/60 shadow-[0_2px_16px_rgba(58,48,42,0.04)] flex flex-col justify-between h-36 relative overflow-hidden group cursor-pointer transition-all hover:shadow-[0_4px_20px_rgba(58,48,42,0.08)]">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start z-10">
+<div class="p-2 bg-background rounded-full text-primary shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+<span class="material-symbols-outlined" data-icon="oven_gen">oven_gen</span>
+</div>
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+</div>
+<div class="z-10">
+<h3 class="font-label font-bold text-on-surface text-base">Smart Oven</h3>
+<p class="font-body text-xs text-primary-container mt-1">Preheating to 180°C</p>
+</div>
+</div>
+<!-- Counter Lights (Active) -->
+<div class="bg-primary-container p-5 rounded-2xl border border-primary-container shadow-[0_2px_16px_rgba(58,48,42,0.04)] flex flex-col justify-between h-36 relative overflow-hidden group cursor-pointer transition-transform active:scale-95">
+<div class="flex justify-between items-start z-10">
+<div class="p-2 bg-on-primary-container/20 rounded-full text-on-primary-container">
+<span class="material-symbols-outlined" data-icon="lightbulb" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+</div>
+<div class="w-10 h-6 bg-on-primary-container/30 rounded-full relative">
+<div class="w-4 h-4 bg-on-primary-container rounded-full absolute right-1 top-1"></div>
+</div>
+</div>
+<div class="z-10 text-on-primary-container">
+<h3 class="font-label font-bold text-base">Counter Lights</h3>
+<p class="font-body text-xs opacity-80 mt-1">On</p>
+</div>
+</div>
+<!-- Dishwasher -->
+<div class="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/60 shadow-[0_2px_16px_rgba(58,48,42,0.04)] flex flex-col justify-between h-36 relative overflow-hidden group cursor-pointer transition-all hover:shadow-[0_4px_20px_rgba(58,48,42,0.08)]">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start z-10">
+<div class="p-2 bg-background rounded-full text-secondary shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+<span class="material-symbols-outlined" data-icon="local_laundry_service">local_laundry_service</span>
+</div>
+</div>
+<div class="z-10">
+<h3 class="font-label font-bold text-on-surface text-base">Dishwasher</h3>
+<p class="font-body text-xs text-secondary mt-1">Ready</p>
+</div>
+</div>
+<!-- Fridge Temp -->
+<div class="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/60 shadow-[0_2px_16px_rgba(58,48,42,0.04)] flex flex-col justify-between h-36 relative overflow-hidden group cursor-pointer transition-all hover:shadow-[0_4px_20px_rgba(58,48,42,0.08)]">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start z-10">
+<div class="p-2 bg-background rounded-full text-secondary shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+<span class="material-symbols-outlined" data-icon="kitchen">kitchen</span>
+</div>
+<span class="font-headline text-lg text-primary font-bold">4°C</span>
+</div>
+<div class="z-10">
+<h3 class="font-label font-bold text-on-surface text-base">Fridge Temp</h3>
+<p class="font-body text-xs text-secondary mt-1">Optimal</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl md:hidden shadow-[0_-2px_16px_rgba(58,48,42,0.04)] bg-surface-container-low dark:bg-surface-container-low">
+<div class="flex justify-around items-center px-4 pb-6 pt-3">
+<button class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-lg px-4 py-1.5 active:scale-90 transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label text-xs uppercase tracking-wider mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-4 py-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="font-label text-xs uppercase tracking-wider mt-1">Scenes</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-4 py-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+<span class="font-label text-xs uppercase tracking-wider mt-1">Health</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim px-4 py-1.5 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label text-xs uppercase tracking-wider mt-1">Family</span>
+</button>
+</div>
+</nav>
+<!-- Top Navigation (Desktop Only - Optional, hiding per requirements if relying on bottom nav logic, but adding a simplified shell for desktop coherence) -->
+<aside class="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 bg-surface-container-low border-r border-outline-variant/60 pt-24 px-6 z-30">
+<div class="space-y-4">
+<button class="flex items-center w-full bg-primary-container text-on-primary-container rounded-lg px-4 py-3 active:scale-95 transition-all duration-200 shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+<span class="material-symbols-outlined mr-3" data-icon="home">home</span>
+<span class="font-label text-sm uppercase tracking-wider font-bold">Home</span>
+</button>
+<button class="flex items-center w-full text-secondary hover:bg-surface-variant hover:text-primary rounded-lg px-4 py-3 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined mr-3" data-icon="palette">palette</span>
+<span class="font-label text-sm uppercase tracking-wider">Scenes</span>
+</button>
+<button class="flex items-center w-full text-secondary hover:bg-surface-variant hover:text-primary rounded-lg px-4 py-3 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined mr-3" data-icon="favorite">favorite</span>
+<span class="font-label text-sm uppercase tracking-wider">Health</span>
+</button>
+<button class="flex items-center w-full text-secondary hover:bg-surface-variant hover:text-primary rounded-lg px-4 py-3 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined mr-3" data-icon="group">group</span>
+<span class="font-label text-sm uppercase tracking-wider">Family</span>
+</button>
+</div>
+</aside>
+<!-- Adjust main content padding for desktop sidenav -->
+<style>
+        @media (min-width: 768px) {
+            main {
+                padding-left: 18rem; /* 64 (sidenav width) + 2rem padding */
+            }
+             header {
+                 padding-left: 18rem;
+             }
+        }
+    </style>
+</body></html>

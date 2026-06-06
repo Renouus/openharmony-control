@@ -1,0 +1,11 @@
+string EntryAbility_desc 0x01000003
+string EntryAbility_label 0x01000004
+string app_name 0x01000000
+string module_desc 0x01000005
+color start_window_background 0x01000002
+media app_icon 0x01000001
+media family_home_hero 0x01000007
+media family_member_alex 0x01000008
+media family_member_david 0x01000009
+media family_member_sarah 0x0100000a
+profile main_pages 0x01000006
