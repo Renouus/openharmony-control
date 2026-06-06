@@ -43,7 +43,10 @@ export function isSubPageId(page: AppPageId): boolean {
   return page === 'lighting' ||
     page === 'access' ||
     page === 'camera' ||
-    page === 'climate';
+    page === 'climate' ||
+    page === 'sceneEditor' ||
+    page === 'routineEditor' ||
+    page === 'familySettings';
 }
 
 export function navigateToPage(state: IndexPageState, page: AppPageId): IndexPageState {

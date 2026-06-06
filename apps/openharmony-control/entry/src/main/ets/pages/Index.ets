@@ -44,8 +44,13 @@ import { ClimateView } from '../views/ClimateView';
 import { AutomationView } from '../views/AutomationView';
 import { NotificationsView } from '../views/NotificationsView';
 import { FamilyView } from '../views/FamilyView';
+import { SceneEditorView } from '../views/SceneEditorView';
+import { RoutineEditorView } from '../views/RoutineEditorView';
+import { FamilySettingsView } from '../views/FamilySettingsView';
 import { AppSymbol } from '../components/AppSymbol';
 import { TabButton } from '../components/TabButton';
+import { AddDeviceSheet } from '../components/AddDeviceSheet';
+import { HeaderActionMenu, HeaderActionMenuItem } from '../components/HeaderActionMenu';
 import {
   COLOR_BG,
   COLOR_BORDER,
@@ -55,45 +60,32 @@ import {
   COLOR_TEXT_MUTED,
 } from '../theme/smart-home-theme';
 
-// ── 后端地址 ──────────────────────────────────────────────────
-// Android 模拟器: 10.0.2.2 → 宿主机 loopback
-// 真机调试: 改为电脑局域网 IP，如 192.168.1.x
 const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
 
 @Entry
 @Component
 struct Index {
   private readonly initialPageState = createInitialIndexPageState();
-
-  // ── 依赖层 ────────────────────────────────────────────────────
   private readonly repository: SmartHomeRepository =
     new SmartHomeRepository(new DeviceApi(BACKEND_BASE_URL));
-  private readonly homeViewModel: HomeViewModel =
-    new HomeViewModel(this.repository);
-  private readonly lightingViewModel: LightingViewModel =
-    new LightingViewModel(this.repository);
-  private readonly accessViewModel: AccessViewModel =
-    new AccessViewModel(this.repository);
-  private readonly cameraViewModel: CameraViewModel =
-    new CameraViewModel(this.repository);
-  private readonly climateViewModel: ClimateViewModel =
-    new ClimateViewModel(this.repository);
-  private readonly automationViewModel: AutomationViewModel =
-    new AutomationViewModel(this.repository);
-  private readonly notificationsViewModel: NotificationsViewModel =
-    new NotificationsViewModel(this.repository);
-  private readonly familyViewModel: FamilyViewModel =
-    new FamilyViewModel(this.repository);
+  private readonly homeViewModel: HomeViewModel = new HomeViewModel(this.repository);
+  private readonly lightingViewModel: LightingViewModel = new LightingViewModel(this.repository);
+  private readonly accessViewModel: AccessViewModel = new AccessViewModel(this.repository);
+  private readonly cameraViewModel: CameraViewModel = new CameraViewModel(this.repository);
+  private readonly climateViewModel: ClimateViewModel = new ClimateViewModel(this.repository);
+  private readonly automationViewModel: AutomationViewModel = new AutomationViewModel(this.repository);
+  private readonly notificationsViewModel: NotificationsViewModel = new NotificationsViewModel(this.repository);
+  private readonly familyViewModel: FamilyViewModel = new FamilyViewModel(this.repository);
 
-  // ── 路由状态 ──────────────────────────────────────────────────
   @State currentTab: number = this.initialPageState.currentTab;
   @State activePage: AppPageId = this.initialPageState.activePage;
   @State backTarget: AppPageId = this.initialPageState.backTarget;
 
-  // ── UI 状态 ───────────────────────────────────────────────────
   @State isLoading: boolean = false;
+  @State isRefreshing: boolean = false;
+  @State isHeaderMenuOpen: boolean = false;
+  @State isAddSheetOpen: boolean = false;
 
-  // ── 各页面视图状态 ────────────────────────────────────────────
   @State homeState: HomeViewState = createEmptyHomeViewState();
   @State lightingState: LightingViewState = createEmptyLightingViewState();
   @State accessState: AccessViewState = createEmptyAccessViewState();
@@ -103,19 +95,14 @@ struct Index {
   @State notificationsState: NotificationsViewState = createEmptyNotificationsViewState();
   @State familyState: FamilyViewState = createEmptyFamilyViewState();
 
-  // ─────────────────────────────────────────────────────────────
-  // 生命周期
-  // ─────────────────────────────────────────────────────────────
   async aboutToAppear(): Promise<void> {
     this.isLoading = true;
     await this.refreshAll();
     this.isLoading = false;
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 路由
-  // ─────────────────────────────────────────────────────────────
   setPage(page: AppPageId): void {
+    this.closeTransientUi();
     const nextState = navigateToPage({
       currentTab: this.currentTab,
       activePage: this.activePage,
@@ -127,6 +114,7 @@ struct Index {
   }
 
   goBack(): void {
+    this.closeTransientUi();
     const nextState = navigateBack({
       currentTab: this.currentTab,
       activePage: this.activePage,
@@ -141,9 +129,45 @@ struct Index {
     return isSubPageId(this.activePage);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 刷新：全量 & 局部（只刷影响到的视图）
-  // ─────────────────────────────────────────────────────────────
+  private closeTransientUi(): void {
+    this.isHeaderMenuOpen = false;
+    this.isAddSheetOpen = false;
+  }
+
+  private toggleHeaderMenu(): void {
+    this.isAddSheetOpen = false;
+    this.isHeaderMenuOpen = !this.isHeaderMenuOpen;
+  }
+
+  private openAddDeviceSheet(): void {
+    this.isHeaderMenuOpen = false;
+    this.isAddSheetOpen = true;
+  }
+
+  private handleHeaderMenuSelect(item: HeaderActionMenuItem): void {
+    this.isHeaderMenuOpen = false;
+    if (item === 'sceneEditor') {
+      this.setPage('sceneEditor');
+      return;
+    }
+    if (item === 'routineEditor') {
+      this.setPage('routineEditor');
+      return;
+    }
+    this.setPage('familySettings');
+  }
+
+  private handleTopRefresh(): void {
+    if (this.isRefreshing || this.isLoading) {
+      return;
+    }
+    this.isRefreshing = true;
+    this.refreshAll()
+      .finally(() => {
+        this.isRefreshing = false;
+      });
+  }
+
   async refreshAll(feedback: string = ''): Promise<void> {
     await Promise.all([
       this.refreshHome(feedback),
@@ -161,9 +185,9 @@ struct Index {
     try {
       this.homeState = await this.homeViewModel.load(feedback);
     } catch {
-      const s = createEmptyHomeViewState();
-      s.feedback = '控制中心暂不可用';
-      this.homeState = s;
+      const next = createEmptyHomeViewState();
+      next.feedback = 'Control center unavailable';
+      this.homeState = next;
     }
   }
 
@@ -171,9 +195,9 @@ struct Index {
     try {
       this.lightingState = await this.lightingViewModel.load(feedback);
     } catch {
-      const s = createEmptyLightingViewState();
-      s.feedback = '灯光控制暂不可用';
-      this.lightingState = s;
+      const next = createEmptyLightingViewState();
+      next.feedback = 'Lighting unavailable';
+      this.lightingState = next;
     }
   }
 
@@ -181,9 +205,9 @@ struct Index {
     try {
       this.accessState = await this.accessViewModel.load(feedback);
     } catch {
-      const s = createEmptyAccessViewState();
-      s.feedback = '门禁控制暂不可用';
-      this.accessState = s;
+      const next = createEmptyAccessViewState();
+      next.feedback = 'Access data unavailable';
+      this.accessState = next;
     }
   }
 
@@ -191,9 +215,9 @@ struct Index {
     try {
       this.cameraState = await this.cameraViewModel.load(feedback);
     } catch {
-      const s = createEmptyCameraViewState();
-      s.feedback = '摄像头暂不可用';
-      this.cameraState = s;
+      const next = createEmptyCameraViewState();
+      next.feedback = 'Camera data unavailable';
+      this.cameraState = next;
     }
   }
 
@@ -201,9 +225,9 @@ struct Index {
     try {
       this.climateState = await this.climateViewModel.load(feedback);
     } catch {
-      const s = createEmptyClimateViewState();
-      s.feedback = '气候控制暂不可用';
-      this.climateState = s;
+      const next = createEmptyClimateViewState();
+      next.feedback = 'Climate data unavailable';
+      this.climateState = next;
     }
   }
 
@@ -211,9 +235,9 @@ struct Index {
     try {
       this.automationState = await this.automationViewModel.load(feedback);
     } catch {
-      const s = createEmptyAutomationViewState();
-      s.feedback = '自动化暂不可用';
-      this.automationState = s;
+      const next = createEmptyAutomationViewState();
+      next.feedback = 'Automation unavailable';
+      this.automationState = next;
     }
   }
 
@@ -229,9 +253,9 @@ struct Index {
     try {
       this.familyState = await this.familyViewModel.load(feedback);
     } catch {
-      const s = createEmptyFamilyViewState();
-      s.feedback = '家庭数据暂不可用';
-      this.familyState = s;
+      const next = createEmptyFamilyViewState();
+      next.feedback = 'Family data unavailable';
+      this.familyState = next;
     }
   }
 
@@ -266,156 +290,128 @@ struct Index {
     }));
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 首页
-  // ─────────────────────────────────────────────────────────────
   async handleHomeRunScene(sceneId: string): Promise<void> {
-    const fb = await this.homeViewModel.runScene(sceneId);
-    await this.refreshPlannedTargets('homeRunScene', fb);
+    const feedback = await this.homeViewModel.runScene(sceneId);
+    await this.refreshPlannedTargets('homeRunScene', feedback);
   }
 
   async handleHomeToggleDoor(deviceId: string, locked: boolean): Promise<void> {
-    const fb = await this.homeViewModel.toggleDoorLock(deviceId, locked);
-    await this.refreshPlannedTargets('homeToggleDoor', fb);
+    const feedback = await this.homeViewModel.toggleDoorLock(deviceId, locked);
+    await this.refreshPlannedTargets('homeToggleDoor', feedback);
   }
 
   async handleHomeTogglePower(deviceId: string, on: boolean): Promise<void> {
-    const fb = await this.homeViewModel.toggleDevicePower(deviceId, on);
-    await this.refreshPlannedTargets('homeTogglePower', fb);
+    const feedback = await this.homeViewModel.toggleDevicePower(deviceId, on);
+    await this.refreshPlannedTargets('homeTogglePower', feedback);
   }
 
   async handleHomeBrightness(deviceId: string, brightness: number): Promise<void> {
-    const fb = await this.homeViewModel.setBrightness(deviceId, brightness);
-    await this.refreshPlannedTargets('homeBrightness', fb);
+    const feedback = await this.homeViewModel.setBrightness(deviceId, brightness);
+    await this.refreshPlannedTargets('homeBrightness', feedback);
   }
 
   async handleHomeTemperature(deviceId: string, target: number): Promise<void> {
-    const fb = await this.homeViewModel.setTargetTemperature(deviceId, target);
-    await this.refreshPlannedTargets('homeTemperature', fb);
+    const feedback = await this.homeViewModel.setTargetTemperature(deviceId, target);
+    await this.refreshPlannedTargets('homeTemperature', feedback);
   }
 
   async handleHomeColorTemperature(deviceId: string, ct: number): Promise<void> {
-    const fb = await this.homeViewModel.setColorTemperature(deviceId, ct);
-    await this.refreshPlannedTargets('homeColorTemperature', fb);
+    const feedback = await this.homeViewModel.setColorTemperature(deviceId, ct);
+    await this.refreshPlannedTargets('homeColorTemperature', feedback);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 灯光页
-  // ─────────────────────────────────────────────────────────────
   async handleLightingToggleAll(on: boolean): Promise<void> {
-    const fb = await this.lightingViewModel.toggleAllRooms(on);
-    await this.refreshPlannedTargets('lightingToggleAll', fb);
+    const feedback = await this.lightingViewModel.toggleAllRooms(on);
+    await this.refreshPlannedTargets('lightingToggleAll', feedback);
   }
 
   async handleLightingPreset(label: string): Promise<void> {
-    const fb = await this.lightingViewModel.applyPreset(label);
-    await this.refreshPlannedTargets('lightingPreset', fb);
+    const feedback = await this.lightingViewModel.applyPreset(label);
+    await this.refreshPlannedTargets('lightingPreset', feedback);
   }
 
   async handleLightingToggleRoom(roomId: string, on: boolean): Promise<void> {
-    const fb = await this.lightingViewModel.toggleRoom(roomId, on);
-    await this.refreshPlannedTargets('lightingToggleRoom', fb);
+    const feedback = await this.lightingViewModel.toggleRoom(roomId, on);
+    await this.refreshPlannedTargets('lightingToggleRoom', feedback);
   }
 
   async handleLightingRoomBrightness(roomId: string, value: number): Promise<void> {
-    const fb = await this.lightingViewModel.setRoomBrightness(roomId, value);
-    await this.refreshPlannedTargets('lightingRoomBrightness', fb);
+    const feedback = await this.lightingViewModel.setRoomBrightness(roomId, value);
+    await this.refreshPlannedTargets('lightingRoomBrightness', feedback);
   }
 
   async handleLightingToggleLight(deviceId: string, on: boolean): Promise<void> {
-    const fb = await this.lightingViewModel.toggleLight(deviceId, on);
-    await this.refreshPlannedTargets('lightingToggleLight', fb);
+    const feedback = await this.lightingViewModel.toggleLight(deviceId, on);
+    await this.refreshPlannedTargets('lightingToggleLight', feedback);
   }
 
   async handleLightingLightBrightness(deviceId: string, value: number): Promise<void> {
-    const fb = await this.lightingViewModel.setLightBrightness(deviceId, value);
-    await this.refreshPlannedTargets('lightingLightBrightness', fb);
+    const feedback = await this.lightingViewModel.setLightBrightness(deviceId, value);
+    await this.refreshPlannedTargets('lightingLightBrightness', feedback);
   }
 
   async handleLightingLightColor(deviceId: string, value: number): Promise<void> {
-    const fb = await this.lightingViewModel.setLightColorTemperature(deviceId, value);
-    await this.refreshPlannedTargets('lightingLightColor', fb);
+    const feedback = await this.lightingViewModel.setLightColorTemperature(deviceId, value);
+    await this.refreshPlannedTargets('lightingLightColor', feedback);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 门禁页
-  // ─────────────────────────────────────────────────────────────
   async handleAccessToggleLock(locked: boolean): Promise<void> {
-    const fb = await this.accessViewModel.togglePrimaryLock(
-      this.accessState.primary.id, locked,
-    );
-    await this.refreshPlannedTargets('accessToggleLock', fb);
+    const feedback = await this.accessViewModel.togglePrimaryLock(this.accessState.primary.id, locked);
+    await this.refreshPlannedTargets('accessToggleLock', feedback);
   }
 
   async handleShareGuest(): Promise<void> {
-    const fb = await this.accessViewModel.shareGuestAccess('Guest', 4);
-    await this.refreshPlannedTargets('shareGuest', fb);
+    const feedback = await this.accessViewModel.shareGuestAccess('Guest', 4);
+    await this.refreshPlannedTargets('shareGuest', feedback);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 摄像头页
-  // ─────────────────────────────────────────────────────────────
   async handleCameraToggleRecording(cameraId: string, recording: boolean): Promise<void> {
-    const fb = await this.cameraViewModel.toggleRecording(cameraId, recording);
-    await this.refreshPlannedTargets('cameraToggleRecording', fb);
+    const feedback = await this.cameraViewModel.toggleRecording(cameraId, recording);
+    await this.refreshPlannedTargets('cameraToggleRecording', feedback);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 气候页
-  // ─────────────────────────────────────────────────────────────
   async handleClimateMode(mode: string): Promise<void> {
-    const fb = await this.climateViewModel.updateMode(mode);
-    await this.refreshPlannedTargets('climateMode', fb);
+    const feedback = await this.climateViewModel.updateMode(mode);
+    await this.refreshPlannedTargets('climateMode', feedback);
   }
 
   async handleClimateTarget(delta: number): Promise<void> {
-    const next = Math.max(16, Math.min(30, this.climateState.targetTemperature + delta));
-    const fb = await this.climateViewModel.updateTargetTemperature(next);
-    await this.refreshPlannedTargets('climateTarget', fb);
+    const nextTarget = Math.max(16, Math.min(30, this.climateState.targetTemperature + delta));
+    const feedback = await this.climateViewModel.updateTargetTemperature(nextTarget);
+    await this.refreshPlannedTargets('climateTarget', feedback);
   }
 
   async handleClimatePowerToggle(): Promise<void> {
-    // 用 isPowered 字段判断，而非 UI 文字
     const nextMode = this.climateState.isPowered ? 'off' : 'auto';
     await this.handleClimateMode(nextMode);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 自动化页
-  // ─────────────────────────────────────────────────────────────
   async handleAutomationToggleScene(sceneId: string, enabled: boolean): Promise<void> {
-    const fb = await this.automationViewModel.toggleScene(sceneId, enabled);
-    await this.refreshPlannedTargets('automationToggleScene', fb);
+    const feedback = await this.automationViewModel.toggleScene(sceneId, enabled);
+    await this.refreshPlannedTargets('automationToggleScene', feedback);
   }
 
   async handleAutomationRunScene(sceneId: string): Promise<void> {
-    const fb = await this.automationViewModel.runScene(sceneId);
-    await this.refreshPlannedTargets('automationRunScene', fb);
+    const feedback = await this.automationViewModel.runScene(sceneId);
+    await this.refreshPlannedTargets('automationRunScene', feedback);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 操作处理 — 家庭页
-  // ─────────────────────────────────────────────────────────────
-  async handleFamilyBroadcast(message: string = '全屋广播'): Promise<void> {
-    const fb = await this.familyViewModel.sendBroadcast(message);
-    await this.refreshPlannedTargets('familyBroadcast', fb);
+  async handleFamilyBroadcast(message: string = 'Whole-home broadcast'): Promise<void> {
+    const feedback = await this.familyViewModel.sendBroadcast(message);
+    await this.refreshPlannedTargets('familyBroadcast', feedback);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // UI 构建
-  // ─────────────────────────────────────────────────────────────
   build() {
     Stack() {
       Column() {
-
-        // ── 顶部 App Bar ──────────────────────────────────────
         Row() {
-          // 二级页显示返回按钮
           if (this.isSubPage()) {
             Row() {
               AppSymbol({ name: 'arrow_back', glyphSize: 20, color: COLOR_PRIMARY })
             }
-            .width(44).height(44).borderRadius(22)
+            .width(44)
+            .height(44)
+            .borderRadius(22)
             .backgroundColor(COLOR_PRIMARY_SOFT)
             .justifyContent(FlexAlign.Center)
             .margin({ right: 8 })
@@ -431,32 +427,27 @@ struct Index {
           Blank()
 
           Row({ space: 4 }) {
-            // 手动刷新
-            Row() {
-              AppSymbol({
-                name: 'refresh',
-                glyphSize: 22,
-                color: this.isLoading ? COLOR_TEXT_MUTED : COLOR_PRIMARY,
-              })
-            }
-            .width(44).height(44).borderRadius(22)
-            .justifyContent(FlexAlign.Center)
-            .backgroundColor('#00000000')
-            .onClick(() => {
-              if (!this.isLoading) {
-                this.isLoading = true;
-                this.refreshAll()
-                  .then(() => { this.isLoading = false; })
-                  .catch(() => { this.isLoading = false; });
+            if (!this.isSubPage()) {
+              Row() {
+                AppSymbol({ name: 'add', glyphSize: 22, color: COLOR_PRIMARY })
               }
-            })
+              .width(44)
+              .height(44)
+              .borderRadius(22)
+              .justifyContent(FlexAlign.Center)
+              .backgroundColor('#00000000')
+              .onClick(() => this.openAddDeviceSheet())
 
-            Row() {
-              AppSymbol({ name: 'add', glyphSize: 22, color: COLOR_PRIMARY })
+              Row() {
+                AppSymbol({ name: 'menu', glyphSize: 22, color: COLOR_PRIMARY })
+              }
+              .width(44)
+              .height(44)
+              .borderRadius(22)
+              .justifyContent(FlexAlign.Center)
+              .backgroundColor('#00000000')
+              .onClick(() => this.toggleHeaderMenu())
             }
-            .width(44).height(44).borderRadius(22)
-            .justifyContent(FlexAlign.Center)
-            .backgroundColor('#00000000')
           }
         }
         .padding({ left: 20, right: 12, top: 14, bottom: 14 })
@@ -464,116 +455,116 @@ struct Index {
         .border({ width: { bottom: 1 }, color: COLOR_BORDER + '99' })
         .width('100%')
 
-        // ── 页面内容区 ────────────────────────────────────────
-        Scroll() {
-          Column({ space: 16 }) {
-
-            if (this.activePage === 'home') {
-              HomeView({
-                state: this.homeState,
-                onOpenLighting:  () => this.setPage('lighting'),
-                onOpenAccess:    () => this.setPage('access'),
-                onOpenCamera:    () => this.setPage('camera'),
-                onOpenClimate:   () => this.setPage('climate'),
-                onOpenScenes:    () => this.setPage('automation'),
-                onRunScene:      (id: string) => this.handleHomeRunScene(id),
-                onToggleDoor:    (id: string, locked: boolean) => this.handleHomeToggleDoor(id, locked),
-                onTogglePower:   (id: string, on: boolean) => this.handleHomeTogglePower(id, on),
-                onBrightnessQuick: (id: string, v: number) => this.handleHomeBrightness(id, v),
-                onTemperatureChange: (id: string, v: number) => this.handleHomeTemperature(id, v),
-                onColorTemperature: (id: string, v: number) => this.handleHomeColorTemperature(id, v),
-              })
-
-            } else if (this.activePage === 'lighting') {
-              LightingView({
-                state: this.lightingState,
-                onBack:                () => this.goBack(),
-                onToggleAll:           (on: boolean) => this.handleLightingToggleAll(on),
-                onApplyPreset:         (label: string) => this.handleLightingPreset(label),
-                onToggleRoom:          (roomId: string, on: boolean) => this.handleLightingToggleRoom(roomId, on),
-                onSetRoomBrightness:   (roomId: string, v: number) => this.handleLightingRoomBrightness(roomId, v),
-                onToggleLight:         (id: string, on: boolean) => this.handleLightingToggleLight(id, on),
-                onSetLightBrightness:  (id: string, v: number) => this.handleLightingLightBrightness(id, v),
-                onSetLightColorTemperature: (id: string, v: number) => this.handleLightingLightColor(id, v),
-              })
-
-            } else if (this.activePage === 'access') {
-              AccessView({
-                state: this.accessState,
-                featuredCamera:          this.cameraState.featuredCamera,
-                onBack:                  () => this.goBack(),
-                onTogglePrimaryLock:     (locked: boolean) => this.handleAccessToggleLock(locked),
-                onShareGuest:            () => this.handleShareGuest(),
-                onOpenCamera:            () => this.setPage('camera'),
-                onToggleCameraRecording: (id: string, rec: boolean) => this.handleCameraToggleRecording(id, rec),
-              })
-
-            } else if (this.activePage === 'camera') {
-              CameraView({
-                state: this.cameraState,
-                onBack:             () => this.goBack(),
-                onToggleRecording:  (id: string, rec: boolean) => this.handleCameraToggleRecording(id, rec),
-              })
-
-            } else if (this.activePage === 'climate') {
-              ClimateView({
-                state: this.climateState,
-                onBack:          () => this.goBack(),
-                onSelectMode:    (mode: string) => this.handleClimateMode(mode),
-                onAdjustTarget:  (delta: number) => this.handleClimateTarget(delta),
-                onPowerToggle:   () => this.handleClimatePowerToggle(),
-              })
-
-            } else if (this.activePage === 'automation') {
-              AutomationView({
-                state: this.automationState,
-                onRunScene:    (id: string) => this.handleAutomationRunScene(id),
-                onToggleScene: (id: string, enabled: boolean) => this.handleAutomationToggleScene(id, enabled),
-              })
-
-            } else if (this.activePage === 'notifications') {
-              NotificationsView({ state: this.notificationsState })
-
-            } else if (this.activePage === 'family') {
-              FamilyView({
-                state: this.familyState,
-                onSendBroadcast: () => this.handleFamilyBroadcast('全屋广播'),
-              })
+        Refresh({ refreshing: $$this.isRefreshing, offset: 108, friction: 72 }) {
+          Scroll() {
+            Column({ space: 16 }) {
+              if (this.activePage === 'home') {
+                HomeView({
+                  state: this.homeState,
+                  onOpenLighting: () => this.setPage('lighting'),
+                  onOpenAccess: () => this.setPage('access'),
+                  onOpenCamera: () => this.setPage('camera'),
+                  onOpenClimate: () => this.setPage('climate'),
+                  onOpenScenes: () => this.setPage('automation'),
+                  onRunScene: (id: string) => this.handleHomeRunScene(id),
+                  onToggleDoor: (id: string, locked: boolean) => this.handleHomeToggleDoor(id, locked),
+                  onTogglePower: (id: string, on: boolean) => this.handleHomeTogglePower(id, on),
+                  onBrightnessQuick: (id: string, value: number) => this.handleHomeBrightness(id, value),
+                  onTemperatureChange: (id: string, value: number) => this.handleHomeTemperature(id, value),
+                  onColorTemperature: (id: string, value: number) => this.handleHomeColorTemperature(id, value),
+                });
+              } else if (this.activePage === 'lighting') {
+                LightingView({
+                  state: this.lightingState,
+                  onBack: () => this.goBack(),
+                  onToggleAll: (on: boolean) => this.handleLightingToggleAll(on),
+                  onApplyPreset: (label: string) => this.handleLightingPreset(label),
+                  onToggleRoom: (roomId: string, on: boolean) => this.handleLightingToggleRoom(roomId, on),
+                  onSetRoomBrightness: (roomId: string, value: number) => this.handleLightingRoomBrightness(roomId, value),
+                  onToggleLight: (id: string, on: boolean) => this.handleLightingToggleLight(id, on),
+                  onSetLightBrightness: (id: string, value: number) => this.handleLightingLightBrightness(id, value),
+                  onSetLightColorTemperature: (id: string, value: number) => this.handleLightingLightColor(id, value),
+                });
+              } else if (this.activePage === 'access') {
+                AccessView({
+                  state: this.accessState,
+                  featuredCamera: this.cameraState.featuredCamera,
+                  onBack: () => this.goBack(),
+                  onTogglePrimaryLock: (locked: boolean) => this.handleAccessToggleLock(locked),
+                  onShareGuest: () => this.handleShareGuest(),
+                  onOpenCamera: () => this.setPage('camera'),
+                  onToggleCameraRecording: (id: string, rec: boolean) => this.handleCameraToggleRecording(id, rec),
+                });
+              } else if (this.activePage === 'camera') {
+                CameraView({
+                  state: this.cameraState,
+                  onBack: () => this.goBack(),
+                  onToggleRecording: (id: string, rec: boolean) => this.handleCameraToggleRecording(id, rec),
+                });
+              } else if (this.activePage === 'climate') {
+                ClimateView({
+                  state: this.climateState,
+                  onBack: () => this.goBack(),
+                  onSelectMode: (mode: string) => this.handleClimateMode(mode),
+                  onAdjustTarget: (delta: number) => this.handleClimateTarget(delta),
+                  onPowerToggle: () => this.handleClimatePowerToggle(),
+                });
+              } else if (this.activePage === 'automation') {
+                AutomationView({
+                  state: this.automationState,
+                  onRunScene: (id: string) => this.handleAutomationRunScene(id),
+                  onToggleScene: (id: string, enabled: boolean) => this.handleAutomationToggleScene(id, enabled),
+                });
+              } else if (this.activePage === 'notifications') {
+                NotificationsView({ state: this.notificationsState });
+              } else if (this.activePage === 'family') {
+                FamilyView({
+                  state: this.familyState,
+                  onSendBroadcast: () => this.handleFamilyBroadcast('Whole-home broadcast'),
+                });
+              } else if (this.activePage === 'sceneEditor') {
+                SceneEditorView();
+              } else if (this.activePage === 'routineEditor') {
+                RoutineEditorView();
+              } else if (this.activePage === 'familySettings') {
+                FamilySettingsView();
+              }
             }
+            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
+            .width('100%')
           }
-          .padding({ left: 20, right: 20, top: 16, bottom: 32 })
-          .width('100%')
+          .scrollBar(BarState.Off)
         }
+        .onRefreshing(() => this.handleTopRefresh())
         .layoutWeight(1)
-        .scrollBar(BarState.Off)
+        .width('100%')
 
-        // ── 底部导航栏（二级页隐藏）────────────────────────────
         if (!this.isSubPage()) {
           Row() {
             TabButton({
-              label: '首页',
+              label: 'Home',
               icon: 'home',
               selected: this.currentTab === 0,
               onTap: () => this.setPage('home'),
-            })
+            });
             TabButton({
-              label: '自动化',
+              label: 'Scenes',
               icon: 'auto_awesome',
               selected: this.currentTab === 1,
               onTap: () => this.setPage('automation'),
-            })
+            });
             TabButton({
-              label: '通知',
+              label: 'Alerts',
               icon: 'notifications',
               selected: this.currentTab === 2,
               onTap: () => this.setPage('notifications'),
-            })
+            });
             TabButton({
-              label: '家庭',
+              label: 'Family',
               icon: 'group',
               selected: this.currentTab === 3,
               onTap: () => this.setPage('family'),
-            })
+            });
           }
           .padding({ left: 12, right: 12, top: 10, bottom: 10 })
           .backgroundColor(COLOR_SURFACE + 'F2')
@@ -585,17 +576,48 @@ struct Index {
       .height('100%')
       .backgroundColor(COLOR_BG)
 
-      // ── 加载遮罩 ──────────────────────────────────────────────
+      if (this.isHeaderMenuOpen || this.isAddSheetOpen) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('#201B142E')
+          .onClick(() => this.closeTransientUi())
+      }
+
+      if (this.isHeaderMenuOpen) {
+        Column() {
+          HeaderActionMenu({
+            onSelect: (item: HeaderActionMenuItem) => this.handleHeaderMenuSelect(item),
+          });
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: 82, right: 20 })
+        .alignItems(HorizontalAlign.End)
+      }
+
+      if (this.isAddSheetOpen) {
+        Column() {
+          Blank();
+          AddDeviceSheet({ onClose: () => this.closeTransientUi() });
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+      }
+
       if (this.isLoading) {
         Column({ space: 14 }) {
           LoadingProgress()
-            .width(48).height(48)
-            .color(COLOR_PRIMARY)
-          Text('加载中…')
+            .width(48)
+            .height(48)
+            .color(COLOR_PRIMARY);
+          Text('Loading...')
             .fontSize(14)
-            .fontColor(COLOR_TEXT_MUTED)
+            .fontColor(COLOR_TEXT_MUTED);
         }
-        .width('100%').height('100%')
+        .width('100%')
+        .height('100%')
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .backgroundColor('#FAF5EEE6')

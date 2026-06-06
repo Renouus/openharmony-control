@@ -6,7 +6,10 @@ export type AppPageId =
   | 'climate'
   | 'automation'
   | 'notifications'
-  | 'family';
+  | 'family'
+  | 'sceneEditor'
+  | 'routineEditor'
+  | 'familySettings';
 
 export interface MetricPillState {
   label: string;
