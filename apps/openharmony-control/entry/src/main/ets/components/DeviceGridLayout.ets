@@ -78,8 +78,16 @@ export struct SmallDeviceCard {
     })
     .width('100%')
     .height(this.fillHeight ? '100%' : undefined)
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.95 })
+    .stateStyles({
+      pressed: {
+        .scale({ x: 0.95, y: 0.95 })
+      },
+      normal: {
+        .scale({ x: 1, y: 1 })
+      }
+    })
     .onClick(() => this.onTap())
+    .animation({ duration: 250, curve: Curve.Friction })
   }
 }
 
@@ -167,8 +175,16 @@ export struct LargeDeviceCard {
     .width('100%')
     .aspectRatio(1)
     .alignItems(HorizontalAlign.Start)
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.95 })
+    .stateStyles({
+      pressed: {
+        .scale({ x: 0.95, y: 0.95 })
+      },
+      normal: {
+        .scale({ x: 1, y: 1 })
+      }
+    })
     .onClick(() => this.onTap())
+    .animation({ duration: 250, curve: Curve.Friction })
   }
 }
 
