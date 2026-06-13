@@ -38,24 +38,7 @@ export struct AutomationView {
       }
       .width('100%')
 
-      Row() {
-        Text('我的自动化')
-          .fontSize(22)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_SURFACE)
-          .fontFamily('serif')
-          .layoutWeight(1)
 
-        Row() {
-          AppSymbol({ name: 'auto_awesome', glyphSize: 18, color: COLOR_PRIMARY })
-        }
-        .width(36)
-        .height(36)
-        .borderRadius(18)
-        .backgroundColor(COLOR_PRIMARY_SOFT)
-        .justifyContent(FlexAlign.Center)
-      }
-      .width('100%')
 
       if (this.appState.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual').length === 0) {
         Column({ space: 10 }) {
