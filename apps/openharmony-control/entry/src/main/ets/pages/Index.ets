@@ -243,7 +243,7 @@ struct Index {
         .layoutWeight(1)
       } else if (pageName === 'lightControl') {
         Scroll() {
-          LightControlView({ deviceId: this.subPageParam as string, appState: this.appState })
+          LightControlView({ deviceId: this.subPageParam as string, appState: this.appState, home: this.appState.home })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
