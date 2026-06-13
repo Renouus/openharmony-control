@@ -18,13 +18,12 @@ import {
 export struct LightControlView {
   @Prop deviceId: string;
   @ObjectLink appState: AppStateSnapshot;
-  @ObjectLink home: HomeViewState;
   @Consume('controller') controller: AppController;
 
   @State colorTemp: number = 4000; // 模拟色温，范围 2000K 到 6500K
 
   private getDevice(): HomeDeviceCardState | undefined {
-    for (const room of this.home.rooms) {
+    for (const room of this.appState.home.rooms) {
       const dev = room.devices.find(d => d.id === this.deviceId);
       if (dev) return dev;
     }
