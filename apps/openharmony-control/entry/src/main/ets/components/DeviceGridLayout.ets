@@ -17,7 +17,6 @@ export struct SmallDeviceCard {
   @Prop device: HomeDeviceCardState;
   @Prop fillHeight: boolean = false;
   onTap: () => void = () => {};
-  @State isPressed: boolean = false;
 
   private isOn(): boolean {
     if (this.device.kind === 'door-lock') {
@@ -79,16 +78,8 @@ export struct SmallDeviceCard {
     })
     .width('100%')
     .height(this.fillHeight ? '100%' : undefined)
-    .scale({ x: this.isPressed ? 0.95 : 1, y: this.isPressed ? 0.95 : 1 })
-    .onTouch((e: TouchEvent) => {
-      if (e.type === TouchType.Down) {
-        this.isPressed = true;
-      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        this.isPressed = false;
-      }
-    })
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.95 })
     .onClick(() => this.onTap())
-    .animation({ duration: 250, curve: Curve.Friction })
   }
 }
 
@@ -96,7 +87,6 @@ export struct SmallDeviceCard {
 export struct LargeDeviceCard {
   @Prop device: HomeDeviceCardState;
   onTap: () => void = () => {};
-  @State isPressed: boolean = false;
 
   private usesPrimaryShell(): boolean {
     return this.device.kind === 'door-lock' || (this.device.kind !== 'air-conditioner' && this.device.power);
@@ -177,16 +167,8 @@ export struct LargeDeviceCard {
     .width('100%')
     .aspectRatio(1)
     .alignItems(HorizontalAlign.Start)
-    .scale({ x: this.isPressed ? 0.95 : 1, y: this.isPressed ? 0.95 : 1 })
-    .onTouch((e: TouchEvent) => {
-      if (e.type === TouchType.Down) {
-        this.isPressed = true;
-      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        this.isPressed = false;
-      }
-    })
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.95 })
     .onClick(() => this.onTap())
-    .animation({ duration: 250, curve: Curve.Friction })
   }
 }
 
