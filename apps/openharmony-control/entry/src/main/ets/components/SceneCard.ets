@@ -33,6 +33,22 @@ export struct SceneCard {
   @State isPressed: boolean = false;
   onToggle: (enabled: boolean) => void = () => {};
   onRun: () => void = () => {};
+  onEdit: () => void = () => {};
+  onDelete: () => void = () => {};
+
+  @Builder
+  CardMenu() {
+    Menu() {
+      MenuItem({ content: '编辑' })
+        .onClick(() => {
+          this.onEdit();
+        })
+      MenuItem({ content: '删除' })
+        .onClick(() => {
+          this.onDelete();
+        })
+    }
+  }
 
   build() {
     Column({ space: 28 }) {
@@ -149,6 +165,7 @@ export struct SceneCard {
         this.isPressed = false;
       }
     })
+    .bindContextMenu(this.CardMenu(), ResponseType.LongPress)
     .width('100%')
   }
 }

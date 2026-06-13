@@ -85,6 +85,13 @@ export struct AutomationView {
               },
               onRun: () => {
                 console.info('执行自动化: ' + scene.name);
+              },
+              onEdit: () => {
+                console.info('编辑自动化: ' + scene.name);
+                // Future: Navigate to edit screen
+              },
+              onDelete: () => {
+                this.appState.automation.scenes = this.appState.automation.scenes.filter(item => item.id !== scene.id);
               }
             })
           }, (s: SceneCardState) => s.id)
