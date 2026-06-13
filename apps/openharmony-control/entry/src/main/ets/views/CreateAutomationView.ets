@@ -14,39 +14,7 @@ export struct CreateAutomationView {
 
   build() {
     Column() {
-      // Header
-      Row() {
-        Text('取消')
-          .fontSize(16)
-          .fontColor(COLOR_TEXT_MUTED)
-          .onClick(() => {
-            this.onCancel();
-          })
-        Text('新建自动化')
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(COLOR_ON_SURFACE)
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-        Text('保存')
-          .fontSize(16)
-          .fontColor(COLOR_PRIMARY)
-          .onClick(() => {
-            if (!this.draft.name) {
-              console.error('Validation: Name is required');
-              return;
-            }
-            if (this.draft.conditions.length === 0 || this.draft.actions.length === 0) {
-              console.error('Validation: Must have at least 1 condition and 1 action');
-              return;
-            }
-            console.info('Saving Draft:', JSON.stringify(this.draft));
-            this.onSave(this.draft);
-          })
-      }
-      .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+
 
       Scroll() {
         Column({ space: 24 }) {
@@ -75,7 +43,9 @@ export struct CreateAutomationView {
                   .fontSize(16)
                   .fontColor('#FF4444')
                   .onClick(() => {
-                    this.draft.conditions.splice(index, 1);
+                    let newCond = [...this.draft.conditions];
+                    newCond.splice(index, 1);
+                    this.draft.conditions = newCond;
                   })
               }
               .width('100%')
@@ -115,7 +85,9 @@ export struct CreateAutomationView {
                   .fontSize(16)
                   .fontColor('#FF4444')
                   .onClick(() => {
-                    this.draft.actions.splice(index, 1);
+                    let newAct = [...this.draft.actions];
+                    newAct.splice(index, 1);
+                    this.draft.actions = newAct;
                   })
               }
               .width('100%')
@@ -143,6 +115,25 @@ export struct CreateAutomationView {
         .width('100%')
       }
       .layoutWeight(1)
+
+      Button('保存自动化')
+        .width('90%')
+        .height(50)
+        .margin({ bottom: 24, top: 12 })
+        .backgroundColor(COLOR_PRIMARY)
+        .fontColor(Color.White)
+        .onClick(() => {
+          if (!this.draft.name) {
+            console.error('Validation: Name is required');
+            return;
+          }
+          if (this.draft.conditions.length === 0 || this.draft.actions.length === 0) {
+            console.error('Validation: Must have at least 1 condition and 1 action');
+            return;
+          }
+          console.info('Saving Draft:', JSON.stringify(this.draft));
+          this.onSave(this.draft);
+        })
     }
     .width('100%')
     .height('100%')
@@ -153,7 +144,7 @@ export struct CreateAutomationView {
   ConditionSheetBuilder() {
     ConditionPickerSheet({
       onSelect: (condition) => {
-        this.draft.conditions.push(condition);
+        this.draft.conditions = [...this.draft.conditions, condition];
         this.showConditionSheet = false;
       }
     })
@@ -163,7 +154,7 @@ export struct CreateAutomationView {
   ActionSheetBuilder() {
     ActionPickerSheet({
       onSelect: (action) => {
-        this.draft.actions.push(action);
+        this.draft.actions = [...this.draft.actions, action];
         this.showActionSheet = false;
       }
     })
