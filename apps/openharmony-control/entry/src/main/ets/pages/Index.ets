@@ -259,8 +259,10 @@ struct Index {
         CreateAutomationView({
           appState: this.appState,
           onCancel: () => this.popSubPage(),
-          onSave: (draft) => {
-            console.info('Draft saved in Index:', JSON.stringify(draft));
+          onSave: (scene) => {
+            console.info('Scene saved in Index:', JSON.stringify(scene));
+            let newScenes = [scene, ...this.appState.automation.scenes];
+            this.appState.automation.scenes = newScenes;
             this.popSubPage();
           }
         })

@@ -1,4 +1,4 @@
-import { RoutineDraft, ConditionDraft, ActionDraft } from '../model/page-view-state';
+import { RoutineDraft, ConditionDraft, ActionDraft, DevicePanelState, SceneChipState, SceneCardState } from '../model/page-view-state';
 import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
@@ -13,7 +13,7 @@ export struct CreateAutomationView {
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
   onCancel: () => void = () => {};
-  onSave: (draft: RoutineDraft) => void = () => {};
+  onSave: (scene: SceneCardState) => void = () => {};
 
   getConditionLabel(cond: ConditionDraft): string {
     if (cond.type === 'time') {
@@ -81,8 +81,19 @@ export struct CreateAutomationView {
               console.error('Validation: Must have at least 1 condition and 1 action');
               return;
             }
-            console.info('Saving Draft:', JSON.stringify(this.draft));
-            this.onSave(this.draft);
+            
+            let scene: SceneCardState = {
+              id: Date.now().toString(),
+              name: this.draft.name,
+              description: '自定义自动化规则',
+              enabled: true,
+              triggerLabel: this.getConditionLabel(this.draft.conditions[0]),
+              triggerTypeLabel: this.draft.conditions[0].type === 'time' ? '定时' : '设备状态',
+              actions: this.draft.actions.map(a => this.getActionLabel(a)),
+              repeatLabel: '执行一次'
+            };
+            
+            this.onSave(scene);
           })
       }
       .width('100%')
