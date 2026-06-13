@@ -2,7 +2,7 @@ import { ActionDraft } from '../model/page-view-state';
 
 @Component
 export struct ActionPickerSheet {
-  @Prop onSelect: (action: ActionDraft) => void = () => {};
+  onSelect: (action: ActionDraft) => void = () => {};
 
   build() {
     Column({ space: 16 }) {

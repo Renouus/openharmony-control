@@ -9,8 +9,8 @@ export struct CreateAutomationView {
   @State draft: RoutineDraft = { name: '', conditions: [], actions: [] };
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
-  @Prop onCancel: () => void = () => {};
-  @Prop onSave: (draft: RoutineDraft) => void = () => {};
+  onCancel: () => void = () => {};
+  onSave: (draft: RoutineDraft) => void = () => {};
 
   build() {
     Column() {

@@ -68,7 +68,7 @@ export struct AutomationView {
       .borderRadius(20)
       .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
       .onClick(() => {
-        this.navStack.push('createAutomation');
+        this.navStack.pushPathByName('createAutomation', null);
       })
 
       Row() {
@@ -84,7 +84,7 @@ export struct AutomationView {
         .backgroundColor(COLOR_PRIMARY)
         .shadow({ radius: 16, color: '#C2652A30', offsetX: 0, offsetY: 6 })
         .onClick(() => {
-          this.navStack.push('createAutomation');
+          this.navStack.pushPathByName('createAutomation', null);
         })
       }
       .width('100%')

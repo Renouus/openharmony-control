@@ -2,7 +2,7 @@ import { ConditionDraft } from '../model/page-view-state';
 
 @Component
 export struct ConditionPickerSheet {
-  @Prop onSelect: (condition: ConditionDraft) => void = () => {};
+  onSelect: (condition: ConditionDraft) => void = () => {};
 
   build() {
     Column({ space: 16 }) {
