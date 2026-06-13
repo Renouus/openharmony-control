@@ -3,7 +3,7 @@ import {
   ColorTemperaturePayload,
   SwitchPayload,
 } from '../services/device-api';
-import { LightingViewState } from '../model/page-view-state';
+import { LightingViewStateData } from '../model/page-view-state';
 import { createLightingPresets, lightDevices, mapLightingViewState, roomLights } from '../model/smart-home-mappers';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 import { ROOM_ORDER } from '../theme/smart-home-theme';
@@ -15,7 +15,7 @@ export class LightingViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<LightingViewState> {
+  async load(feedback: string = ''): Promise<LightingViewStateData> {
     const devices = await this.repository.listDevices();
     return mapLightingViewState(devices, feedback);
   }

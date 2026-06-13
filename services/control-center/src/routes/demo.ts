@@ -23,6 +23,11 @@ type EnvironmentRequest = {
   purifierActive?: boolean;
 };
 
+type MotionRequest = {
+  deviceId?: string;
+  motionDetected?: boolean;
+};
+
 export async function registerDemoRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
@@ -73,6 +78,37 @@ export async function registerDemoRoutes(
       deviceId: "sensor-living-room",
       state: updated?.state,
       health: updated?.health,
+    };
+  });
+
+  /** 人体感应联动演示：模拟人体经过或离开 */
+  app.post("/api/demo/motion", async (request, reply) => {
+    const body = request.body as MotionRequest;
+    if (!body.deviceId) {
+      return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
+    }
+
+    const updated = registry.update(body.deviceId, {
+      motionDetected: body.motionDetected === true,
+    });
+    
+    if (!updated) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
+    }
+
+    // 简易自动化规则：客厅感应器触发时开灯，无人时关灯
+    if (body.deviceId === "sensor-motion-living-room") {
+      const light = registry.find("light-living-room");
+      if (light && light.state.online) {
+        registry.update("light-living-room", {
+          power: body.motionDetected === true,
+        });
+      }
+    }
+
+    return {
+      deviceId: body.deviceId,
+      state: updated.state,
     };
   });
 

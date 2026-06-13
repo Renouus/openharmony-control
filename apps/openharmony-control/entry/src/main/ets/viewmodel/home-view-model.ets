@@ -10,7 +10,7 @@ import {
   TemperaturePayload,
 } from '../services/device-api';
 import { DeviceSnapshot } from '../model/device-view-model';
-import { HomeViewState } from '../model/page-view-state';
+import { HomeViewStateData } from '../model/page-view-state';
 import { mapHomeViewState } from '../model/smart-home-mappers';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 
@@ -21,7 +21,7 @@ export class HomeViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<HomeViewState> {
+  async load(feedback: string = ''): Promise<HomeViewStateData> {
     const summary: HomeSummary = await this.repository.getSummary();
     let devices: DeviceSnapshot[] = [];
     let scenes: SceneSnapshot[] = [];

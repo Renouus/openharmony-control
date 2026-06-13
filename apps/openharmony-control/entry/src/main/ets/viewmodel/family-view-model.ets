@@ -1,4 +1,4 @@
-import { FamilyViewState } from '../model/page-view-state';
+import { FamilyViewStateData } from '../model/page-view-state';
 import { mapFamilyViewState } from '../model/smart-home-mappers';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 
@@ -9,7 +9,7 @@ export class FamilyViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<FamilyViewState> {
+  async load(feedback: string = ''): Promise<FamilyViewStateData> {
     const overview = await this.repository.getFamilyOverview();
     return mapFamilyViewState(overview, feedback);
   }

@@ -18,10 +18,10 @@ interface SceneActionCard {
 }
 
 const SCENE_ACTIONS: SceneActionCard[] = [
-  { id: 'lights', icon: 'lightbulb', title: 'Living Room Lights', subtitle: 'Dim to 20%' },
-  { id: 'door', icon: 'lock', title: 'Front Door', subtitle: 'Secure after start' },
-  { id: 'climate', icon: 'thermostat', title: 'Climate Hub', subtitle: 'Cool to 21 C' },
-  { id: 'screen', icon: 'movie', title: 'Media Center', subtitle: 'Launch movie mode' },
+  { id: 'lights', icon: 'lightbulb', title: '客厅灯光', subtitle: '调暗至 20%' },
+  { id: 'door', icon: 'lock', title: '入户门', subtitle: '启动后锁定' },
+  { id: 'climate', icon: 'thermostat', title: '气候中枢', subtitle: '制冷至 21 ℃' },
+  { id: 'screen', icon: 'movie', title: '媒体中心', subtitle: '启动观影模式' },
 ];
 
 @Component
@@ -39,12 +39,12 @@ export struct SceneEditorView {
         .justifyContent(FlexAlign.Center)
 
         Column({ space: 6 }) {
-          Text('Movie Night')
+          Text('电影之夜')
             .fontSize(36)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
             .fontFamily('serif')
-          Text('Shape a focused evening scene with lighting, comfort, and security actions.')
+          Text('通过灯光、舒适度和安全操作，打造一个专注的夜晚场景。')
             .fontSize(13)
             .fontColor(COLOR_TEXT_MUTED)
         }
@@ -58,14 +58,14 @@ export struct SceneEditorView {
       .alignItems(HorizontalAlign.Center)
 
       Row() {
-        Text('Sequence')
+        Text('执行序列')
           .fontSize(24)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .layoutWeight(1)
 
-        Text('4 Actions')
+        Text('4 个操作')
           .fontSize(13)
           .fontColor(COLOR_TEXT_MUTED)
       }
@@ -107,7 +107,7 @@ export struct SceneEditorView {
 
       Row({ space: 10 }) {
         AppSymbol({ name: 'add', glyphSize: 18, color: COLOR_PRIMARY })
-        Text('Add Action')
+        Text('添加操作')
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_PRIMARY)

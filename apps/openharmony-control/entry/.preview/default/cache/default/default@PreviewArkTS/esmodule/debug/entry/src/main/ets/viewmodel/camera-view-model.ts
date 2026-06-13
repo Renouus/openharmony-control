@@ -1,4 +1,4 @@
-import type { CameraViewState } from '../model/page-view-state';
+import type { CameraViewStateData } from '../model/page-view-state';
 import { mapCameraViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import { normalizeRepositoryError } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
 import type { SmartHomeRepositoryPort } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
@@ -7,7 +7,7 @@ export class CameraViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<CameraViewState> {
+    async load(feedback: string = ''): Promise<CameraViewStateData> {
         const cameras = await this.repository.getCameraOverview();
         return mapCameraViewState(cameras, feedback);
     }

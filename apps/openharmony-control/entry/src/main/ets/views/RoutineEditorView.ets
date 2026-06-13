@@ -17,14 +17,14 @@ interface RoutineCard {
 }
 
 const ROUTINE_TRIGGERS: RoutineCard[] = [
-  { id: 'sunrise', icon: 'wb_sunny', title: 'At Sunrise', subtitle: 'Time trigger' },
-  { id: 'arrival', icon: 'house', title: 'Arriving Home', subtitle: 'Location trigger' },
+  { id: 'sunrise', icon: 'wb_sunny', title: '日出时', subtitle: '时间触发' },
+  { id: 'arrival', icon: 'house', title: '到家时', subtitle: '位置触发' },
 ];
 
 const ROUTINE_ACTIONS: RoutineCard[] = [
-  { id: 'warmLights', icon: 'lightbulb', title: 'Living Room Lights', subtitle: 'Warm Glow (30%)' },
-  { id: 'ac', icon: 'thermostat', title: 'AC', subtitle: 'Set to 22 C' },
-  { id: 'door', icon: 'lock_open', title: 'Front Door', subtitle: 'Unlock for arrival' },
+  { id: 'warmLights', icon: 'lightbulb', title: '客厅灯光', subtitle: '暖光 (30%)' },
+  { id: 'ac', icon: 'thermostat', title: '空调', subtitle: '设为 22 ℃' },
+  { id: 'door', icon: 'lock_open', title: '入户门', subtitle: '到达解锁' },
 ];
 
 @Component
@@ -32,19 +32,19 @@ export struct RoutineEditorView {
   build() {
     Column({ space: 28 }) {
       Column({ space: 6 }) {
-        Text('Arrive Home')
+        Text('回家自动化')
           .fontSize(36)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
-        Text('Blend time and location triggers into a polished entry routine.')
+        Text('将时间和位置触发结合，打造完美的回家体验。')
           .fontSize(13)
           .fontColor(COLOR_TEXT_MUTED)
       }
       .width('100%')
 
-      this.sectionBlock('When', ROUTINE_TRIGGERS)
-      this.sectionBlock('Then Do', ROUTINE_ACTIONS)
+      this.sectionBlock('当', ROUTINE_TRIGGERS)
+      this.sectionBlock('执行', ROUTINE_ACTIONS)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -96,7 +96,7 @@ export struct RoutineEditorView {
 
       Row({ space: 8 }) {
         AppSymbol({ name: 'add', glyphSize: 18, color: COLOR_PRIMARY })
-        Text(title === 'When' ? 'Add Trigger' : 'Add Action')
+        Text(title === '当' ? '添加触发条件' : '添加操作')
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_PRIMARY)

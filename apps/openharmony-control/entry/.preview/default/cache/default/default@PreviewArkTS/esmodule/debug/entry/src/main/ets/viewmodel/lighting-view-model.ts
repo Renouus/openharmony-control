@@ -1,5 +1,5 @@
 import type { BrightnessPayload, ColorTemperaturePayload, SwitchPayload } from '../services/device-api';
-import type { LightingViewState } from '../model/page-view-state';
+import type { LightingViewStateData } from '../model/page-view-state';
 import { createLightingPresets, lightDevices, mapLightingViewState, roomLights } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import { normalizeRepositoryError } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
 import type { SmartHomeRepositoryPort } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
@@ -9,7 +9,7 @@ export class LightingViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<LightingViewState> {
+    async load(feedback: string = ''): Promise<LightingViewStateData> {
         const devices = await this.repository.listDevices();
         return mapLightingViewState(devices, feedback);
     }

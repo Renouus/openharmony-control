@@ -43,5 +43,9 @@
 			"type":	"media",
 			"name":	"family_member_sarah",
 			"id":	"0x0100000A"
+		}, {
+			"type":	"profile",
+			"name":	"network_config",
+			"id":	"0x0100000B"
 		}]
 }

@@ -1,4 +1,4 @@
-import type { AutomationViewState } from '../model/page-view-state';
+import type { AutomationViewStateData } from '../model/page-view-state';
 import { mapAutomationViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import { normalizeRepositoryError } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
 import type { SmartHomeRepositoryPort } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
@@ -7,7 +7,7 @@ export class AutomationViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<AutomationViewState> {
+    async load(feedback: string = ''): Promise<AutomationViewStateData> {
         const scenes = await this.repository.listScenes();
         return mapAutomationViewState(scenes, feedback);
     }

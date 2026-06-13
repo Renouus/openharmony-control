@@ -1,4 +1,6 @@
 import { ClimateModeState, ClimateUsageBarState, ClimateViewState } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { FeatureHeader } from '../components/FeatureHeader';
 import { AppSymbol } from '../components/AppSymbol';
 import {
   COLOR_BG,
@@ -34,13 +36,18 @@ struct ClimateModeButton {
     .alignItems(HorizontalAlign.Center)
     .borderRadius(18)
     .backgroundColor(this.mode.active ? COLOR_PRIMARY : '#00000000')
+    .animation({ duration: 300 })
     .onClick(() => this.onTap())
+    .stateStyles({
+      pressed: { .opacity(0.7).scale({ x: 0.95, y: 0.95 }) },
+      normal: { .opacity(1).scale({ x: 1, y: 1 }) }
+    })
   }
 }
 
 @Component
-export struct ClimateView {
-  @Prop state: ClimateViewState;
+struct ClimateContent {
+  @ObjectLink climate: ClimateViewState;
   onBack: () => void = () => {};
   onSelectMode: (mode: string) => void = () => {};
   onAdjustTarget: (delta: number) => void = () => {};
@@ -48,59 +55,26 @@ export struct ClimateView {
 
   build() {
     Column({ space: 0 }) {
-      Row() {
-        Row({ space: 14 }) {
-          Row() {
-            AppSymbol({ name: 'arrow_back', glyphSize: 24, color: COLOR_PRIMARY })
-          }
-          .width(44)
-          .height(44)
-          .borderRadius(22)
-          .justifyContent(FlexAlign.Center)
-          .onClick(() => this.onBack())
-
-          Column({ space: 2 }) {
-            Text('OmniHome')
-              .fontSize(10)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(COLOR_PRIMARY + 'CC')
-              .letterSpacing(2)
-            Text('Climate Control')
-              .fontSize(28)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(COLOR_ON_SURFACE)
-              .fontFamily('serif')
-          }
-          .alignItems(HorizontalAlign.Start)
-        }
-
-        Blank()
-
-        Row() {
-          AppSymbol({ name: 'more_vert', glyphSize: 20, color: COLOR_TEXT_MUTED })
-        }
-        .width(40)
-        .height(40)
-        .borderRadius(20)
-        .justifyContent(FlexAlign.Center)
-      }
-      .width('100%')
-      .padding({ bottom: 24 })
+      FeatureHeader({
+        title: '环境控制',
+        subtitle: '全屋温控系统',
+        onBack: this.onBack,
+      })
 
       Row() {
         Column({ space: 2 }) {
-          Text(this.state.roomLabel)
+          Text(this.climate.roomLabel)
             .fontSize(12)
             .fontWeight(FontWeight.Bold)
             .fontColor(COLOR_TEXT_MUTED)
             .letterSpacing(1.5)
           Row({ space: 6 }) {
-            Text(`${this.state.indoorTemperature}\u00B0`)
+            Text(`${this.climate.indoorTemperature}\u00B0`)
               .fontSize(64)
               .fontWeight(FontWeight.Medium)
               .fontColor(COLOR_ON_SURFACE)
               .fontFamily('serif')
-            Text('Indoor')
+            Text('室内')
               .fontSize(22)
               .fontColor(COLOR_TEXT_MUTED)
           }
@@ -120,7 +94,7 @@ export struct ClimateView {
           .justifyContent(FlexAlign.End)
           .width('100%')
 
-          Text(`${this.state.humidity}%`)
+          Text(`${this.climate.humidity}%`)
             .fontSize(34)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
@@ -148,13 +122,15 @@ export struct ClimateView {
           .width(244)
           .height(244)
           .borderRadius(122)
-          .backgroundColor(COLOR_PRIMARY + '14')
+          .backgroundColor(this.climate.isPowered ? COLOR_PRIMARY + '14' : COLOR_SURFACE_CONTAINER_HIGH)
+          .animation({ duration: 400 })
 
         Row()
           .width(240)
           .height(240)
           .borderRadius(120)
-          .backgroundColor(COLOR_PRIMARY)
+          .backgroundColor(this.climate.isPowered ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_HIGH)
+          .animation({ duration: 400 })
 
         Row()
           .width(94)
@@ -173,7 +149,11 @@ export struct ClimateView {
               .borderRadius(20)
               .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
               .onClick(() => this.onAdjustTarget(-1))
-            Text(`Current ${this.state.currentTemperature}\u00B0`)
+              .stateStyles({
+                pressed: { .opacity(0.7).scale({ x: 0.9, y: 0.9 }) },
+                normal: { .opacity(1).scale({ x: 1, y: 1 }) }
+              })
+            Text(`Current ${this.climate.currentTemperature}\u00B0`)
               .fontSize(11)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_TEXT_MUTED)
@@ -186,16 +166,20 @@ export struct ClimateView {
               .borderRadius(20)
               .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
               .onClick(() => this.onAdjustTarget(1))
+              .stateStyles({
+                pressed: { .opacity(0.7).scale({ x: 0.9, y: 0.9 }) },
+                normal: { .opacity(1).scale({ x: 1, y: 1 }) }
+              })
           }
           .justifyContent(FlexAlign.Center)
 
-          Text(`${this.state.targetTemperature}\u00B0`)
+          Text(`${this.climate.targetTemperature}\u00B0`)
             .fontSize(62)
             .fontWeight(FontWeight.Bold)
             .fontColor(COLOR_PRIMARY)
             .fontFamily('serif')
 
-          Text('Target')
+          Text('目标')
             .fontSize(11)
             .fontWeight(FontWeight.Bold)
             .fontColor(COLOR_TEXT_MUTED)
@@ -203,11 +187,11 @@ export struct ClimateView {
 
           Row({ space: 6 }) {
             AppSymbol({
-              name: this.state.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
+              name: this.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
               glyphSize: 16,
               color: COLOR_PRIMARY,
             })
-            Text(this.state.modeLabel)
+            Text(this.climate.modeLabel)
               .fontSize(12)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_PRIMARY)
@@ -216,14 +200,19 @@ export struct ClimateView {
           .justifyContent(FlexAlign.Center)
 
           Row() {
-            AppSymbol({ name: 'power_settings_new', glyphSize: 18, color: COLOR_TEXT_MUTED })
+            AppSymbol({ name: 'power_settings_new', glyphSize: 18, color: this.climate.isPowered ? '#FFFFFF' : COLOR_TEXT_MUTED })
           }
           .width(40)
           .height(40)
           .borderRadius(20)
-          .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
+          .backgroundColor(this.climate.isPowered ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_HIGH)
+          .animation({ duration: 300 })
           .justifyContent(FlexAlign.Center)
           .onClick(() => this.onPowerToggle())
+          .stateStyles({
+            pressed: { .opacity(0.7).scale({ x: 0.9, y: 0.9 }) },
+            normal: { .opacity(1).scale({ x: 1, y: 1 }) }
+          })
         }
         .width(240)
         .height(240)
@@ -238,7 +227,8 @@ export struct ClimateView {
           .width(16)
           .height(16)
           .borderRadius(8)
-          .backgroundColor(COLOR_PRIMARY)
+          .backgroundColor(this.climate.isPowered ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
+          .animation({ duration: 400 })
           .border({ width: 3, color: COLOR_SURFACE_CONTAINER_LOWEST })
           .position({ x: '71%', y: '12%' })
       }
@@ -246,7 +236,7 @@ export struct ClimateView {
       .height(340)
       .margin({ bottom: 18 })
 
-      Text(this.state.statusLabel)
+      Text(this.climate.statusLabel)
         .fontSize(14)
         .fontStyle(FontStyle.Italic)
         .fontWeight(FontWeight.Medium)
@@ -256,12 +246,12 @@ export struct ClimateView {
         .margin({ bottom: 28 })
 
       Row({ space: 8 }) {
-        ForEach(this.state.modes, (mode: ClimateModeState) => {
+        ForEach(this.climate.modes, (mode: ClimateModeState) => {
           ClimateModeButton({
             mode,
             onTap: () => this.onSelectMode(mode.id),
           })
-        }, (mode: ClimateModeState) => mode.id)
+        }, (mode: ClimateModeState) => mode.id + '_' + mode.active)
       }
       .padding(8)
       .borderRadius(24)
@@ -273,13 +263,13 @@ export struct ClimateView {
 
       Column({ space: 16 }) {
         Row() {
-          Text('Weekly Usage')
+          Text('Weekly 能耗')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
             .fontColor(COLOR_ON_SURFACE)
             .fontFamily('serif')
             .layoutWeight(1)
-          Text(this.state.totalUsageLabel)
+          Text(this.climate.totalUsageLabel)
             .fontSize(13)
             .fontWeight(FontWeight.Bold)
             .fontColor(COLOR_TEXT_MUTED)
@@ -287,7 +277,7 @@ export struct ClimateView {
         .width('100%')
 
         Row({ space: 10 }) {
-          ForEach(this.state.usageBars, (bar: ClimateUsageBarState) => {
+          ForEach(this.climate.usageBars, (bar: ClimateUsageBarState) => {
             Column({ space: 10 }) {
               Blank()
                 .layoutWeight(1)
@@ -317,8 +307,8 @@ export struct ClimateView {
       .shadow({ radius: 18, color: '#3A302A08', offsetX: 0, offsetY: 4 })
       .width('100%')
 
-      if (this.state.feedback.length > 0) {
-        Text(this.state.feedback)
+      if (this.climate.feedback.length > 0) {
+        Text(this.climate.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)
@@ -330,5 +320,25 @@ export struct ClimateView {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
+  }
+}
+
+
+@Component
+export struct ClimateView {
+  @ObjectLink appState: AppStateSnapshot;
+  onBack: () => void = () => {};
+  onSelectMode: (mode: string) => void = () => {};
+  onAdjustTarget: (delta: number) => void = () => {};
+  onPowerToggle: () => void = () => {};
+
+  build() {
+    ClimateContent({
+      climate: this.appState.climate,
+      onBack: this.onBack,
+      onSelectMode: this.onSelectMode,
+      onAdjustTarget: this.onAdjustTarget,
+      onPowerToggle: this.onPowerToggle
+    })
   }
 }

@@ -456,6 +456,7 @@ export class DeviceApi {
       if (response.responseCode < 200 || response.responseCode >= 300) {
         throw new Error(response.result as string);
       }
+
     } finally {
       client.destroy();
     }
@@ -474,6 +475,23 @@ export class DeviceApi {
         method: http.RequestMethod.POST,
         header: { 'content-type': 'application/json' },
         extraData: signed.result as string,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async postDemoMotion(deviceId: string, motionDetected: boolean): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/demo/motion`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify({ deviceId, motionDetected }),
         expectDataType: http.HttpDataType.STRING,
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {

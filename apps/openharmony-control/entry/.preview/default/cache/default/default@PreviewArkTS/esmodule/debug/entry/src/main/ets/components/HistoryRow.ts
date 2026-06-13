@@ -64,7 +64,7 @@ export class HistoryRow extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Stack.create({ alignContent: Alignment.Start });
-            Stack.debugLine("entry/src/main/ets/components/HistoryRow.ets(50:5)", "entry");
+            Stack.debugLine("entry/src/main/ets/components/HistoryRow.ets(49:5)", "entry");
             Stack.borderRadius(16);
             Stack.backgroundColor(this.cardBackground());
             Stack.border({ width: 1, color: this.cardBorder() });
@@ -78,7 +78,7 @@ export class HistoryRow extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(52:9)", "entry");
+                        Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(51:9)", "entry");
                         Row.width(6);
                         Row.height('100%');
                         Row.borderRadius({ topLeft: 16, bottomLeft: 16 });
@@ -95,7 +95,7 @@ export class HistoryRow extends ViewPU {
         If.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(59:7)", "entry");
+            Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(58:7)", "entry");
             Row.padding({
                 left: this.entry.category === 'alert' ? 20 : 16,
                 right: 16,
@@ -107,7 +107,7 @@ export class HistoryRow extends ViewPU {
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(60:9)", "entry");
+            Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(59:9)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -122,7 +122,7 @@ export class HistoryRow extends ViewPU {
                         name: this.iconName(),
                         glyphSize: 18,
                         color: this.iconColor(),
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/HistoryRow.ets", line: 61, col: 11 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/HistoryRow.ets", line: 60, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -145,18 +145,18 @@ export class HistoryRow extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 4 });
-            Column.debugLine("entry/src/main/ets/components/HistoryRow.ets(74:9)", "entry");
+            Column.debugLine("entry/src/main/ets/components/HistoryRow.ets(73:9)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(75:11)", "entry");
+            Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(74:11)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.entry.title);
-            Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(76:13)", "entry");
+            Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(75:13)", "entry");
             Text.fontSize(14);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -167,7 +167,7 @@ export class HistoryRow extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.entry.category === 'alert' ? 'Alert' : this.entry.timeLabel);
-            Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(84:13)", "entry");
+            Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(83:13)", "entry");
             Text.fontSize(10);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(this.entry.category === 'alert' ? COLOR_ERROR : COLOR_TEXT_MUTED);
@@ -176,7 +176,7 @@ export class HistoryRow extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.entry.message);
-            Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(91:11)", "entry");
+            Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(90:11)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_TEXT_MUTED);
             Text.maxLines(this.entry.category === 'alert' ? 3 : 2);
@@ -189,7 +189,7 @@ export class HistoryRow extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(98:13)", "entry");
+                        Row.debugLine("entry/src/main/ets/components/HistoryRow.ets(97:13)", "entry");
                         Row.padding({ left: 14, right: 14, top: 8, bottom: 8 });
                         Row.borderRadius(10);
                         Row.backgroundColor(COLOR_PRIMARY);
@@ -197,7 +197,7 @@ export class HistoryRow extends ViewPU {
                     }, Row);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create('Check status');
-                        Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(99:15)", "entry");
+                        Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(98:15)", "entry");
                         Text.fontSize(12);
                         Text.fontWeight(FontWeight.Medium);
                         Text.fontColor('#FFFFFF');
@@ -213,25 +213,6 @@ export class HistoryRow extends ViewPU {
         }, If);
         If.pop();
         Column.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            If.create();
-            if (this.entry.category !== 'alert') {
-                this.ifElseBranchUpdateFunction(0, () => {
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.entry.timeLabel);
-                        Text.debugLine("entry/src/main/ets/components/HistoryRow.ets(114:11)", "entry");
-                        Text.fontSize(10);
-                        Text.fontColor(COLOR_TEXT_MUTED);
-                    }, Text);
-                    Text.pop();
-                });
-            }
-            else {
-                this.ifElseBranchUpdateFunction(1, () => {
-                });
-            }
-        }, If);
-        If.pop();
         Row.pop();
         Stack.pop();
     }

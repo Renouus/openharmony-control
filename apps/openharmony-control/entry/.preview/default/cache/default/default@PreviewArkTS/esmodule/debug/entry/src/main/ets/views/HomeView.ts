@@ -2,18 +2,9 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
     Reflect.set(ViewPU.prototype, "finalizeConstruction", () => { });
 }
 interface HomeView_Params {
-    state?: HomeViewState;
-    onOpenLighting?: () => void;
-    onOpenAccess?: () => void;
-    onOpenCamera?: () => void;
-    onOpenClimate?: () => void;
-    onOpenScenes?: () => void;
-    onRunScene?: (sceneId: string) => void;
-    onToggleDoor?: (deviceId: string, locked: boolean) => void;
-    onTogglePower?: (deviceId: string, on: boolean) => void;
-    onBrightnessQuick?: (deviceId: string, brightness: number) => void;
-    onTemperatureChange?: (deviceId: string, target: number) => void;
-    onColorTemperature?: (deviceId: string, value: number) => void;
+    appState?: AppStateSnapshot;
+    controller?: AppController;
+    navStack?: NavPathStack;
 }
 interface RoomSection_Params {
     room?: HomeRoomSectionState;
@@ -36,7 +27,9 @@ interface StatusChip_Params {
     chip?: StatusChipState;
     onTap?: () => void;
 }
-import type { HomeDeviceCardState, HomeRoomSectionState, HomeViewState, SceneChipState, StatusChipState } from '../model/page-view-state';
+import type { HomeDeviceCardState, HomeRoomSectionState, SceneChipState, StatusChipState } from '../model/page-view-state';
+import type { AppStateSnapshot } from '../model/app-state-snapshot';
+import type { AppController } from '../controllers/AppController';
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 import { splitRoomDevices } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import type { RoomDeviceSplit } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
@@ -79,7 +72,7 @@ class StatusChip extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(30:5)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(32:5)", "entry");
             Row.padding({ left: 12, right: 12, top: 6, bottom: 6 });
             Row.borderRadius(999);
             Row.backgroundColor(COLOR_SURFACE_CONTAINER_HIGHEST + '80');
@@ -89,7 +82,7 @@ class StatusChip extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: this.chip.icon, glyphSize: 16, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 31, col: 7 });
+                    let componentCall = new AppSymbol(this, { name: this.chip.icon, glyphSize: 16, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 33, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -109,7 +102,7 @@ class StatusChip extends ViewPU {
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.chip.label);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(32:7)", "entry");
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(34:7)", "entry");
             Text.fontSize(12);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -159,7 +152,7 @@ class SceneChip extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 10 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(51:5)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(53:5)", "entry");
             Row.padding({ left: 22, right: 22, top: 12, bottom: 12 });
             Row.borderRadius(999);
             Row.backgroundColor(this.scene.active ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_HIGH);
@@ -178,7 +171,7 @@ class SceneChip extends ViewPU {
                         name: this.scene.icon,
                         glyphSize: 18,
                         color: this.scene.active ? COLOR_ON_PRIMARY : COLOR_TERTIARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 52, col: 7 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 54, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -200,7 +193,7 @@ class SceneChip extends ViewPU {
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.scene.label);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(57:7)", "entry");
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(59:7)", "entry");
             Text.fontSize(14);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(this.scene.active ? COLOR_ON_PRIMARY : COLOR_ON_SURFACE);
@@ -268,7 +261,7 @@ class SmallDeviceCard extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 12 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(101:5)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(103:5)", "entry");
             Row.padding(12);
             Row.borderRadius(16);
             Row.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -279,7 +272,7 @@ class SmallDeviceCard extends ViewPU {
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(102:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(104:7)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -293,7 +286,7 @@ class SmallDeviceCard extends ViewPU {
                         name: this.iconText(),
                         glyphSize: 18,
                         color: this.isOn() ? COLOR_PRIMARY : COLOR_SECONDARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 103, col: 9 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 105, col: 9 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -316,13 +309,13 @@ class SmallDeviceCard extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(115:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(117:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.device.name);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(116:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(118:9)", "entry");
             Text.fontSize(13);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -332,7 +325,7 @@ class SmallDeviceCard extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.device.statusLabel);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(122:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(124:9)", "entry");
             Text.fontSize(11);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
@@ -397,7 +390,7 @@ class LargeDeviceCard extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create();
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(163:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(165:5)", "entry");
             Column.padding(16);
             Column.borderRadius(20);
             Column.backgroundColor(this.usesPrimaryShell() ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOW);
@@ -418,7 +411,7 @@ class LargeDeviceCard extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/HomeView.ets(165:9)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/HomeView.ets(167:9)", "entry");
                         Row.width(40);
                         Row.height(40);
                         Row.borderRadius(20);
@@ -433,7 +426,7 @@ class LargeDeviceCard extends ViewPU {
                                     name: this.iconText(),
                                     glyphSize: 20,
                                     color: this.usesPrimaryShell() ? COLOR_ON_PRIMARY : COLOR_SECONDARY,
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 166, col: 11 });
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 168, col: 11 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -464,12 +457,12 @@ class LargeDeviceCard extends ViewPU {
         If.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/HomeView.ets(180:7)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/HomeView.ets(182:7)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(182:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(184:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.width('100%');
         }, Column);
@@ -479,7 +472,7 @@ class LargeDeviceCard extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create(`${this.device.temperature}.0\u00B0`);
-                        Text.debugLine("entry/src/main/ets/views/HomeView.ets(184:11)", "entry");
+                        Text.debugLine("entry/src/main/ets/views/HomeView.ets(186:11)", "entry");
                         Text.fontSize(32);
                         Text.fontWeight(FontWeight.Bold);
                         Text.fontColor(COLOR_PRIMARY);
@@ -489,7 +482,7 @@ class LargeDeviceCard extends ViewPU {
                     Text.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create(this.device.name);
-                        Text.debugLine("entry/src/main/ets/views/HomeView.ets(190:11)", "entry");
+                        Text.debugLine("entry/src/main/ets/views/HomeView.ets(192:11)", "entry");
                         Text.fontSize(15);
                         Text.fontWeight(FontWeight.Bold);
                         Text.fontColor(COLOR_ON_SURFACE);
@@ -503,7 +496,7 @@ class LargeDeviceCard extends ViewPU {
                 this.ifElseBranchUpdateFunction(1, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create(this.device.name);
-                        Text.debugLine("entry/src/main/ets/views/HomeView.ets(197:11)", "entry");
+                        Text.debugLine("entry/src/main/ets/views/HomeView.ets(199:11)", "entry");
                         Text.fontSize(15);
                         Text.fontWeight(FontWeight.Bold);
                         Text.fontColor(this.usesPrimaryShell() ? COLOR_ON_PRIMARY : COLOR_ON_SURFACE);
@@ -517,7 +510,7 @@ class LargeDeviceCard extends ViewPU {
         If.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.device.statusLabel);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(204:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(206:9)", "entry");
             Text.fontSize(12);
             Text.fontColor(this.usesPrimaryShell() ? COLOR_ON_PRIMARY + 'E6' : COLOR_TEXT_MUTED);
             Text.opacity(0.9);
@@ -576,17 +569,17 @@ class RoomSection extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 12 });
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(239:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(241:5)", "entry");
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 4 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(240:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(242:7)", "entry");
             Row.width('100%');
             Row.onClick(() => this.onRoomTap(this.room.roomId));
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.room.roomName);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(241:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(243:9)", "entry");
             Text.fontSize(22);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -596,7 +589,7 @@ class RoomSection extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 246, col: 9 });
+                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 248, col: 9 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -621,7 +614,7 @@ class RoomSection extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create({ space: 12 });
-                        Row.debugLine("entry/src/main/ets/views/HomeView.ets(252:9)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/HomeView.ets(254:9)", "entry");
                         Row.width('100%');
                         Row.alignItems(VerticalAlign.Top);
                     }, Row);
@@ -635,7 +628,7 @@ class RoomSection extends ViewPU {
                                 let componentCall = new LargeDeviceCard(this, {
                                     device: this.roomLayout().primary,
                                     onTap: () => this.onDeviceTap(this.roomLayout().primary.id, this.roomLayout().primary.kind),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 253, col: 11 });
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 255, col: 11 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -655,7 +648,7 @@ class RoomSection extends ViewPU {
                     __Common__.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 12 });
-                        Column.debugLine("entry/src/main/ets/views/HomeView.ets(262:11)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/HomeView.ets(264:11)", "entry");
                         Column.layoutWeight(1);
                         Column.alignItems(HorizontalAlign.Start);
                     }, Column);
@@ -669,7 +662,7 @@ class RoomSection extends ViewPU {
                                         let componentCall = new SmallDeviceCard(this, {
                                             device,
                                             onTap: () => this.onDeviceTap(device.id, device.kind),
-                                        }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 264, col: 15 });
+                                        }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 266, col: 15 });
                                         ViewPU.create(componentCall);
                                         let paramsLambda = () => {
                                             return {
@@ -712,144 +705,120 @@ export class HomeView extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.__state = new SynchedPropertyObjectOneWayPU(params.state, this, "state");
-        this.onOpenLighting = () => { };
-        this.onOpenAccess = () => { };
-        this.onOpenCamera = () => { };
-        this.onOpenClimate = () => { };
-        this.onOpenScenes = () => { };
-        this.onRunScene = () => { };
-        this.onToggleDoor = () => { };
-        this.onTogglePower = () => { };
-        this.onBrightnessQuick = () => { };
-        this.onTemperatureChange = () => { };
-        this.onColorTemperature = () => { };
+        this.__appState = this.initializeConsume('appState', "appState");
+        this.__controller = this.initializeConsume('controller', "controller");
+        this.__navStack = this.initializeConsume('navStack', "navStack");
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: HomeView_Params) {
-        if (params.onOpenLighting !== undefined) {
-            this.onOpenLighting = params.onOpenLighting;
-        }
-        if (params.onOpenAccess !== undefined) {
-            this.onOpenAccess = params.onOpenAccess;
-        }
-        if (params.onOpenCamera !== undefined) {
-            this.onOpenCamera = params.onOpenCamera;
-        }
-        if (params.onOpenClimate !== undefined) {
-            this.onOpenClimate = params.onOpenClimate;
-        }
-        if (params.onOpenScenes !== undefined) {
-            this.onOpenScenes = params.onOpenScenes;
-        }
-        if (params.onRunScene !== undefined) {
-            this.onRunScene = params.onRunScene;
-        }
-        if (params.onToggleDoor !== undefined) {
-            this.onToggleDoor = params.onToggleDoor;
-        }
-        if (params.onTogglePower !== undefined) {
-            this.onTogglePower = params.onTogglePower;
-        }
-        if (params.onBrightnessQuick !== undefined) {
-            this.onBrightnessQuick = params.onBrightnessQuick;
-        }
-        if (params.onTemperatureChange !== undefined) {
-            this.onTemperatureChange = params.onTemperatureChange;
-        }
-        if (params.onColorTemperature !== undefined) {
-            this.onColorTemperature = params.onColorTemperature;
-        }
     }
     updateStateVars(params: HomeView_Params) {
-        this.__state.reset(params.state);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
-        this.__state.purgeDependencyOnElmtId(rmElmtId);
+        this.__appState.purgeDependencyOnElmtId(rmElmtId);
+        this.__controller.purgeDependencyOnElmtId(rmElmtId);
+        this.__navStack.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
-        this.__state.aboutToBeDeleted();
+        this.__appState.aboutToBeDeleted();
+        this.__controller.aboutToBeDeleted();
+        this.__navStack.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private __state: SynchedPropertySimpleOneWayPU<HomeViewState>;
-    get state() {
-        return this.__state.get();
+    private __appState: ObservedPropertyAbstractPU<AppStateSnapshot>;
+    get appState() {
+        return this.__appState.get();
     }
-    set state(newValue: HomeViewState) {
-        this.__state.set(newValue);
+    set appState(newValue: AppStateSnapshot) {
+        this.__appState.set(newValue);
     }
-    private onOpenLighting: () => void;
-    private onOpenAccess: () => void;
-    private onOpenCamera: () => void;
-    private onOpenClimate: () => void;
-    private onOpenScenes: () => void;
-    private onRunScene: (sceneId: string) => void;
-    private onToggleDoor: (deviceId: string, locked: boolean) => void;
-    private onTogglePower: (deviceId: string, on: boolean) => void;
-    private onBrightnessQuick: (deviceId: string, brightness: number) => void;
-    private onTemperatureChange: (deviceId: string, target: number) => void;
-    private onColorTemperature: (deviceId: string, value: number) => void;
+    private __controller: ObservedPropertyAbstractPU<AppController>;
+    get controller() {
+        return this.__controller.get();
+    }
+    set controller(newValue: AppController) {
+        this.__controller.set(newValue);
+    }
+    private __navStack: ObservedPropertyAbstractPU<NavPathStack>;
+    get navStack() {
+        return this.__navStack.get();
+    }
+    set navStack(newValue: NavPathStack) {
+        this.__navStack.set(newValue);
+    }
     private handleDeviceTap(deviceId: string, kind: string): void {
         if (kind === 'door-lock') {
-            this.onOpenAccess();
+            this.navStack.pushPathByName('access', null);
         }
         else if (kind === 'light') {
-            this.onOpenLighting();
+            this.navStack.pushPathByName('lighting', null);
         }
         else if (kind === 'air-conditioner') {
-            this.onOpenClimate();
+            this.navStack.pushPathByName('climate', null);
         }
         else {
-            this.onOpenClimate();
+            this.navStack.pushPathByName('climate', null);
         }
     }
     private handleRoomTap(roomId: string): void {
         if (roomId === 'entry') {
-            this.onOpenAccess();
+            this.navStack.pushPathByName('access', null);
+        }
+        else if (roomId === 'bathroom') {
+            this.navStack.pushPathByName('bathroom', null);
+        }
+        else if (roomId === 'kitchen') {
+            this.navStack.pushPathByName('kitchen', null);
+        }
+        else if (roomId === 'living-room') {
+            this.navStack.pushPathByName('livingRoom', null);
+        }
+        else if (roomId === 'bedroom') {
+            this.navStack.pushPathByName('masterBedroom', null);
         }
         else {
-            this.onOpenLighting();
+            this.navStack.pushPathByName('lighting', null);
         }
     }
     private handleChipTap(icon: string): void {
         if (icon === 'lock') {
-            this.onOpenAccess();
+            this.navStack.pushPathByName('access', null);
         }
         else if (icon === 'lightbulb') {
-            this.onOpenLighting();
+            this.navStack.pushPathByName('lighting', null);
         }
         else if (icon === 'thermostat') {
-            this.onOpenClimate();
+            this.navStack.pushPathByName('climate', null);
         }
         else if (icon === 'devices') {
-            this.onOpenLighting();
+            this.navStack.pushPathByName('lighting', null);
         }
     }
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 0 });
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(330:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(331:5)", "entry");
             Column.width('100%');
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 12 });
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(331:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(332:7)", "entry");
             Column.width('100%');
             Column.margin({ bottom: 28 });
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(332:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(333:9)", "entry");
             Row.width('100%');
             Row.padding({ right: 4 });
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'wb_sunny', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 333, col: 11 });
+                    let componentCall = new AppSymbol(this, { name: 'wb_sunny', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 334, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -868,8 +837,8 @@ export class HomeView extends ViewPU {
             }, { name: "AppSymbol" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.state.alertSummary);
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(334:11)", "entry");
+            Text.create(this.appState.home.alertSummary);
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(335:11)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_TEXT_MUTED);
             Text.layoutWeight(1);
@@ -878,14 +847,14 @@ export class HomeView extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Scroll.create();
-            Scroll.debugLine("entry/src/main/ets/views/HomeView.ets(342:9)", "entry");
+            Scroll.debugLine("entry/src/main/ets/views/HomeView.ets(343:9)", "entry");
             Scroll.scrollable(ScrollDirection.Horizontal);
             Scroll.scrollBar(BarState.Off);
             Scroll.width('100%');
         }, Scroll);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 10 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(343:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(344:11)", "entry");
             Row.padding({ right: 20 });
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
@@ -898,7 +867,7 @@ export class HomeView extends ViewPU {
                             let componentCall = new StatusChip(this, {
                                 chip,
                                 onTap: () => this.handleChipTap(chip.icon),
-                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 345, col: 15 });
+                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 346, col: 15 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
@@ -916,7 +885,7 @@ export class HomeView extends ViewPU {
                     }, { name: "StatusChip" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.state.statusChips, forEachItemGenFunction, (chip: StatusChipState) => chip.label, false, false);
+            this.forEachUpdateFunction(elmtId, this.appState.home.statusChips, forEachItemGenFunction, (chip: StatusChipState) => chip.label, false, false);
         }, ForEach);
         ForEach.pop();
         Row.pop();
@@ -924,19 +893,18 @@ export class HomeView extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/views/HomeView.ets(360:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/HomeView.ets(361:7)", "entry");
             Column.width('100%');
             Column.margin({ bottom: 32 });
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 4 });
-            Row.debugLine("entry/src/main/ets/views/HomeView.ets(361:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/HomeView.ets(362:9)", "entry");
             Row.width('100%');
-            Row.onClick(() => this.onOpenScenes());
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Scenes');
-            Text.debugLine("entry/src/main/ets/views/HomeView.ets(362:11)", "entry");
+            Text.create('场景');
+            Text.debugLine("entry/src/main/ets/views/HomeView.ets(363:11)", "entry");
             Text.fontSize(22);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -946,7 +914,7 @@ export class HomeView extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 367, col: 11 });
+                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 368, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -966,7 +934,7 @@ export class HomeView extends ViewPU {
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/HomeView.ets(368:11)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/HomeView.ets(369:11)", "entry");
         }, Blank);
         Blank.pop();
         Row.pop();
@@ -991,13 +959,13 @@ export class HomeView extends ViewPU {
                         if (isInitialRender) {
                             let componentCall = new SceneChip(this, {
                                 scene,
-                                onTap: () => this.onRunScene(scene.id),
+                                onTap: () => this.controller.handleHomeRunScene(ObservedObject.GetRawObject(this.appState), scene.id),
                             }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/HomeView.ets", line: 376, col: 15 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
                                     scene,
-                                    onTap: () => this.onRunScene(scene.id)
+                                    onTap: () => this.controller.handleHomeRunScene(ObservedObject.GetRawObject(this.appState), scene.id)
                                 };
                             };
                             componentCall.paramsGenerator_ = paramsLambda;
@@ -1010,7 +978,7 @@ export class HomeView extends ViewPU {
                     }, { name: "SceneChip" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.state.quickScenes, forEachItemGenFunction, (scene: SceneChipState) => scene.id, false, false);
+            this.forEachUpdateFunction(elmtId, this.appState.home.quickScenes, forEachItemGenFunction, (scene: SceneChipState) => scene.id, false, false);
         }, ForEach);
         ForEach.pop();
         Row.pop();
@@ -1051,16 +1019,16 @@ export class HomeView extends ViewPU {
                     }, { name: "RoomSection" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.state.rooms, forEachItemGenFunction, (room: HomeRoomSectionState) => room.roomId, false, false);
+            this.forEachUpdateFunction(elmtId, this.appState.home.rooms, forEachItemGenFunction, (room: HomeRoomSectionState) => room.roomId, false, false);
         }, ForEach);
         ForEach.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.state.feedback.length > 0) {
+            if (this.appState.home.feedback.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.state.feedback);
+                        Text.create(this.appState.home.feedback);
                         Text.debugLine("entry/src/main/ets/views/HomeView.ets(403:9)", "entry");
                         Text.fontSize(13);
                         Text.fontColor(COLOR_PRIMARY);

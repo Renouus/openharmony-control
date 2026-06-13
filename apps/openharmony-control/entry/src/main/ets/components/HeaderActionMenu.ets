@@ -14,20 +14,20 @@ const HEADER_ACTIONS: HeaderActionConfig[] = [
   {
     id: 'sceneEditor',
     icon: 'movie',
-    title: 'Create Scene',
-    subtitle: 'Build a cinematic room preset.',
+    title: '创建场景',
+    subtitle: '创建房间情境预设。',
   },
   {
     id: 'routineEditor',
     icon: 'auto_awesome',
-    title: 'New Routine',
-    subtitle: 'Chain triggers and actions together.',
+    title: '新建自动化',
+    subtitle: '将触发器和操作连接在一起。',
   },
   {
     id: 'familySettings',
     icon: 'group',
-    title: 'Family Settings',
-    subtitle: 'Manage people, home info, and access.',
+    title: '家庭设置',
+    subtitle: '管理成员、家庭信息和访问权限。',
   },
 ];
 
@@ -79,5 +79,6 @@ export struct HeaderActionMenu {
     .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' })
     .clip(true)
     .shadow({ radius: 28, color: '#3A302A14', offsetX: 0, offsetY: 10 })
+    .onClick(() => {})
   }
 }

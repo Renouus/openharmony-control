@@ -2,8 +2,8 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
     Reflect.set(ViewPU.prototype, "finalizeConstruction", () => { });
 }
 interface FamilyView_Params {
-    state?: FamilyViewState;
-    onSendBroadcast?: () => void;
+    appState?: AppStateSnapshot;
+    controller?: AppController;
 }
 interface FamilySettingsRow_Params {
     icon?: string;
@@ -14,7 +14,9 @@ interface FamilySettingsRow_Params {
 interface FamilyMemberCard_Params {
     member?: FamilyMemberCardState;
 }
-import type { FamilyActivityState, FamilyMemberCardState, FamilyViewState } from '../model/page-view-state';
+import type { FamilyActivityState, FamilyMemberCardState } from '../model/page-view-state';
+import type { AppStateSnapshot } from '../model/app-state-snapshot';
+import type { AppController } from '../controllers/AppController';
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 import { COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_PRIMARY_SOFT, COLOR_SURFACE_CONTAINER, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_SURFACE_CONTAINER_LOWEST, COLOR_TERTIARY, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
 function familyAvatar(memberId: string): Resource {
@@ -59,7 +61,7 @@ class FamilyMemberCard extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(32:5)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(34:5)", "entry");
             Row.padding(20);
             Row.borderRadius(16);
             Row.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -69,7 +71,7 @@ class FamilyMemberCard extends ViewPU {
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Image.create(familyAvatar(this.member.id));
-            Image.debugLine("entry/src/main/ets/views/FamilyView.ets(33:7)", "entry");
+            Image.debugLine("entry/src/main/ets/views/FamilyView.ets(35:7)", "entry");
             Image.width(56);
             Image.height(56);
             Image.borderRadius(28);
@@ -77,13 +79,13 @@ class FamilyMemberCard extends ViewPU {
         }, Image);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 4 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(39:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(41:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.member.name);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(40:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(42:9)", "entry");
             Text.fontSize(18);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -91,11 +93,11 @@ class FamilyMemberCard extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(45:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(47:9)", "entry");
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(46:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(48:11)", "entry");
             Row.width(8);
             Row.height(8);
             Row.borderRadius(4);
@@ -104,7 +106,7 @@ class FamilyMemberCard extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.member.subtitle);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(51:11)", "entry");
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(53:11)", "entry");
             Text.fontSize(13);
             Text.fontColor(this.member.atHome ? COLOR_PRIMARY : COLOR_TEXT_MUTED);
         }, Text);
@@ -114,7 +116,7 @@ class FamilyMemberCard extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 59, col: 7 });
+                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 61, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -207,14 +209,14 @@ class FamilySettingsRow extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(78:5)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(80:5)", "entry");
             Row.padding({ left: 20, right: 20, top: 18, bottom: 18 });
             Row.width('100%');
             Row.backgroundColor('#00000000');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(79:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(81:7)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -228,7 +230,7 @@ class FamilySettingsRow extends ViewPU {
                         name: this.icon,
                         glyphSize: 20,
                         color: this.danger ? COLOR_TERTIARY : COLOR_PRIMARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 80, col: 9 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 82, col: 9 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -251,13 +253,13 @@ class FamilySettingsRow extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(92:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(94:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.title);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(93:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(95:9)", "entry");
             Text.fontSize(15);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -265,7 +267,7 @@ class FamilySettingsRow extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.subtitle);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(97:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(99:9)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
@@ -274,7 +276,7 @@ class FamilySettingsRow extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 104, col: 7 });
+                    let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 106, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -304,45 +306,49 @@ export class FamilyView extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.__state = new SynchedPropertyObjectOneWayPU(params.state, this, "state");
-        this.onSendBroadcast = () => { };
+        this.__appState = this.initializeConsume('appState', "appState");
+        this.__controller = this.initializeConsume('controller', "controller");
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: FamilyView_Params) {
-        if (params.onSendBroadcast !== undefined) {
-            this.onSendBroadcast = params.onSendBroadcast;
-        }
     }
     updateStateVars(params: FamilyView_Params) {
-        this.__state.reset(params.state);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
-        this.__state.purgeDependencyOnElmtId(rmElmtId);
+        this.__appState.purgeDependencyOnElmtId(rmElmtId);
+        this.__controller.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
-        this.__state.aboutToBeDeleted();
+        this.__appState.aboutToBeDeleted();
+        this.__controller.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private __state: SynchedPropertySimpleOneWayPU<FamilyViewState>;
-    get state() {
-        return this.__state.get();
+    private __appState: ObservedPropertyAbstractPU<AppStateSnapshot>;
+    get appState() {
+        return this.__appState.get();
     }
-    set state(newValue: FamilyViewState) {
-        this.__state.set(newValue);
+    set appState(newValue: AppStateSnapshot) {
+        this.__appState.set(newValue);
     }
-    private onSendBroadcast: () => void;
+    private __controller: ObservedPropertyAbstractPU<AppController>;
+    get controller() {
+        return this.__controller.get();
+    }
+    set controller(newValue: AppController) {
+        this.__controller.set(newValue);
+    }
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 0 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(118:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(122:5)", "entry");
             Column.width('100%');
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 10 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(119:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(123:7)", "entry");
             Column.padding({ top: 24, bottom: 24 });
             Column.border({ width: { bottom: 1 }, color: COLOR_OUTLINE_VARIANT + '4D' });
             Column.margin({ bottom: 32 });
@@ -350,13 +356,13 @@ export class FamilyView extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(120:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(124:9)", "entry");
             Row.width('100%');
             Row.justifyContent(FlexAlign.Center);
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Image.create({ "id": 16777223, "type": 20000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" });
-            Image.debugLine("entry/src/main/ets/views/FamilyView.ets(121:11)", "entry");
+            Image.debugLine("entry/src/main/ets/views/FamilyView.ets(125:11)", "entry");
             Image.width(128);
             Image.height(128);
             Image.borderRadius(64);
@@ -365,8 +371,8 @@ export class FamilyView extends ViewPU {
         }, Image);
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.state.title);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(131:9)", "entry");
+            Text.create(this.appState.family.title);
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(135:9)", "entry");
             Text.fontSize(38);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -376,8 +382,8 @@ export class FamilyView extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.state.address);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(139:9)", "entry");
+            Text.create(this.appState.family.address);
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(143:9)", "entry");
             Text.fontSize(13);
             Text.fontColor(COLOR_TEXT_MUTED);
             Text.letterSpacing(1.4);
@@ -388,18 +394,18 @@ export class FamilyView extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(151:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(155:7)", "entry");
             Column.width('100%');
             Column.margin({ bottom: 32 });
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(152:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(156:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Household Members');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(153:11)", "entry");
+            Text.create('家庭成员');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(157:11)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -408,8 +414,8 @@ export class FamilyView extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(`${this.state.presentCount} Active`);
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(159:11)", "entry");
+            Text.create(`${this.appState.family.presentCount} 人活跃`);
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(163:11)", "entry");
             Text.fontSize(13);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
@@ -422,7 +428,7 @@ export class FamilyView extends ViewPU {
                 {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         if (isInitialRender) {
-                            let componentCall = new FamilyMemberCard(this, { member }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 166, col: 11 });
+                            let componentCall = new FamilyMemberCard(this, { member }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 170, col: 11 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
@@ -439,19 +445,19 @@ export class FamilyView extends ViewPU {
                     }, { name: "FamilyMemberCard" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.state.members, forEachItemGenFunction, (member: FamilyMemberCardState) => member.id, false, false);
+            this.forEachUpdateFunction(elmtId, this.appState.family.members, forEachItemGenFunction, (member: FamilyMemberCardState) => member.id, false, false);
         }, ForEach);
         ForEach.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(172:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(176:7)", "entry");
             Row.width('100%');
             Row.margin({ bottom: 32 });
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(173:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(177:9)", "entry");
             Column.padding(24);
             Column.borderRadius(24);
             Column.backgroundColor(COLOR_PRIMARY);
@@ -462,7 +468,7 @@ export class FamilyView extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(174:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(178:11)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -472,7 +478,7 @@ export class FamilyView extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'person_add', glyphSize: 20, color: COLOR_ON_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 175, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'person_add', glyphSize: 20, color: COLOR_ON_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 179, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -493,17 +499,17 @@ export class FamilyView extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/FamilyView.ets(183:11)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/FamilyView.ets(187:11)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 4 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(185:11)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(189:11)", "entry");
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Invite New Member');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(186:13)", "entry");
+            Text.create('邀请新成员');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(190:13)", "entry");
             Text.fontSize(22);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_PRIMARY);
@@ -511,8 +517,8 @@ export class FamilyView extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Add family or roommates to OmniHome.');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(191:13)", "entry");
+            Text.create('添加家人或室友到 OmniHome。');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(195:13)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_ON_PRIMARY + 'CC');
         }, Text);
@@ -521,7 +527,7 @@ export class FamilyView extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(205:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(209:9)", "entry");
             Column.padding(24);
             Column.borderRadius(24);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
@@ -533,7 +539,7 @@ export class FamilyView extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(206:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(210:11)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -543,7 +549,7 @@ export class FamilyView extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'vpn_key', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 207, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'vpn_key', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 211, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -564,17 +570,17 @@ export class FamilyView extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/FamilyView.ets(215:11)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/FamilyView.ets(219:11)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 4 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(217:11)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(221:11)", "entry");
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Guest Access');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(218:13)", "entry");
+            Text.create('访客访问');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(222:13)", "entry");
             Text.fontSize(22);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -582,8 +588,8 @@ export class FamilyView extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Manage temporary codes and permissions.');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(223:13)", "entry");
+            Text.create('管理临时密码和权限。');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(227:13)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
@@ -593,18 +599,18 @@ export class FamilyView extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(241:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(245:7)", "entry");
             Column.width('100%');
             Column.margin({ bottom: 32 });
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(242:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/FamilyView.ets(246:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Recent Activity');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(243:11)", "entry");
+            Text.create('近期活动');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(247:11)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -613,21 +619,21 @@ export class FamilyView extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Button.createWithLabel('Broadcast');
-            Button.debugLine("entry/src/main/ets/views/FamilyView.ets(249:11)", "entry");
+            Button.createWithLabel('广播');
+            Button.debugLine("entry/src/main/ets/views/FamilyView.ets(253:11)", "entry");
             Button.fontSize(12);
             Button.fontColor('#FFFFFF');
             Button.height(36);
             Button.borderRadius(999);
             Button.backgroundColor(COLOR_PRIMARY);
             Button.padding({ left: 16, right: 16 });
-            Button.onClick(() => this.onSendBroadcast());
+            Button.onClick(() => this.controller.handleFamilyBroadcast(ObservedObject.GetRawObject(this.appState)));
         }, Button);
         Button.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 0 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(260:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(264:9)", "entry");
             Column.borderRadius(24);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
             Column.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' });
@@ -639,24 +645,24 @@ export class FamilyView extends ViewPU {
                 const activity = _item;
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Column.create({ space: 8 });
-                    Column.debugLine("entry/src/main/ets/views/FamilyView.ets(262:13)", "entry");
+                    Column.debugLine("entry/src/main/ets/views/FamilyView.ets(266:13)", "entry");
                     Column.padding({ left: 20, right: 20, top: 18, bottom: 18 });
                     Column.width('100%');
                 }, Column);
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Row.create();
-                    Row.debugLine("entry/src/main/ets/views/FamilyView.ets(263:15)", "entry");
+                    Row.debugLine("entry/src/main/ets/views/FamilyView.ets(267:15)", "entry");
                     Row.width('100%');
                 }, Row);
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Column.create({ space: 4 });
-                    Column.debugLine("entry/src/main/ets/views/FamilyView.ets(264:17)", "entry");
+                    Column.debugLine("entry/src/main/ets/views/FamilyView.ets(268:17)", "entry");
                     Column.alignItems(HorizontalAlign.Start);
                     Column.layoutWeight(1);
                 }, Column);
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Text.create(activity.message);
-                    Text.debugLine("entry/src/main/ets/views/FamilyView.ets(265:19)", "entry");
+                    Text.debugLine("entry/src/main/ets/views/FamilyView.ets(269:19)", "entry");
                     Text.fontSize(14);
                     Text.fontWeight(FontWeight.Medium);
                     Text.fontColor(COLOR_ON_SURFACE);
@@ -664,7 +670,7 @@ export class FamilyView extends ViewPU {
                 Text.pop();
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Text.create(activity.timeLabel);
-                    Text.debugLine("entry/src/main/ets/views/FamilyView.ets(269:19)", "entry");
+                    Text.debugLine("entry/src/main/ets/views/FamilyView.ets(273:19)", "entry");
                     Text.fontSize(12);
                     Text.fontColor(COLOR_TEXT_MUTED);
                 }, Text);
@@ -673,11 +679,11 @@ export class FamilyView extends ViewPU {
                 Row.pop();
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     If.create();
-                    if (index < this.state.activities.length - 1) {
+                    if (index < this.appState.family.activities.length - 1) {
                         this.ifElseBranchUpdateFunction(0, () => {
                             this.observeComponentCreation2((elmtId, isInitialRender) => {
                                 Divider.create();
-                                Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(279:17)", "entry");
+                                Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(283:17)", "entry");
                                 Divider.color(COLOR_OUTLINE_VARIANT + '4D');
                             }, Divider);
                         });
@@ -690,19 +696,19 @@ export class FamilyView extends ViewPU {
                 If.pop();
                 Column.pop();
             };
-            this.forEachUpdateFunction(elmtId, this.state.activities, forEachItemGenFunction, (activity: FamilyActivityState) => activity.id, true, false);
+            this.forEachUpdateFunction(elmtId, this.appState.family.activities, forEachItemGenFunction, (activity: FamilyActivityState) => activity.id, true, false);
         }, ForEach);
         ForEach.pop();
         Column.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 0 });
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(294:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(298:7)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('General Settings');
-            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(295:9)", "entry");
+            Text.create('通用设置');
+            Text.debugLine("entry/src/main/ets/views/FamilyView.ets(299:9)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -712,7 +718,7 @@ export class FamilyView extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create();
-            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(302:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/FamilyView.ets(306:9)", "entry");
             Column.borderRadius(24);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
             Column.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' });
@@ -724,15 +730,15 @@ export class FamilyView extends ViewPU {
                 if (isInitialRender) {
                     let componentCall = new FamilySettingsRow(this, {
                         icon: 'house',
-                        title: 'Home Information',
-                        subtitle: 'Address, timezone, and primary details.',
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 303, col: 11 });
+                        title: '家庭信息',
+                        subtitle: '地址、时区和主要详细信息。',
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 307, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             icon: 'house',
-                            title: 'Home Information',
-                            subtitle: 'Address, timezone, and primary details.'
+                            title: '家庭信息',
+                            subtitle: '地址、时区和主要详细信息。'
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
@@ -740,15 +746,15 @@ export class FamilyView extends ViewPU {
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         icon: 'house',
-                        title: 'Home Information',
-                        subtitle: 'Address, timezone, and primary details.'
+                        title: '家庭信息',
+                        subtitle: '地址、时区和主要详细信息。'
                     });
                 }
             }, { name: "FamilySettingsRow" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Divider.create();
-            Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(308:11)", "entry");
+            Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(312:11)", "entry");
             Divider.color(COLOR_OUTLINE_VARIANT + '4D');
             Divider.margin({ left: 74 });
         }, Divider);
@@ -757,15 +763,15 @@ export class FamilyView extends ViewPU {
                 if (isInitialRender) {
                     let componentCall = new FamilySettingsRow(this, {
                         icon: 'wifi',
-                        title: 'WiFi Settings',
-                        subtitle: 'Manage network access for devices.',
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 309, col: 11 });
+                        title: 'WiFi 设置',
+                        subtitle: '管理设备的网络访问。',
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 313, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             icon: 'wifi',
-                            title: 'WiFi Settings',
-                            subtitle: 'Manage network access for devices.'
+                            title: 'WiFi 设置',
+                            subtitle: '管理设备的网络访问。'
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
@@ -773,15 +779,15 @@ export class FamilyView extends ViewPU {
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         icon: 'wifi',
-                        title: 'WiFi Settings',
-                        subtitle: 'Manage network access for devices.'
+                        title: 'WiFi 设置',
+                        subtitle: '管理设备的网络访问。'
                     });
                 }
             }, { name: "FamilySettingsRow" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Divider.create();
-            Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(314:11)", "entry");
+            Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(318:11)", "entry");
             Divider.color(COLOR_OUTLINE_VARIANT + '4D');
             Divider.margin({ left: 74 });
         }, Divider);
@@ -790,15 +796,15 @@ export class FamilyView extends ViewPU {
                 if (isInitialRender) {
                     let componentCall = new FamilySettingsRow(this, {
                         icon: 'router',
-                        title: 'Shared Hubs',
-                        subtitle: 'Configure central control panels.',
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 315, col: 11 });
+                        title: '共享控制中枢',
+                        subtitle: '配置中央控制面板。',
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 319, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             icon: 'router',
-                            title: 'Shared Hubs',
-                            subtitle: 'Configure central control panels.'
+                            title: '共享控制中枢',
+                            subtitle: '配置中央控制面板。'
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
@@ -806,15 +812,15 @@ export class FamilyView extends ViewPU {
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         icon: 'router',
-                        title: 'Shared Hubs',
-                        subtitle: 'Configure central control panels.'
+                        title: '共享控制中枢',
+                        subtitle: '配置中央控制面板。'
                     });
                 }
             }, { name: "FamilySettingsRow" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Divider.create();
-            Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(320:11)", "entry");
+            Divider.debugLine("entry/src/main/ets/views/FamilyView.ets(324:11)", "entry");
             Divider.color(COLOR_OUTLINE_VARIANT + '4D');
             Divider.margin({ left: 74 });
         }, Divider);
@@ -823,16 +829,16 @@ export class FamilyView extends ViewPU {
                 if (isInitialRender) {
                     let componentCall = new FamilySettingsRow(this, {
                         icon: 'contact_emergency',
-                        title: 'Emergency Contacts',
-                        subtitle: 'Numbers to call in case of alarms.',
+                        title: '紧急联系人',
+                        subtitle: '报警时拨打的号码。',
                         danger: true,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 321, col: 11 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/FamilyView.ets", line: 325, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             icon: 'contact_emergency',
-                            title: 'Emergency Contacts',
-                            subtitle: 'Numbers to call in case of alarms.',
+                            title: '紧急联系人',
+                            subtitle: '报警时拨打的号码。',
                             danger: true
                         };
                     };
@@ -841,8 +847,8 @@ export class FamilyView extends ViewPU {
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         icon: 'contact_emergency',
-                        title: 'Emergency Contacts',
-                        subtitle: 'Numbers to call in case of alarms.',
+                        title: '紧急联系人',
+                        subtitle: '报警时拨打的号码。',
                         danger: true
                     });
                 }
@@ -852,11 +858,11 @@ export class FamilyView extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.state.feedback.length > 0) {
+            if (this.appState.family.feedback.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.state.feedback);
-                        Text.debugLine("entry/src/main/ets/views/FamilyView.ets(337:9)", "entry");
+                        Text.create(this.appState.family.feedback);
+                        Text.debugLine("entry/src/main/ets/views/FamilyView.ets(341:9)", "entry");
                         Text.fontSize(13);
                         Text.fontColor(COLOR_PRIMARY);
                         Text.padding(12);

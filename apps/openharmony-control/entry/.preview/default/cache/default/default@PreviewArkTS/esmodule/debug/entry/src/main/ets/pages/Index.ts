@@ -2,181 +2,154 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
     Reflect.set(ViewPU.prototype, "finalizeConstruction", () => { });
 }
 interface Index_Params {
-    repository?: SmartHomeRepository;
-    homeViewModel?: HomeViewModel;
-    lightingViewModel?: LightingViewModel;
-    accessViewModel?: AccessViewModel;
-    cameraViewModel?: CameraViewModel;
-    automationViewModel?: AutomationViewModel;
-    notificationsViewModel?: NotificationsViewModel;
-    familyViewModel?: FamilyViewModel;
-    climateViewModel?: ClimateViewModel;
+    controller?: AppController;
+    appState?: AppStateSnapshot;
+    navStack?: NavPathStack;
     currentTab?: number;
-    activePage?: AppPageId;
+    subPageDepth?: number;
     isLoading?: boolean;
-    homeState?: HomeViewState;
-    lightingState?: LightingViewState;
-    accessState?: AccessViewState;
-    cameraState?: CameraViewState;
-    climateState?: ClimateViewState;
-    automationState?: AutomationViewState;
-    notificationsState?: NotificationsViewState;
-    familyState?: FamilyViewState;
+    isRefreshing?: boolean;
+    isHeaderMenuOpen?: boolean;
+    isAddSheetOpen?: boolean;
+    dataVersion?: number;
 }
-import { createEmptyAccessViewState, createEmptyAutomationViewState, createEmptyCameraViewState, createEmptyClimateViewState, createEmptyFamilyViewState, createEmptyHomeViewState, createEmptyLightingViewState, createEmptyNotificationsViewState, } from "@bundle:com.example.smarthomecontrol/entry/ets/model/page-view-state";
-import type { AccessViewState, AppPageId, AutomationViewState, CameraViewState, ClimateViewState, FamilyViewState, HomeViewState, LightingViewState, NotificationsViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/page-view-state";
-import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
+import type { AppPageId } from '../model/page-view-state';
+import { isSubPageId } from "@bundle:com.example.smarthomecontrol/entry/ets/model/index-page-state";
+import { AppStateSnapshot } from "@bundle:com.example.smarthomecontrol/entry/ets/model/app-state-snapshot";
+import { AppController } from "@bundle:com.example.smarthomecontrol/entry/ets/controllers/AppController";
+import { AppHeader } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppHeader";
 import { TabButton } from "@bundle:com.example.smarthomecontrol/entry/ets/components/TabButton";
-import { AccessView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/AccessView";
+import { AddDeviceSheet } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AddDeviceSheet";
+import { HeaderActionMenu } from "@bundle:com.example.smarthomecontrol/entry/ets/components/HeaderActionMenu";
+import type { HeaderActionMenuItem } from "@bundle:com.example.smarthomecontrol/entry/ets/components/HeaderActionMenu";
+import { HomeView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/HomeView";
 import { AutomationView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/AutomationView";
+import { NotificationsView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/NotificationsView";
+import { FamilyView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/FamilyView";
+import { LightingView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/LightingView";
+import { AccessView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/AccessView";
 import { CameraView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/CameraView";
 import { ClimateView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/ClimateView";
-import { FamilyView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/FamilyView";
-import { HomeView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/HomeView";
-import { LightingView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/LightingView";
-import { NotificationsView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/NotificationsView";
-import { DeviceApi } from "@bundle:com.example.smarthomecontrol/entry/ets/services/device-api";
-import { SmartHomeRepository } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
-import { AccessViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/access-view-model";
-import { AutomationViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/automation-view-model";
-import { CameraViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/camera-view-model";
-import { ClimateViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/climate-view-model";
-import { FamilyViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/family-view-model";
-import { HomeViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/home-view-model";
-import { LightingViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/lighting-view-model";
-import { NotificationsViewModel } from "@bundle:com.example.smarthomecontrol/entry/ets/viewmodel/notifications-view-model";
+import { SceneEditorView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/SceneEditorView";
+import { RoutineEditorView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/RoutineEditorView";
+import { FamilySettingsView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/FamilySettingsView";
+import { BathroomView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/BathroomView";
+import { KitchenView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/KitchenView";
+import { LivingRoomView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/LivingRoomView";
+import { MasterBedroomView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/MasterBedroomView";
+import { PendantLightView } from "@bundle:com.example.smarthomecontrol/entry/ets/views/PendantLightView";
 import { COLOR_BG, COLOR_BORDER, COLOR_PRIMARY, COLOR_SURFACE, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
-const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
+// ── Tab page IDs ─────────────────────────────────────────────────────────────
+const TAB_PAGES: AppPageId[] = ['home', 'automation', 'notifications', 'family'];
+function tabIndexForPage(page: AppPageId): number {
+    const idx = TAB_PAGES.indexOf(page);
+    return idx >= 0 ? idx : 0;
+}
 class Index extends ViewPU {
     constructor(parent, params, __localStorage, elmtId = -1, paramsLambda = undefined, extraInfo) {
         super(parent, __localStorage, elmtId, extraInfo);
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.repository = new SmartHomeRepository(new DeviceApi(BACKEND_BASE_URL));
-        this.homeViewModel = new HomeViewModel(this.repository);
-        this.lightingViewModel = new LightingViewModel(this.repository);
-        this.accessViewModel = new AccessViewModel(this.repository);
-        this.cameraViewModel = new CameraViewModel(this.repository);
-        this.automationViewModel = new AutomationViewModel(this.repository);
-        this.notificationsViewModel = new NotificationsViewModel(this.repository);
-        this.familyViewModel = new FamilyViewModel(this.repository);
-        this.climateViewModel = new ClimateViewModel(this.repository);
+        this.__controller = new ObservedPropertyObjectPU(new AppController(), this, "controller");
+        this.addProvidedVar("controller", this.__controller, false);
+        this.__appState = new ObservedPropertyObjectPU(new AppStateSnapshot(), this, "appState");
+        this.addProvidedVar("appState", this.__appState, false);
+        this.__navStack = new ObservedPropertyObjectPU(new NavPathStack(), this, "navStack");
+        this.addProvidedVar("navStack", this.__navStack, false);
         this.__currentTab = new ObservedPropertySimplePU(0, this, "currentTab");
-        this.__activePage = new ObservedPropertySimplePU('home', this, "activePage");
+        this.__subPageDepth = new ObservedPropertySimplePU(0, this, "subPageDepth");
         this.__isLoading = new ObservedPropertySimplePU(false, this, "isLoading");
-        this.__homeState = new ObservedPropertyObjectPU(createEmptyHomeViewState(), this, "homeState");
-        this.__lightingState = new ObservedPropertyObjectPU(createEmptyLightingViewState(), this, "lightingState");
-        this.__accessState = new ObservedPropertyObjectPU(createEmptyAccessViewState(), this, "accessState");
-        this.__cameraState = new ObservedPropertyObjectPU(createEmptyCameraViewState(), this, "cameraState");
-        this.__climateState = new ObservedPropertyObjectPU(createEmptyClimateViewState(), this, "climateState");
-        this.__automationState = new ObservedPropertyObjectPU(createEmptyAutomationViewState(), this, "automationState");
-        this.__notificationsState = new ObservedPropertyObjectPU(createEmptyNotificationsViewState(), this, "notificationsState");
-        this.__familyState = new ObservedPropertyObjectPU(createEmptyFamilyViewState(), this, "familyState");
+        this.__isRefreshing = new ObservedPropertySimplePU(false, this, "isRefreshing");
+        this.__isHeaderMenuOpen = new ObservedPropertySimplePU(false, this, "isHeaderMenuOpen");
+        this.__isAddSheetOpen = new ObservedPropertySimplePU(false, this, "isAddSheetOpen");
+        this.__dataVersion = new ObservedPropertySimplePU(0, this, "dataVersion");
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: Index_Params) {
-        if (params.repository !== undefined) {
-            this.repository = params.repository;
+        if (params.controller !== undefined) {
+            this.controller = params.controller;
         }
-        if (params.homeViewModel !== undefined) {
-            this.homeViewModel = params.homeViewModel;
+        if (params.appState !== undefined) {
+            this.appState = params.appState;
         }
-        if (params.lightingViewModel !== undefined) {
-            this.lightingViewModel = params.lightingViewModel;
-        }
-        if (params.accessViewModel !== undefined) {
-            this.accessViewModel = params.accessViewModel;
-        }
-        if (params.cameraViewModel !== undefined) {
-            this.cameraViewModel = params.cameraViewModel;
-        }
-        if (params.automationViewModel !== undefined) {
-            this.automationViewModel = params.automationViewModel;
-        }
-        if (params.notificationsViewModel !== undefined) {
-            this.notificationsViewModel = params.notificationsViewModel;
-        }
-        if (params.familyViewModel !== undefined) {
-            this.familyViewModel = params.familyViewModel;
-        }
-        if (params.climateViewModel !== undefined) {
-            this.climateViewModel = params.climateViewModel;
+        if (params.navStack !== undefined) {
+            this.navStack = params.navStack;
         }
         if (params.currentTab !== undefined) {
             this.currentTab = params.currentTab;
         }
-        if (params.activePage !== undefined) {
-            this.activePage = params.activePage;
+        if (params.subPageDepth !== undefined) {
+            this.subPageDepth = params.subPageDepth;
         }
         if (params.isLoading !== undefined) {
             this.isLoading = params.isLoading;
         }
-        if (params.homeState !== undefined) {
-            this.homeState = params.homeState;
+        if (params.isRefreshing !== undefined) {
+            this.isRefreshing = params.isRefreshing;
         }
-        if (params.lightingState !== undefined) {
-            this.lightingState = params.lightingState;
+        if (params.isHeaderMenuOpen !== undefined) {
+            this.isHeaderMenuOpen = params.isHeaderMenuOpen;
         }
-        if (params.accessState !== undefined) {
-            this.accessState = params.accessState;
+        if (params.isAddSheetOpen !== undefined) {
+            this.isAddSheetOpen = params.isAddSheetOpen;
         }
-        if (params.cameraState !== undefined) {
-            this.cameraState = params.cameraState;
-        }
-        if (params.climateState !== undefined) {
-            this.climateState = params.climateState;
-        }
-        if (params.automationState !== undefined) {
-            this.automationState = params.automationState;
-        }
-        if (params.notificationsState !== undefined) {
-            this.notificationsState = params.notificationsState;
-        }
-        if (params.familyState !== undefined) {
-            this.familyState = params.familyState;
+        if (params.dataVersion !== undefined) {
+            this.dataVersion = params.dataVersion;
         }
     }
     updateStateVars(params: Index_Params) {
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
+        this.__controller.purgeDependencyOnElmtId(rmElmtId);
+        this.__appState.purgeDependencyOnElmtId(rmElmtId);
+        this.__navStack.purgeDependencyOnElmtId(rmElmtId);
         this.__currentTab.purgeDependencyOnElmtId(rmElmtId);
-        this.__activePage.purgeDependencyOnElmtId(rmElmtId);
+        this.__subPageDepth.purgeDependencyOnElmtId(rmElmtId);
         this.__isLoading.purgeDependencyOnElmtId(rmElmtId);
-        this.__homeState.purgeDependencyOnElmtId(rmElmtId);
-        this.__lightingState.purgeDependencyOnElmtId(rmElmtId);
-        this.__accessState.purgeDependencyOnElmtId(rmElmtId);
-        this.__cameraState.purgeDependencyOnElmtId(rmElmtId);
-        this.__climateState.purgeDependencyOnElmtId(rmElmtId);
-        this.__automationState.purgeDependencyOnElmtId(rmElmtId);
-        this.__notificationsState.purgeDependencyOnElmtId(rmElmtId);
-        this.__familyState.purgeDependencyOnElmtId(rmElmtId);
+        this.__isRefreshing.purgeDependencyOnElmtId(rmElmtId);
+        this.__isHeaderMenuOpen.purgeDependencyOnElmtId(rmElmtId);
+        this.__isAddSheetOpen.purgeDependencyOnElmtId(rmElmtId);
+        this.__dataVersion.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
+        this.__controller.aboutToBeDeleted();
+        this.__appState.aboutToBeDeleted();
+        this.__navStack.aboutToBeDeleted();
         this.__currentTab.aboutToBeDeleted();
-        this.__activePage.aboutToBeDeleted();
+        this.__subPageDepth.aboutToBeDeleted();
         this.__isLoading.aboutToBeDeleted();
-        this.__homeState.aboutToBeDeleted();
-        this.__lightingState.aboutToBeDeleted();
-        this.__accessState.aboutToBeDeleted();
-        this.__cameraState.aboutToBeDeleted();
-        this.__climateState.aboutToBeDeleted();
-        this.__automationState.aboutToBeDeleted();
-        this.__notificationsState.aboutToBeDeleted();
-        this.__familyState.aboutToBeDeleted();
+        this.__isRefreshing.aboutToBeDeleted();
+        this.__isHeaderMenuOpen.aboutToBeDeleted();
+        this.__isAddSheetOpen.aboutToBeDeleted();
+        this.__dataVersion.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private readonly repository: SmartHomeRepository;
-    private readonly homeViewModel: HomeViewModel;
-    private readonly lightingViewModel: LightingViewModel;
-    private readonly accessViewModel: AccessViewModel;
-    private readonly cameraViewModel: CameraViewModel;
-    private readonly automationViewModel: AutomationViewModel;
-    private readonly notificationsViewModel: NotificationsViewModel;
-    private readonly familyViewModel: FamilyViewModel;
-    private readonly climateViewModel: ClimateViewModel;
+    // ── Provided to entire subtree ──────────────────────────────────────────
+    private __controller: ObservedPropertyObjectPU<AppController>;
+    get controller() {
+        return this.__controller.get();
+    }
+    set controller(newValue: AppController) {
+        this.__controller.set(newValue);
+    }
+    private __appState: ObservedPropertyObjectPU<AppStateSnapshot>;
+    get appState() {
+        return this.__appState.get();
+    }
+    set appState(newValue: AppStateSnapshot) {
+        this.__appState.set(newValue);
+    }
+    private __navStack: ObservedPropertyObjectPU<NavPathStack>;
+    get navStack() {
+        return this.__navStack.get();
+    }
+    set navStack(newValue: NavPathStack) {
+        this.__navStack.set(newValue);
+    }
+    // ── Local UI state ──────────────────────────────────────────────────────
     private __currentTab: ObservedPropertySimplePU<number>;
     get currentTab() {
         return this.__currentTab.get();
@@ -184,12 +157,12 @@ class Index extends ViewPU {
     set currentTab(newValue: number) {
         this.__currentTab.set(newValue);
     }
-    private __activePage: ObservedPropertySimplePU<AppPageId>;
-    get activePage() {
-        return this.__activePage.get();
+    private __subPageDepth: ObservedPropertySimplePU<number>; // tracks NavPathStack depth reactively
+    get subPageDepth() {
+        return this.__subPageDepth.get();
     }
-    set activePage(newValue: AppPageId) {
-        this.__activePage.set(newValue);
+    set subPageDepth(newValue: number) {
+        this.__subPageDepth.set(newValue);
     }
     private __isLoading: ObservedPropertySimplePU<boolean>;
     get isLoading() {
@@ -198,835 +171,663 @@ class Index extends ViewPU {
     set isLoading(newValue: boolean) {
         this.__isLoading.set(newValue);
     }
-    private __homeState: ObservedPropertyObjectPU<HomeViewState>;
-    get homeState() {
-        return this.__homeState.get();
+    private __isRefreshing: ObservedPropertySimplePU<boolean>;
+    get isRefreshing() {
+        return this.__isRefreshing.get();
     }
-    set homeState(newValue: HomeViewState) {
-        this.__homeState.set(newValue);
+    set isRefreshing(newValue: boolean) {
+        this.__isRefreshing.set(newValue);
     }
-    private __lightingState: ObservedPropertyObjectPU<LightingViewState>;
-    get lightingState() {
-        return this.__lightingState.get();
+    private __isHeaderMenuOpen: ObservedPropertySimplePU<boolean>;
+    get isHeaderMenuOpen() {
+        return this.__isHeaderMenuOpen.get();
     }
-    set lightingState(newValue: LightingViewState) {
-        this.__lightingState.set(newValue);
+    set isHeaderMenuOpen(newValue: boolean) {
+        this.__isHeaderMenuOpen.set(newValue);
     }
-    private __accessState: ObservedPropertyObjectPU<AccessViewState>;
-    get accessState() {
-        return this.__accessState.get();
+    private __isAddSheetOpen: ObservedPropertySimplePU<boolean>;
+    get isAddSheetOpen() {
+        return this.__isAddSheetOpen.get();
     }
-    set accessState(newValue: AccessViewState) {
-        this.__accessState.set(newValue);
+    set isAddSheetOpen(newValue: boolean) {
+        this.__isAddSheetOpen.set(newValue);
     }
-    private __cameraState: ObservedPropertyObjectPU<CameraViewState>;
-    get cameraState() {
-        return this.__cameraState.get();
+    private __dataVersion: ObservedPropertySimplePU<number>; // 强制触发 @Consume 子组件重渲染
+    get dataVersion() {
+        return this.__dataVersion.get();
     }
-    set cameraState(newValue: CameraViewState) {
-        this.__cameraState.set(newValue);
-    }
-    private __climateState: ObservedPropertyObjectPU<ClimateViewState>;
-    get climateState() {
-        return this.__climateState.get();
-    }
-    set climateState(newValue: ClimateViewState) {
-        this.__climateState.set(newValue);
-    }
-    private __automationState: ObservedPropertyObjectPU<AutomationViewState>;
-    get automationState() {
-        return this.__automationState.get();
-    }
-    set automationState(newValue: AutomationViewState) {
-        this.__automationState.set(newValue);
-    }
-    private __notificationsState: ObservedPropertyObjectPU<NotificationsViewState>;
-    get notificationsState() {
-        return this.__notificationsState.get();
-    }
-    set notificationsState(newValue: NotificationsViewState) {
-        this.__notificationsState.set(newValue);
-    }
-    private __familyState: ObservedPropertyObjectPU<FamilyViewState>;
-    get familyState() {
-        return this.__familyState.get();
-    }
-    set familyState(newValue: FamilyViewState) {
-        this.__familyState.set(newValue);
+    set dataVersion(newValue: number) {
+        this.__dataVersion.set(newValue);
     }
     async aboutToAppear(): Promise<void> {
         this.isLoading = true;
-        await this.refreshAll();
+        await this.controller.refreshAll(this.appState);
+        this.dataVersion++; // 触发所有子视图刷新
         this.isLoading = false;
     }
-    setPage(page: AppPageId): void {
-        this.activePage = page;
-        if (page === 'home') {
-            this.currentTab = 0;
+    // ── Navigation helpers ───────────────────────────────────────────────────
+    private pushSubPage(page: AppPageId): void {
+        this.closeTransientUi();
+        this.navStack.pushPathByName(page, null);
+        this.subPageDepth = this.navStack.size();
+    }
+    private setTabPage(page: AppPageId): void {
+        this.closeTransientUi();
+        this.currentTab = tabIndexForPage(page);
+    }
+    private setPage(page: AppPageId): void {
+        if (isSubPageId(page)) {
+            this.pushSubPage(page);
         }
-        else if (page === 'automation') {
-            this.currentTab = 1;
-        }
-        else if (page === 'notifications') {
-            this.currentTab = 2;
-        }
-        else if (page === 'family') {
-            this.currentTab = 3;
-        }
-    }
-    goBack(): void {
-        this.setPage('home');
-    }
-    async refreshAll(feedback: string = ''): Promise<void> {
-        await Promise.all([
-            this.refreshHome(feedback),
-            this.refreshLighting(feedback),
-            this.refreshAccess(feedback),
-            this.refreshCamera(feedback),
-            this.refreshClimate(feedback),
-            this.refreshAutomation(feedback),
-            this.refreshNotifications(),
-            this.refreshFamily(),
-        ]);
-    }
-    async refreshHomeAndAutomation(feedback: string): Promise<void> {
-        await Promise.all([
-            this.refreshHome(feedback),
-            this.refreshAutomation(feedback),
-        ]);
-    }
-    async refreshHomeAndLighting(feedback: string): Promise<void> {
-        await Promise.all([
-            this.refreshHome(feedback),
-            this.refreshLighting(feedback),
-        ]);
-    }
-    async refreshHomeAndAccess(feedback: string): Promise<void> {
-        await Promise.all([
-            this.refreshHome(feedback),
-            this.refreshAccess(feedback),
-        ]);
-    }
-    async refreshHomeAndCamera(feedback: string): Promise<void> {
-        await Promise.all([
-            this.refreshHome(feedback),
-            this.refreshCamera(feedback),
-        ]);
-    }
-    async refreshHome(feedback: string = this.homeState.feedback): Promise<void> {
-        try {
-            this.homeState = await this.homeViewModel.load(feedback);
-        }
-        catch {
-            const state = createEmptyHomeViewState();
-            state.feedback = 'Control center unavailable';
-            this.homeState = state;
+        else {
+            this.setTabPage(page);
         }
     }
-    async refreshLighting(feedback: string = this.lightingState.feedback): Promise<void> {
-        try {
-            this.lightingState = await this.lightingViewModel.load(feedback);
+    private isOnSubPage(): boolean {
+        return this.subPageDepth > 0;
+    }
+    // ── UI helpers ───────────────────────────────────────────────────────────
+    private closeTransientUi(): void {
+        this.isHeaderMenuOpen = false;
+        this.isAddSheetOpen = false;
+    }
+    private toggleHeaderMenu(): void {
+        this.isAddSheetOpen = false;
+        this.isHeaderMenuOpen = !this.isHeaderMenuOpen;
+    }
+    private openAddDeviceSheet(): void {
+        this.isHeaderMenuOpen = false;
+        this.isAddSheetOpen = true;
+    }
+    private handleHeaderMenuSelect(item: HeaderActionMenuItem): void {
+        this.isHeaderMenuOpen = false;
+        this.setPage(item as AppPageId);
+    }
+    private handleTopRefresh(): void {
+        if (this.isRefreshing || this.isLoading) {
+            return;
         }
-        catch {
-            const state = createEmptyLightingViewState();
-            state.feedback = 'Lighting unavailable';
-            this.lightingState = state;
-        }
+        this.isRefreshing = true;
+        this.controller.refreshAll(this.appState)
+            .then(() => {
+            this.dataVersion++;
+        })
+            .finally(() => {
+            this.isRefreshing = false;
+        });
     }
-    async refreshAccess(feedback: string = this.accessState.feedback): Promise<void> {
-        try {
-            this.accessState = await this.accessViewModel.load(feedback);
-        }
-        catch {
-            const state = createEmptyAccessViewState();
-            state.feedback = 'Access control unavailable';
-            this.accessState = state;
-        }
-    }
-    async refreshCamera(feedback: string = this.cameraState.feedback): Promise<void> {
-        try {
-            this.cameraState = await this.cameraViewModel.load(feedback);
-        }
-        catch {
-            const state = createEmptyCameraViewState();
-            state.feedback = 'Camera feed unavailable';
-            this.cameraState = state;
-        }
-    }
-    async refreshClimate(feedback: string = this.climateState.feedback): Promise<void> {
-        try {
-            this.climateState = await this.climateViewModel.load(feedback);
-        }
-        catch {
-            const state = createEmptyClimateViewState();
-            state.feedback = 'Climate control unavailable';
-            this.climateState = state;
-        }
-    }
-    async refreshAutomation(feedback: string = this.automationState.feedback): Promise<void> {
-        try {
-            this.automationState = await this.automationViewModel.load(feedback);
-        }
-        catch {
-            const state = createEmptyAutomationViewState();
-            state.feedback = 'Automation unavailable';
-            this.automationState = state;
-        }
-    }
-    async refreshNotifications(): Promise<void> {
-        try {
-            this.notificationsState = await this.notificationsViewModel.load();
-        }
-        catch {
-            this.notificationsState = createEmptyNotificationsViewState();
-        }
-    }
-    async refreshFamily(feedback: string = this.familyState.feedback): Promise<void> {
-        try {
-            this.familyState = await this.familyViewModel.load(feedback);
-        }
-        catch {
-            const state = createEmptyFamilyViewState();
-            state.feedback = 'Family overview unavailable';
-            this.familyState = state;
-        }
-    }
-    async handleHomeRunScene(sceneId: string): Promise<void> {
-        const feedback = await this.homeViewModel.runScene(sceneId);
-        await this.refreshHomeAndAutomation(feedback);
-    }
-    async handleHomeToggleDoor(deviceId: string, locked: boolean): Promise<void> {
-        const feedback = await this.homeViewModel.toggleDoorLock(deviceId, locked);
-        await this.refreshHomeAndAccess(feedback);
-    }
-    async handleHomeTogglePower(deviceId: string, on: boolean): Promise<void> {
-        const feedback = await this.homeViewModel.toggleDevicePower(deviceId, on);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleHomeBrightness(deviceId: string, brightness: number): Promise<void> {
-        const feedback = await this.homeViewModel.setBrightness(deviceId, brightness);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleHomeTemperature(deviceId: string, target: number): Promise<void> {
-        const feedback = await this.homeViewModel.setTargetTemperature(deviceId, target);
-        await this.refreshHome(feedback);
-    }
-    async handleHomeColorTemperature(deviceId: string, value: number): Promise<void> {
-        const feedback = await this.homeViewModel.setColorTemperature(deviceId, value);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleLightingToggleAll(on: boolean): Promise<void> {
-        const feedback = await this.lightingViewModel.toggleAllRooms(on);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleLightingPreset(label: string): Promise<void> {
-        const feedback = await this.lightingViewModel.applyPreset(label);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleLightingToggleRoom(roomId: string, on: boolean): Promise<void> {
-        const feedback = await this.lightingViewModel.toggleRoom(roomId, on);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleLightingRoomBrightness(roomId: string, value: number): Promise<void> {
-        const feedback = await this.lightingViewModel.setRoomBrightness(roomId, value);
-        await this.refreshLighting(feedback);
-    }
-    async handleLightingToggleLight(deviceId: string, on: boolean): Promise<void> {
-        const feedback = await this.lightingViewModel.toggleLight(deviceId, on);
-        await this.refreshHomeAndLighting(feedback);
-    }
-    async handleLightingLightBrightness(deviceId: string, value: number): Promise<void> {
-        const feedback = await this.lightingViewModel.setLightBrightness(deviceId, value);
-        await this.refreshLighting(feedback);
-    }
-    async handleLightingLightColor(deviceId: string, value: number): Promise<void> {
-        const feedback = await this.lightingViewModel.setLightColorTemperature(deviceId, value);
-        await this.refreshLighting(feedback);
-    }
-    async handleAccessToggleLock(locked: boolean): Promise<void> {
-        const feedback = await this.accessViewModel.togglePrimaryLock(this.accessState.primary.id, locked);
-        await this.refreshHomeAndAccess(feedback);
-    }
-    async handleShareGuest(): Promise<void> {
-        const feedback = await this.accessViewModel.shareGuestAccess('Guest', 4);
-        await this.refreshAccess(feedback);
-    }
-    async handleCameraToggleRecording(cameraId: string, recording: boolean): Promise<void> {
-        const feedback = await this.cameraViewModel.toggleRecording(cameraId, recording);
-        await this.refreshHomeAndCamera(feedback);
-    }
-    async handleAutomationToggleScene(sceneId: string, enabled: boolean): Promise<void> {
-        const feedback = await this.automationViewModel.toggleScene(sceneId, enabled);
-        await this.refreshAutomation(feedback);
-    }
-    async handleAutomationRunScene(sceneId: string): Promise<void> {
-        const feedback = await this.automationViewModel.runScene(sceneId);
-        await this.refreshHomeAndAutomation(feedback);
-    }
-    async handleClimateMode(mode: string): Promise<void> {
-        const feedback = await this.climateViewModel.updateMode(mode);
-        await Promise.all([
-            this.refreshClimate(feedback),
-            this.refreshHome(feedback),
-        ]);
-    }
-    async handleClimateTarget(delta: number): Promise<void> {
-        const nextTarget = Math.max(16, Math.min(30, this.climateState.targetTemperature + delta));
-        const feedback = await this.climateViewModel.updateTargetTemperature(nextTarget);
-        await Promise.all([
-            this.refreshClimate(feedback),
-            this.refreshHome(feedback),
-        ]);
-    }
-    async handleClimatePowerToggle(): Promise<void> {
-        const nextMode = this.climateState.modeLabel === 'Off' ? 'auto' : 'off';
-        await this.handleClimateMode(nextMode);
-    }
-    async handleFamilyBroadcast(): Promise<void> {
-        const feedback = await this.familyViewModel.sendBroadcast('Please check the front entry.');
-        await this.refreshFamily(feedback);
-    }
-    private showShellHeader(): boolean {
-        return this.activePage === 'home' || this.activePage === 'family';
-    }
-    private showBottomTabs(): boolean {
-        return this.activePage !== 'lighting' &&
-            this.activePage !== 'access' &&
-            this.activePage !== 'camera' &&
-            this.activePage !== 'climate';
-    }
-    initialRender() {
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Stack.create();
-            Stack.debugLine("entry/src/main/ets/pages/Index.ets(344:5)", "entry");
-            Stack.width('100%');
-            Stack.height('100%');
-        }, Stack);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create();
-            Column.debugLine("entry/src/main/ets/pages/Index.ets(345:7)", "entry");
-            Column.width('100%');
-            Column.height('100%');
-            Column.backgroundColor(COLOR_BG);
-        }, Column);
+    // ── NavDestination builder ───────────────────────────────────────────────
+    pageMap(name: string, parent = null) {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.showShellHeader()) {
-                this.ifElseBranchUpdateFunction(0, () => {
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Row.create();
-                        Row.debugLine("entry/src/main/ets/pages/Index.ets(347:11)", "entry");
-                        Row.padding({ left: 20, right: 12, top: 14, bottom: 14 });
-                        Row.backgroundColor(COLOR_BG);
-                        Row.border({ width: { bottom: 1 }, color: COLOR_BORDER + '99' });
-                        Row.shadow({ radius: 12, color: '#3A302A08', offsetX: 0, offsetY: 2 });
-                        Row.width('100%');
-                    }, Row);
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        If.create();
-                        if (this.activePage === 'family') {
-                            this.ifElseBranchUpdateFunction(0, () => {
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Row.create({ space: 14 });
-                                    Row.debugLine("entry/src/main/ets/pages/Index.ets(349:15)", "entry");
-                                }, Row);
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Image.create({ "id": 16777226, "type": 20000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" });
-                                    Image.debugLine("entry/src/main/ets/pages/Index.ets(350:17)", "entry");
-                                    Image.width(40);
-                                    Image.height(40);
-                                    Image.borderRadius(20);
-                                    Image.objectFit(ImageFit.Cover);
-                                }, Image);
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Text.create('OmniHome');
-                                    Text.debugLine("entry/src/main/ets/pages/Index.ets(356:17)", "entry");
-                                    Text.fontSize(22);
-                                    Text.fontWeight(FontWeight.Bold);
-                                    Text.fontColor(COLOR_PRIMARY);
-                                    Text.fontFamily('serif');
-                                }, Text);
-                                Text.pop();
-                                Row.pop();
-                            });
-                        }
-                        else {
-                            this.ifElseBranchUpdateFunction(1, () => {
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Text.create('OmniHome');
-                                    Text.debugLine("entry/src/main/ets/pages/Index.ets(363:15)", "entry");
-                                    Text.fontSize(22);
-                                    Text.fontWeight(FontWeight.Bold);
-                                    Text.fontColor(COLOR_PRIMARY);
-                                    Text.fontFamily('serif');
-                                }, Text);
-                                Text.pop();
-                            });
-                        }
-                    }, If);
-                    If.pop();
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Blank.create();
-                        Blank.debugLine("entry/src/main/ets/pages/Index.ets(370:13)", "entry");
-                    }, Blank);
-                    Blank.pop();
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        If.create();
-                        if (this.activePage === 'family') {
-                            this.ifElseBranchUpdateFunction(0, () => {
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Row.create();
-                                    Row.debugLine("entry/src/main/ets/pages/Index.ets(373:15)", "entry");
-                                    Row.width(40);
-                                    Row.height(40);
-                                    Row.borderRadius(20);
-                                    Row.justifyContent(FlexAlign.Center);
-                                }, Row);
-                                {
-                                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                        if (isInitialRender) {
-                                            let componentCall = new AppSymbol(this, { name: 'notifications', glyphSize: 22, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 374, col: 17 });
-                                            ViewPU.create(componentCall);
-                                            let paramsLambda = () => {
-                                                return {
-                                                    name: 'notifications',
-                                                    glyphSize: 22,
-                                                    color: COLOR_PRIMARY
-                                                };
-                                            };
-                                            componentCall.paramsGenerator_ = paramsLambda;
-                                        }
-                                        else {
-                                            this.updateStateVarsOfChildByElmtId(elmtId, {
-                                                name: 'notifications', glyphSize: 22, color: COLOR_PRIMARY
-                                            });
-                                        }
-                                    }, { name: "AppSymbol" });
-                                }
-                                Row.pop();
-                            });
-                        }
-                        else {
-                            this.ifElseBranchUpdateFunction(1, () => {
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Row.create({ space: 4 });
-                                    Row.debugLine("entry/src/main/ets/pages/Index.ets(381:15)", "entry");
-                                }, Row);
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Row.create();
-                                    Row.debugLine("entry/src/main/ets/pages/Index.ets(382:17)", "entry");
-                                    Row.width(44);
-                                    Row.height(44);
-                                    Row.borderRadius(22);
-                                    Row.justifyContent(FlexAlign.Center);
-                                    Row.backgroundColor('#00000000');
-                                    Row.onClick(() => {
-                                        if (!this.isLoading) {
-                                            this.isLoading = true;
-                                            this.refreshAll().then(() => { this.isLoading = false; });
-                                        }
-                                    });
-                                }, Row);
-                                {
-                                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                        if (isInitialRender) {
-                                            let componentCall = new AppSymbol(this, {
-                                                name: 'refresh',
-                                                glyphSize: 22,
-                                                color: this.isLoading ? COLOR_TEXT_MUTED : COLOR_PRIMARY,
-                                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 383, col: 19 });
-                                            ViewPU.create(componentCall);
-                                            let paramsLambda = () => {
-                                                return {
-                                                    name: 'refresh',
-                                                    glyphSize: 22,
-                                                    color: this.isLoading ? COLOR_TEXT_MUTED : COLOR_PRIMARY
-                                                };
-                                            };
-                                            componentCall.paramsGenerator_ = paramsLambda;
-                                        }
-                                        else {
-                                            this.updateStateVarsOfChildByElmtId(elmtId, {
-                                                name: 'refresh',
-                                                glyphSize: 22,
-                                                color: this.isLoading ? COLOR_TEXT_MUTED : COLOR_PRIMARY
-                                            });
-                                        }
-                                    }, { name: "AppSymbol" });
-                                }
-                                Row.pop();
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Row.create();
-                                    Row.debugLine("entry/src/main/ets/pages/Index.ets(401:17)", "entry");
-                                    Row.width(44);
-                                    Row.height(44);
-                                    Row.borderRadius(22);
-                                    Row.justifyContent(FlexAlign.Center);
-                                    Row.backgroundColor('#00000000');
-                                }, Row);
-                                {
-                                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                        if (isInitialRender) {
-                                            let componentCall = new AppSymbol(this, { name: 'add', glyphSize: 22, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 402, col: 19 });
-                                            ViewPU.create(componentCall);
-                                            let paramsLambda = () => {
-                                                return {
-                                                    name: 'add',
-                                                    glyphSize: 22,
-                                                    color: COLOR_PRIMARY
-                                                };
-                                            };
-                                            componentCall.paramsGenerator_ = paramsLambda;
-                                        }
-                                        else {
-                                            this.updateStateVarsOfChildByElmtId(elmtId, {
-                                                name: 'add', glyphSize: 22, color: COLOR_PRIMARY
-                                            });
-                                        }
-                                    }, { name: "AppSymbol" });
-                                }
-                                Row.pop();
-                                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                    Row.create();
-                                    Row.debugLine("entry/src/main/ets/pages/Index.ets(410:17)", "entry");
-                                    Row.width(44);
-                                    Row.height(44);
-                                    Row.borderRadius(22);
-                                    Row.justifyContent(FlexAlign.Center);
-                                    Row.backgroundColor('#00000000');
-                                }, Row);
-                                {
-                                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                                        if (isInitialRender) {
-                                            let componentCall = new AppSymbol(this, { name: 'menu', glyphSize: 22, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 411, col: 19 });
-                                            ViewPU.create(componentCall);
-                                            let paramsLambda = () => {
-                                                return {
-                                                    name: 'menu',
-                                                    glyphSize: 22,
-                                                    color: COLOR_PRIMARY
-                                                };
-                                            };
-                                            componentCall.paramsGenerator_ = paramsLambda;
-                                        }
-                                        else {
-                                            this.updateStateVarsOfChildByElmtId(elmtId, {
-                                                name: 'menu', glyphSize: 22, color: COLOR_PRIMARY
-                                            });
-                                        }
-                                    }, { name: "AppSymbol" });
-                                }
-                                Row.pop();
-                                Row.pop();
-                            });
-                        }
-                    }, If);
-                    If.pop();
-                    Row.pop();
-                });
-            }
-            else {
-                this.ifElseBranchUpdateFunction(1, () => {
-                });
-            }
-        }, If);
-        If.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Scroll.create();
-            Scroll.debugLine("entry/src/main/ets/pages/Index.ets(428:9)", "entry");
-            Scroll.layoutWeight(1);
-            Scroll.scrollBar(BarState.Off);
-        }, Scroll);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/pages/Index.ets(429:11)", "entry");
-            Column.padding({
-                left: 20,
-                right: 20,
-                top: this.showShellHeader() ? 16 : 20,
-                bottom: 32,
-            });
-            Column.width('100%');
-        }, Column);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            If.create();
-            if (this.activePage === 'home') {
+            if (name === 'lighting') {
                 this.ifElseBranchUpdateFunction(0, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new HomeView(this, {
-                                    state: this.homeState,
-                                    onOpenLighting: () => this.setPage('lighting'),
-                                    onOpenAccess: () => this.setPage('access'),
-                                    onOpenCamera: () => this.setPage('camera'),
-                                    onOpenClimate: () => this.setPage('climate'),
-                                    onOpenScenes: () => this.setPage('automation'),
-                                    onRunScene: (id: string) => this.handleHomeRunScene(id),
-                                    onToggleDoor: (id: string, locked: boolean) => this.handleHomeToggleDoor(id, locked),
-                                    onTogglePower: (id: string, on: boolean) => this.handleHomeTogglePower(id, on),
-                                    onBrightnessQuick: (id: string, value: number) => this.handleHomeBrightness(id, value),
-                                    onTemperatureChange: (id: string, value: number) => this.handleHomeTemperature(id, value),
-                                    onColorTemperature: (id: string, value: number) => this.handleHomeColorTemperature(id, value),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 431, col: 15 });
+                                let componentCall = new LightingView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 131, col: 7 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.homeState,
-                                        onOpenLighting: () => this.setPage('lighting'),
-                                        onOpenAccess: () => this.setPage('access'),
-                                        onOpenCamera: () => this.setPage('camera'),
-                                        onOpenClimate: () => this.setPage('climate'),
-                                        onOpenScenes: () => this.setPage('automation'),
-                                        onRunScene: (id: string) => this.handleHomeRunScene(id),
-                                        onToggleDoor: (id: string, locked: boolean) => this.handleHomeToggleDoor(id, locked),
-                                        onTogglePower: (id: string, on: boolean) => this.handleHomeTogglePower(id, on),
-                                        onBrightnessQuick: (id: string, value: number) => this.handleHomeBrightness(id, value),
-                                        onTemperatureChange: (id: string, value: number) => this.handleHomeTemperature(id, value),
-                                        onColorTemperature: (id: string, value: number) => this.handleHomeColorTemperature(id, value)
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.homeState
-                                });
-                            }
-                        }, { name: "HomeView" });
-                    }
-                });
-            }
-            else if (this.activePage === 'lighting') {
-                this.ifElseBranchUpdateFunction(1, () => {
-                    {
-                        this.observeComponentCreation2((elmtId, isInitialRender) => {
-                            if (isInitialRender) {
-                                let componentCall = new LightingView(this, {
-                                    state: this.lightingState,
-                                    onBack: () => this.goBack(),
-                                    onToggleAll: (on: boolean) => this.handleLightingToggleAll(on),
-                                    onApplyPreset: (label: string) => this.handleLightingPreset(label),
-                                    onToggleRoom: (roomId: string, on: boolean) => this.handleLightingToggleRoom(roomId, on),
-                                    onSetRoomBrightness: (roomId: string, value: number) => this.handleLightingRoomBrightness(roomId, value),
-                                    onToggleLight: (id: string, on: boolean) => this.handleLightingToggleLight(id, on),
-                                    onSetLightBrightness: (id: string, value: number) => this.handleLightingLightBrightness(id, value),
-                                    onSetLightColorTemperature: (id: string, value: number) => this.handleLightingLightColor(id, value),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 451, col: 15 });
-                                ViewPU.create(componentCall);
-                                let paramsLambda = () => {
-                                    return {
-                                        state: this.lightingState,
-                                        onBack: () => this.goBack(),
-                                        onToggleAll: (on: boolean) => this.handleLightingToggleAll(on),
-                                        onApplyPreset: (label: string) => this.handleLightingPreset(label),
-                                        onToggleRoom: (roomId: string, on: boolean) => this.handleLightingToggleRoom(roomId, on),
-                                        onSetRoomBrightness: (roomId: string, value: number) => this.handleLightingRoomBrightness(roomId, value),
-                                        onToggleLight: (id: string, on: boolean) => this.handleLightingToggleLight(id, on),
-                                        onSetLightBrightness: (id: string, value: number) => this.handleLightingLightBrightness(id, value),
-                                        onSetLightColorTemperature: (id: string, value: number) => this.handleLightingLightColor(id, value)
-                                    };
-                                };
-                                componentCall.paramsGenerator_ = paramsLambda;
-                            }
-                            else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.lightingState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "LightingView" });
                     }
                 });
             }
-            else if (this.activePage === 'access') {
-                this.ifElseBranchUpdateFunction(2, () => {
+            else if (name === 'access') {
+                this.ifElseBranchUpdateFunction(1, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AccessView(this, {
-                                    state: this.accessState,
-                                    onBack: () => this.goBack(),
-                                    onTogglePrimaryLock: (locked: boolean) => this.handleAccessToggleLock(locked),
-                                    onShareGuest: () => this.handleShareGuest(),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 468, col: 15 });
+                                let componentCall = new AccessView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 133, col: 7 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.accessState,
-                                        onBack: () => this.goBack(),
-                                        onTogglePrimaryLock: (locked: boolean) => this.handleAccessToggleLock(locked),
-                                        onShareGuest: () => this.handleShareGuest()
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.accessState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "AccessView" });
                     }
                 });
             }
-            else if (this.activePage === 'camera') {
-                this.ifElseBranchUpdateFunction(3, () => {
+            else if (name === 'camera') {
+                this.ifElseBranchUpdateFunction(2, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new CameraView(this, {
-                                    state: this.cameraState,
-                                    onBack: () => this.goBack(),
-                                    onToggleRecording: (id: string, recording: boolean) => this.handleCameraToggleRecording(id, recording),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 476, col: 15 });
+                                let componentCall = new CameraView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 135, col: 7 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.cameraState,
-                                        onBack: () => this.goBack(),
-                                        onToggleRecording: (id: string, recording: boolean) => this.handleCameraToggleRecording(id, recording)
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.cameraState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "CameraView" });
                     }
                 });
             }
-            else if (this.activePage === 'climate') {
-                this.ifElseBranchUpdateFunction(4, () => {
+            else if (name === 'climate') {
+                this.ifElseBranchUpdateFunction(3, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new ClimateView(this, {
-                                    state: this.climateState,
-                                    onBack: () => this.goBack(),
-                                    onSelectMode: (mode: string) => this.handleClimateMode(mode),
-                                    onAdjustTarget: (delta: number) => this.handleClimateTarget(delta),
-                                    onPowerToggle: () => this.handleClimatePowerToggle(),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 483, col: 15 });
+                                let componentCall = new ClimateView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 137, col: 7 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.climateState,
-                                        onBack: () => this.goBack(),
-                                        onSelectMode: (mode: string) => this.handleClimateMode(mode),
-                                        onAdjustTarget: (delta: number) => this.handleClimateTarget(delta),
-                                        onPowerToggle: () => this.handleClimatePowerToggle()
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.climateState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "ClimateView" });
                     }
                 });
             }
-            else if (this.activePage === 'automation') {
+            else if (name === 'sceneEditor') {
+                this.ifElseBranchUpdateFunction(4, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(140:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new SceneEditorView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 141, col: 11 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "SceneEditorView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(139:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'routineEditor') {
                 this.ifElseBranchUpdateFunction(5, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(151:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new RoutineEditorView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 152, col: 11 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "RoutineEditorView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(150:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'familySettings') {
+                this.ifElseBranchUpdateFunction(6, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(162:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new FamilySettingsView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 163, col: 11 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "FamilySettingsView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(161:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'bathroom') {
+                this.ifElseBranchUpdateFunction(7, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(173:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new BathroomView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 173, col: 20 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "BathroomView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(172:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'kitchen') {
+                this.ifElseBranchUpdateFunction(8, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(178:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new KitchenView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 178, col: 20 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "KitchenView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(177:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'livingRoom') {
+                this.ifElseBranchUpdateFunction(9, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(183:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new LivingRoomView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 183, col: 20 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "LivingRoomView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(182:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'masterBedroom') {
+                this.ifElseBranchUpdateFunction(10, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(188:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new MasterBedroomView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 188, col: 20 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "MasterBedroomView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(187:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else if (name === 'pendantLight') {
+                this.ifElseBranchUpdateFunction(11, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        NavDestination.create(() => {
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                Scroll.create();
+                                Scroll.debugLine("entry/src/main/ets/pages/Index.ets(193:9)", "entry");
+                                Scroll.scrollBar(BarState.Off);
+                                Scroll.width('100%');
+                                Scroll.height('100%');
+                            }, Scroll);
+                            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                __Common__.create();
+                                __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+                            }, __Common__);
+                            {
+                                this.observeComponentCreation2((elmtId, isInitialRender) => {
+                                    if (isInitialRender) {
+                                        let componentCall = new PendantLightView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 193, col: 20 });
+                                        ViewPU.create(componentCall);
+                                        let paramsLambda = () => {
+                                            return {};
+                                        };
+                                        componentCall.paramsGenerator_ = paramsLambda;
+                                    }
+                                    else {
+                                        this.updateStateVarsOfChildByElmtId(elmtId, {});
+                                    }
+                                }, { name: "PendantLightView" });
+                            }
+                            __Common__.pop();
+                            Scroll.pop();
+                        }, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index" });
+                        NavDestination.hideTitleBar(true);
+                        NavDestination.debugLine("entry/src/main/ets/pages/Index.ets(192:7)", "entry");
+                    }, NavDestination);
+                    NavDestination.pop();
+                });
+            }
+            else // ── Build ────────────────────────────────────────────────────────────────
+             {
+                this.ifElseBranchUpdateFunction(12, () => {
+                });
+            }
+        }, If);
+        If.pop();
+    }
+    // ── Build ────────────────────────────────────────────────────────────────
+    initialRender() {
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Stack.create();
+            Stack.debugLine("entry/src/main/ets/pages/Index.ets(202:5)", "entry");
+            Stack.width('100%');
+            Stack.height('100%');
+        }, Stack);
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Column.create();
+            Column.debugLine("entry/src/main/ets/pages/Index.ets(203:7)", "entry");
+            Column.width('100%');
+            Column.height('100%');
+            Column.backgroundColor(COLOR_BG);
+        }, Column);
+        {
+            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                if (isInitialRender) {
+                    let componentCall = new AppHeader(this, {
+                        isSubPage: this.isOnSubPage(),
+                        onBack: () => {
+                            this.navStack.pop();
+                            this.subPageDepth = this.navStack.size();
+                        },
+                        onAdd: () => this.openAddDeviceSheet(),
+                        onMenu: () => this.toggleHeaderMenu(),
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 204, col: 9 });
+                    ViewPU.create(componentCall);
+                    let paramsLambda = () => {
+                        return {
+                            isSubPage: this.isOnSubPage(),
+                            onBack: () => {
+                                this.navStack.pop();
+                                this.subPageDepth = this.navStack.size();
+                            },
+                            onAdd: () => this.openAddDeviceSheet(),
+                            onMenu: () => this.toggleHeaderMenu()
+                        };
+                    };
+                    componentCall.paramsGenerator_ = paramsLambda;
+                }
+                else {
+                    this.updateStateVarsOfChildByElmtId(elmtId, {
+                        isSubPage: this.isOnSubPage()
+                    });
+                }
+            }, { name: "AppHeader" });
+        }
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Navigation.create(this.navStack, { moduleName: "entry", pagePath: "entry/src/main/ets/pages/Index", isUserCreateStack: true });
+            Navigation.debugLine("entry/src/main/ets/pages/Index.ets(214:9)", "entry");
+            Navigation.navDestination({ builder: this.pageMap.bind(this) });
+            Navigation.hideNavBar(true);
+            Navigation.onNavBarStateChange((isVisible: boolean) => {
+                // NavBar state changes when the stack depth changes
+                this.subPageDepth = this.navStack.size();
+            });
+            Navigation.layoutWeight(1);
+            Navigation.width('100%');
+        }, Navigation);
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Refresh.create({ refreshing: { value: this.isRefreshing, changeEvent: newValue => { this.isRefreshing = newValue; } }, offset: 108, friction: 72 });
+            Refresh.debugLine("entry/src/main/ets/pages/Index.ets(215:11)", "entry");
+            Refresh.onRefreshing(() => this.handleTopRefresh());
+            Refresh.width('100%');
+            Refresh.height('100%');
+        }, Refresh);
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Scroll.create();
+            Scroll.debugLine("entry/src/main/ets/pages/Index.ets(216:13)", "entry");
+            Scroll.scrollBar(BarState.Off);
+        }, Scroll);
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Column.create();
+            Column.debugLine("entry/src/main/ets/pages/Index.ets(217:15)", "entry");
+            Column.key(`tab-${this.dataVersion}`);
+            Column.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+            Column.width('100%');
+        }, Column);
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            If.create();
+            if (this.currentTab === 0) {
+                this.ifElseBranchUpdateFunction(0, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AutomationView(this, {
-                                    state: this.automationState,
-                                    onRunScene: (id: string) => this.handleAutomationRunScene(id),
-                                    onToggleScene: (id: string, enabled: boolean) => this.handleAutomationToggleScene(id, enabled),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 491, col: 15 });
+                                let componentCall = new HomeView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 219, col: 19 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.automationState,
-                                        onRunScene: (id: string) => this.handleAutomationRunScene(id),
-                                        onToggleScene: (id: string, enabled: boolean) => this.handleAutomationToggleScene(id, enabled)
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.automationState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
+                            }
+                        }, { name: "HomeView" });
+                    }
+                });
+            }
+            else if (this.currentTab === 1) {
+                this.ifElseBranchUpdateFunction(1, () => {
+                    {
+                        this.observeComponentCreation2((elmtId, isInitialRender) => {
+                            if (isInitialRender) {
+                                let componentCall = new AutomationView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 221, col: 19 });
+                                ViewPU.create(componentCall);
+                                let paramsLambda = () => {
+                                    return {};
+                                };
+                                componentCall.paramsGenerator_ = paramsLambda;
+                            }
+                            else {
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "AutomationView" });
                     }
                 });
             }
-            else if (this.activePage === 'notifications') {
-                this.ifElseBranchUpdateFunction(6, () => {
+            else if (this.currentTab === 2) {
+                this.ifElseBranchUpdateFunction(2, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new NotificationsView(this, { state: this.notificationsState }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 498, col: 15 });
+                                let componentCall = new NotificationsView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 223, col: 19 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.notificationsState
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.notificationsState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "NotificationsView" });
                     }
                 });
             }
-            else if (this.activePage === 'family') {
-                this.ifElseBranchUpdateFunction(7, () => {
+            else {
+                this.ifElseBranchUpdateFunction(3, () => {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new FamilyView(this, {
-                                    state: this.familyState,
-                                    onSendBroadcast: () => this.handleFamilyBroadcast(),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 500, col: 15 });
+                                let componentCall = new FamilyView(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 225, col: 19 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
-                                    return {
-                                        state: this.familyState,
-                                        onSendBroadcast: () => this.handleFamilyBroadcast()
-                                    };
+                                    return {};
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
-                                this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    state: this.familyState
-                                });
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
                             }
                         }, { name: "FamilyView" });
                     }
-                });
-            }
-            else {
-                this.ifElseBranchUpdateFunction(8, () => {
                 });
             }
         }, If);
         If.pop();
         Column.pop();
         Scroll.pop();
+        Refresh.pop();
+        Navigation.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.showBottomTabs()) {
+            if (!this.isOnSubPage()) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/pages/Index.ets(518:11)", "entry");
-                        Row.padding({ left: 10, right: 10, top: 8, bottom: 8 });
-                        Row.backgroundColor(COLOR_SURFACE);
+                        Row.debugLine("entry/src/main/ets/pages/Index.ets(248:11)", "entry");
+                        Row.padding({ left: 12, right: 12, top: 10, bottom: 10 });
+                        Row.backgroundColor(COLOR_SURFACE + 'F2');
                         Row.border({ width: { top: 1 }, color: COLOR_BORDER + '66' });
                         Row.width('100%');
                     }, Row);
@@ -1034,25 +835,25 @@ class Index extends ViewPU {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
                                 let componentCall = new TabButton(this, {
-                                    label: 'Home',
+                                    label: '首页',
                                     icon: 'home',
                                     selected: this.currentTab === 0,
-                                    onTap: () => this.setPage('home'),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 519, col: 13 });
+                                    onTap: () => this.setTabPage('home'),
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 249, col: 13 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
-                                        label: 'Home',
+                                        label: '首页',
                                         icon: 'home',
                                         selected: this.currentTab === 0,
-                                        onTap: () => this.setPage('home')
+                                        onTap: () => this.setTabPage('home')
                                     };
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
                                 this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    label: 'Home',
+                                    label: '首页',
                                     icon: 'home',
                                     selected: this.currentTab === 0
                                 });
@@ -1063,25 +864,25 @@ class Index extends ViewPU {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
                                 let componentCall = new TabButton(this, {
-                                    label: 'Scenes',
+                                    label: '场景',
                                     icon: 'auto_awesome',
                                     selected: this.currentTab === 1,
-                                    onTap: () => this.setPage('automation'),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 525, col: 13 });
+                                    onTap: () => this.setTabPage('automation'),
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 255, col: 13 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
-                                        label: 'Scenes',
+                                        label: '场景',
                                         icon: 'auto_awesome',
                                         selected: this.currentTab === 1,
-                                        onTap: () => this.setPage('automation')
+                                        onTap: () => this.setTabPage('automation')
                                     };
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
                                 this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    label: 'Scenes',
+                                    label: '场景',
                                     icon: 'auto_awesome',
                                     selected: this.currentTab === 1
                                 });
@@ -1092,25 +893,25 @@ class Index extends ViewPU {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
                                 let componentCall = new TabButton(this, {
-                                    label: 'Alerts',
+                                    label: '通知',
                                     icon: 'notifications',
                                     selected: this.currentTab === 2,
-                                    onTap: () => this.setPage('notifications'),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 531, col: 13 });
+                                    onTap: () => this.setTabPage('notifications'),
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 261, col: 13 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
-                                        label: 'Alerts',
+                                        label: '通知',
                                         icon: 'notifications',
                                         selected: this.currentTab === 2,
-                                        onTap: () => this.setPage('notifications')
+                                        onTap: () => this.setTabPage('notifications')
                                     };
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
                                 this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    label: 'Alerts',
+                                    label: '通知',
                                     icon: 'notifications',
                                     selected: this.currentTab === 2
                                 });
@@ -1121,25 +922,25 @@ class Index extends ViewPU {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
                                 let componentCall = new TabButton(this, {
-                                    label: 'Family',
+                                    label: '家庭',
                                     icon: 'group',
                                     selected: this.currentTab === 3,
-                                    onTap: () => this.setPage('family'),
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 537, col: 13 });
+                                    onTap: () => this.setTabPage('family'),
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 267, col: 13 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
-                                        label: 'Family',
+                                        label: '家庭',
                                         icon: 'group',
                                         selected: this.currentTab === 3,
-                                        onTap: () => this.setPage('family')
+                                        onTap: () => this.setTabPage('family')
                                     };
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
                             }
                             else {
                                 this.updateStateVarsOfChildByElmtId(elmtId, {
-                                    label: 'Family',
+                                    label: '家庭',
                                     icon: 'group',
                                     selected: this.currentTab === 3
                                 });
@@ -1158,11 +959,114 @@ class Index extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
+            if (this.isHeaderMenuOpen || this.isAddSheetOpen) {
+                this.ifElseBranchUpdateFunction(0, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        Column.create();
+                        Column.debugLine("entry/src/main/ets/pages/Index.ets(285:9)", "entry");
+                        Column.width('100%');
+                        Column.height('100%');
+                        Column.backgroundColor('#201B142E');
+                        Column.onClick(() => this.closeTransientUi());
+                    }, Column);
+                    Column.pop();
+                });
+            }
+            else {
+                this.ifElseBranchUpdateFunction(1, () => {
+                });
+            }
+        }, If);
+        If.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            If.create();
+            if (this.isHeaderMenuOpen) {
+                this.ifElseBranchUpdateFunction(0, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        Column.create();
+                        Column.debugLine("entry/src/main/ets/pages/Index.ets(293:9)", "entry");
+                        Column.width('100%');
+                        Column.height('100%');
+                        Column.padding({ top: 82, right: 20 });
+                        Column.alignItems(HorizontalAlign.End);
+                    }, Column);
+                    {
+                        this.observeComponentCreation2((elmtId, isInitialRender) => {
+                            if (isInitialRender) {
+                                let componentCall = new HeaderActionMenu(this, {
+                                    onSelect: (item: HeaderActionMenuItem) => this.handleHeaderMenuSelect(item),
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 294, col: 11 });
+                                ViewPU.create(componentCall);
+                                let paramsLambda = () => {
+                                    return {
+                                        onSelect: (item: HeaderActionMenuItem) => this.handleHeaderMenuSelect(item)
+                                    };
+                                };
+                                componentCall.paramsGenerator_ = paramsLambda;
+                            }
+                            else {
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
+                            }
+                        }, { name: "HeaderActionMenu" });
+                    }
+                    Column.pop();
+                });
+            }
+            else {
+                this.ifElseBranchUpdateFunction(1, () => {
+                });
+            }
+        }, If);
+        If.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            If.create();
+            if (this.isAddSheetOpen) {
+                this.ifElseBranchUpdateFunction(0, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        Column.create();
+                        Column.debugLine("entry/src/main/ets/pages/Index.ets(305:9)", "entry");
+                        Column.width('100%');
+                        Column.height('100%');
+                        Column.justifyContent(FlexAlign.End);
+                    }, Column);
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        Blank.create();
+                        Blank.debugLine("entry/src/main/ets/pages/Index.ets(306:11)", "entry");
+                    }, Blank);
+                    Blank.pop();
+                    {
+                        this.observeComponentCreation2((elmtId, isInitialRender) => {
+                            if (isInitialRender) {
+                                let componentCall = new AddDeviceSheet(this, { onClose: () => this.closeTransientUi() }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/pages/Index.ets", line: 307, col: 11 });
+                                ViewPU.create(componentCall);
+                                let paramsLambda = () => {
+                                    return {
+                                        onClose: () => this.closeTransientUi()
+                                    };
+                                };
+                                componentCall.paramsGenerator_ = paramsLambda;
+                            }
+                            else {
+                                this.updateStateVarsOfChildByElmtId(elmtId, {});
+                            }
+                        }, { name: "AddDeviceSheet" });
+                    }
+                    Column.pop();
+                });
+            }
+            else {
+                this.ifElseBranchUpdateFunction(1, () => {
+                });
+            }
+        }, If);
+        If.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            If.create();
             if (this.isLoading) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Column.create({ space: 16 });
-                        Column.debugLine("entry/src/main/ets/pages/Index.ets(555:9)", "entry");
+                        Column.create({ space: 14 });
+                        Column.debugLine("entry/src/main/ets/pages/Index.ets(315:9)", "entry");
                         Column.width('100%');
                         Column.height('100%');
                         Column.justifyContent(FlexAlign.Center);
@@ -1171,14 +1075,14 @@ class Index extends ViewPU {
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         LoadingProgress.create();
-                        LoadingProgress.debugLine("entry/src/main/ets/pages/Index.ets(556:11)", "entry");
+                        LoadingProgress.debugLine("entry/src/main/ets/pages/Index.ets(316:11)", "entry");
                         LoadingProgress.width(48);
                         LoadingProgress.height(48);
                         LoadingProgress.color(COLOR_PRIMARY);
                     }, LoadingProgress);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create('Loading...');
-                        Text.debugLine("entry/src/main/ets/pages/Index.ets(560:11)", "entry");
+                        Text.debugLine("entry/src/main/ets/pages/Index.ets(320:11)", "entry");
                         Text.fontSize(14);
                         Text.fontColor(COLOR_TEXT_MUTED);
                     }, Text);

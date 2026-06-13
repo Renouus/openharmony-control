@@ -1,4 +1,7 @@
 import { CameraRowState, CameraViewState, MetricPillState } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { AppController } from '../controllers/AppController';
+import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
 import { CameraRow } from '../components/CameraRow';
 import { FeatureHeader } from '../components/FeatureHeader';
@@ -15,23 +18,24 @@ import {
 } from '../theme/smart-home-theme';
 
 @Component
-export struct CameraView {
-  @Prop state: CameraViewState;
-  onBack: () => void = () => {};
-  onToggleRecording: (cameraId: string, recording: boolean) => void = () => {};
+struct CameraContent {
+  @ObjectLink appState: AppStateSnapshot;
+  @Consume('controller') controller: AppController;
+  @Consume('navStack') navStack: NavProxy;
+
+  
 
   build() {
     Column({ space: 26 }) {
       FeatureHeader({
-        title: 'Camera Monitor',
-        subtitle: 'Live status, recording, and recent motion',
-        onBack: this.onBack,
+        title: '安防监控',
+        subtitle: '摄像头、录像及警报',
       })
 
       Column({ space: 16 }) {
         Row() {
           Column({ space: 4 }) {
-            Text(this.state.headline)
+            Text(this.appState.camera.headline)
               .fontSize(24)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
@@ -44,7 +48,7 @@ export struct CameraView {
 
           Row({ space: 6 }) {
             AppSymbol({ name: 'fiber_manual_record', glyphSize: 10, color: COLOR_ERROR })
-            Text(this.state.recordingLabel)
+            Text(this.appState.camera.recordingLabel)
               .fontSize(13)
               .fontColor(COLOR_PRIMARY)
               .fontWeight(FontWeight.Medium)
@@ -56,7 +60,7 @@ export struct CameraView {
         .width('100%')
 
         Row({ space: 10 }) {
-          ForEach(this.state.metrics, (metric: MetricPillState) => {
+          ForEach(this.appState.camera.metrics, (metric: MetricPillState) => {
             Column({ space: 3 }) {
               Text(metric.label)
                 .fontSize(11)
@@ -76,7 +80,7 @@ export struct CameraView {
       }
       .width('100%')
 
-      if (this.state.featuredCamera !== undefined) {
+      if (this.appState.camera.featuredCamera !== undefined) {
         Column({ space: 18 }) {
           Row() {
             Text('Live Feed')
@@ -87,17 +91,17 @@ export struct CameraView {
               .layoutWeight(1)
 
             Row({ space: 6 }) {
-              if (this.state.featuredCamera!.recording) {
+              if (this.appState.camera.featuredCamera!.recording) {
                 AppSymbol({ name: 'fiber_manual_record', glyphSize: 10, color: '#FFFFFF' })
               }
-              Text(this.state.featuredCamera!.statusLabel)
+              Text(this.appState.camera.featuredCamera!.statusLabel)
                 .fontSize(12)
                 .fontColor('#FFFFFF')
                 .fontWeight(FontWeight.Medium)
             }
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
             .borderRadius(999)
-            .backgroundColor(this.state.featuredCamera!.recording ? COLOR_ERROR : COLOR_PRIMARY)
+            .backgroundColor(this.appState.camera.featuredCamera!.recording ? COLOR_ERROR : COLOR_PRIMARY)
           }
           .width('100%')
 
@@ -106,11 +110,11 @@ export struct CameraView {
               Column({ space: 12 }) {
                 Row() {
                   Column({ space: 3 }) {
-                    Text(this.state.featuredCamera!.name)
+                    Text(this.appState.camera.featuredCamera!.name)
                       .fontSize(18)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(COLOR_ON_SURFACE)
-                    Text(this.state.featuredCamera!.location)
+                    Text(this.appState.camera.featuredCamera!.location)
                       .fontSize(12)
                       .fontColor(COLOR_TEXT_MUTED)
                   }
@@ -121,7 +125,7 @@ export struct CameraView {
 
                 Blank()
 
-                Text(this.state.featuredCamera!.motionLabel)
+                Text(this.appState.camera.featuredCamera!.motionLabel)
                   .fontSize(12)
                   .fontColor(COLOR_TEXT_MUTED)
                   .width('100%')
@@ -192,22 +196,23 @@ export struct CameraView {
                 AppSymbol({
                   name: 'fiber_manual_record',
                   glyphSize: 18,
-                  color: this.state.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
+                  color: this.appState.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
                 })
               }
               .width(40)
               .height(40)
               .borderRadius(20)
-              .backgroundColor(this.state.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST)
-              .border({ width: this.state.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' })
+              .backgroundColor(this.appState.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST)
+              .border({ width: this.appState.camera.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' })
               .justifyContent(FlexAlign.Center)
-              .onClick(() => this.onToggleRecording(
-                this.state.featuredCamera!.id,
-                !this.state.featuredCamera!.recording,
+              .onClick(() => this.controller.handleCameraToggleRecording(
+                this.appState,
+                this.appState.camera.featuredCamera!.id,
+                !this.appState.camera.featuredCamera!.recording,
               ))
-              Text(this.state.featuredCamera!.recording ? 'Recording' : 'Record')
+              Text(this.appState.camera.featuredCamera!.recording ? 'Recording' : 'Record')
                 .fontSize(10)
-                .fontColor(this.state.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
+                .fontColor(this.appState.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
                 .fontWeight(FontWeight.Bold)
             }
             .layoutWeight(1)
@@ -249,17 +254,18 @@ export struct CameraView {
           .fontFamily('serif')
           .width('100%')
 
-        ForEach(this.state.cameras, (camera: CameraRowState) => {
+        ForEach(this.appState.camera.cameras, (camera: CameraRowState) => {
           CameraRow({
             camera,
-            onToggleRecording: (recording: boolean) => this.onToggleRecording(camera.id, recording),
+            onToggleRecording: (recording: boolean) => this.controller.handleCameraToggleRecording(
+              this.appState, camera.id, recording),
           })
         }, (camera: CameraRowState) => camera.id)
       }
       .width('100%')
 
-      if (this.state.feedback.length > 0) {
-        Text(this.state.feedback)
+      if (this.appState.camera.feedback.length > 0) {
+        Text(this.appState.camera.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)
@@ -270,5 +276,15 @@ export struct CameraView {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
+  }
+}
+
+@Component
+export struct CameraView {
+  @ObjectLink appState: AppStateSnapshot;
+
+  build() {
+    CameraContent({ appState: this.appState })
+      .padding({ left: 20, right: 20, top: 16, bottom: 32 })
   }
 }

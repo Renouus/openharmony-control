@@ -1,4 +1,5 @@
 import { HistoryRowState, NotificationsViewState } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppSymbol } from '../components/AppSymbol';
 import { HistoryRow } from '../components/HistoryRow';
 import { filterNotificationEntries } from '../model/smart-home-mappers';
@@ -13,11 +14,13 @@ import {
 
 @Component
 export struct NotificationsView {
-  @Prop state: NotificationsViewState;
+  @ObjectLink appState: AppStateSnapshot;
   @State activeFilter: number = 0;
 
+  
+
   private visibleEntries(): HistoryRowState[] {
-    return filterNotificationEntries(this.state.entries, this.activeFilter);
+    return filterNotificationEntries(this.appState.notifications.entries, this.activeFilter);
   }
 
   private entriesForDay(dayLabel: string): HistoryRowState[] {
@@ -88,7 +91,7 @@ export struct NotificationsView {
         }
         .width('100%')
 
-        Text('Notifications')
+        Text('通知')
           .fontSize(28)
           .fontWeight(FontWeight.Bold)
           .fontColor(COLOR_PRIMARY)
@@ -98,9 +101,9 @@ export struct NotificationsView {
 
       Scroll() {
         Row({ space: 10 }) {
-          this.buildFilterButton('All Activity', 0)
-          this.buildFilterButton('Security', 1)
-          this.buildFilterButton('Alerts', 2)
+          this.buildFilterButton('全部活动', 0)
+          this.buildFilterButton('安全', 1)
+          this.buildFilterButton('警报', 2)
         }
         .padding({ right: 20 })
       }
@@ -111,7 +114,7 @@ export struct NotificationsView {
       if (this.visibleEntries().length === 0) {
         Column({ space: 10 }) {
           AppSymbol({ name: 'notifications_off', glyphSize: 36, color: COLOR_TEXT_MUTED })
-          Text('No notifications yet')
+          Text('暂无通知')
             .fontSize(15)
             .fontColor(COLOR_TEXT_MUTED)
         }
@@ -123,9 +126,9 @@ export struct NotificationsView {
         .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' })
       }
 
-      this.buildDaySection('Today')
-      this.buildDaySection('Yesterday')
-      this.buildDaySection('Earlier')
+      this.buildDaySection('今天')
+      this.buildDaySection('昨天')
+      this.buildDaySection('更早')
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

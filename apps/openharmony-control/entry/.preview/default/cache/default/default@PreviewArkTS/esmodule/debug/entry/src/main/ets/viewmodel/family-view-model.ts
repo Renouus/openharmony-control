@@ -1,4 +1,4 @@
-import type { FamilyViewState } from '../model/page-view-state';
+import type { FamilyViewStateData } from '../model/page-view-state';
 import { mapFamilyViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import { normalizeRepositoryError } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
 import type { SmartHomeRepositoryPort } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
@@ -7,7 +7,7 @@ export class FamilyViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<FamilyViewState> {
+    async load(feedback: string = ''): Promise<FamilyViewStateData> {
         const overview = await this.repository.getFamilyOverview();
         return mapFamilyViewState(overview, feedback);
     }

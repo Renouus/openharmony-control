@@ -1,4 +1,6 @@
 import { FamilyActivityState, FamilyMemberCardState, FamilyViewState } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
 import {
   COLOR_ON_PRIMARY,
@@ -111,8 +113,10 @@ struct FamilySettingsRow {
 
 @Component
 export struct FamilyView {
-  @Prop state: FamilyViewState;
-  onSendBroadcast: () => void = () => {};
+  @ObjectLink appState: AppStateSnapshot;
+  @Consume('controller') controller: AppController;
+
+  
 
   build() {
     Column({ space: 0 }) {
@@ -128,7 +132,7 @@ export struct FamilyView {
         .width('100%')
         .justifyContent(FlexAlign.Center)
 
-        Text(this.state.title)
+        Text(this.appState.family.title)
           .fontSize(38)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -136,7 +140,7 @@ export struct FamilyView {
           .width('100%')
           .textAlign(TextAlign.Center)
 
-        Text(this.state.address)
+        Text(this.appState.family.address)
           .fontSize(13)
           .fontColor(COLOR_TEXT_MUTED)
           .letterSpacing(1.4)
@@ -150,19 +154,19 @@ export struct FamilyView {
 
       Column({ space: 16 }) {
         Row() {
-          Text('Household Members')
+          Text('家庭成员')
             .fontSize(24)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
             .fontFamily('serif')
             .layoutWeight(1)
-          Text(`${this.state.presentCount} Active`)
+          Text(`${this.appState.family.presentCount} 人活跃`)
             .fontSize(13)
             .fontColor(COLOR_TEXT_MUTED)
         }
         .width('100%')
 
-        ForEach(this.state.members, (member: FamilyMemberCardState) => {
+        ForEach(this.appState.family.members, (member: FamilyMemberCardState) => {
           FamilyMemberCard({ member })
         }, (member: FamilyMemberCardState) => member.id)
       }
@@ -183,12 +187,12 @@ export struct FamilyView {
           Blank()
 
           Column({ space: 4 }) {
-            Text('Invite New Member')
+            Text('邀请新成员')
               .fontSize(22)
               .fontWeight(FontWeight.Medium)
               .fontColor(COLOR_ON_PRIMARY)
               .fontFamily('serif')
-            Text('Add family or roommates to OmniHome.')
+            Text('添加家人或室友到 OmniHome。')
               .fontSize(12)
               .fontColor(COLOR_ON_PRIMARY + 'CC')
           }
@@ -215,12 +219,12 @@ export struct FamilyView {
           Blank()
 
           Column({ space: 4 }) {
-            Text('Guest Access')
+            Text('访客访问')
               .fontSize(22)
               .fontWeight(FontWeight.Medium)
               .fontColor(COLOR_ON_SURFACE)
               .fontFamily('serif')
-            Text('Manage temporary codes and permissions.')
+            Text('管理临时密码和权限。')
               .fontSize(12)
               .fontColor(COLOR_TEXT_MUTED)
           }
@@ -240,25 +244,25 @@ export struct FamilyView {
 
       Column({ space: 14 }) {
         Row() {
-          Text('Recent Activity')
+          Text('近期活动')
             .fontSize(24)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
             .fontFamily('serif')
             .layoutWeight(1)
-          Button('Broadcast')
+          Button('广播')
             .fontSize(12)
             .fontColor('#FFFFFF')
             .height(36)
             .borderRadius(999)
             .backgroundColor(COLOR_PRIMARY)
             .padding({ left: 16, right: 16 })
-            .onClick(() => this.onSendBroadcast())
+            .onClick(() => this.controller.handleFamilyBroadcast(this.appState))
         }
         .width('100%')
 
         Column({ space: 0 }) {
-          ForEach(this.state.activities, (activity: FamilyActivityState, index: number) => {
+          ForEach(this.appState.family.activities, (activity: FamilyActivityState, index: number) => {
             Column({ space: 8 }) {
               Row() {
                 Column({ space: 4 }) {
@@ -275,7 +279,7 @@ export struct FamilyView {
               }
               .width('100%')
 
-              if (index < this.state.activities.length - 1) {
+              if (index < this.appState.family.activities.length - 1) {
                 Divider().color(COLOR_OUTLINE_VARIANT + '4D')
               }
             }
@@ -292,7 +296,7 @@ export struct FamilyView {
       .margin({ bottom: 32 })
 
       Column({ space: 0 }) {
-        Text('General Settings')
+        Text('通用设置')
           .fontSize(24)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -302,26 +306,26 @@ export struct FamilyView {
         Column() {
           FamilySettingsRow({
             icon: 'house',
-            title: 'Home Information',
-            subtitle: 'Address, timezone, and primary details.',
+            title: '家庭信息',
+            subtitle: '地址、时区和主要详细信息。',
           })
           Divider().color(COLOR_OUTLINE_VARIANT + '4D').margin({ left: 74 })
           FamilySettingsRow({
             icon: 'wifi',
-            title: 'WiFi Settings',
-            subtitle: 'Manage network access for devices.',
+            title: 'WiFi 设置',
+            subtitle: '管理设备的网络访问。',
           })
           Divider().color(COLOR_OUTLINE_VARIANT + '4D').margin({ left: 74 })
           FamilySettingsRow({
             icon: 'router',
-            title: 'Shared Hubs',
-            subtitle: 'Configure central control panels.',
+            title: '共享控制中枢',
+            subtitle: '配置中央控制面板。',
           })
           Divider().color(COLOR_OUTLINE_VARIANT + '4D').margin({ left: 74 })
           FamilySettingsRow({
             icon: 'contact_emergency',
-            title: 'Emergency Contacts',
-            subtitle: 'Numbers to call in case of alarms.',
+            title: '紧急联系人',
+            subtitle: '报警时拨打的号码。',
             danger: true,
           })
         }
@@ -333,8 +337,8 @@ export struct FamilyView {
       }
       .width('100%')
 
-      if (this.state.feedback.length > 0) {
-        Text(this.state.feedback)
+      if (this.appState.family.feedback.length > 0) {
+        Text(this.appState.family.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)

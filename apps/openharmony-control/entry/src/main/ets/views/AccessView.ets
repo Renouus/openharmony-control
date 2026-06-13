@@ -4,6 +4,7 @@ import {
   AccessViewState,
   FeaturedCameraState,
 } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppSymbol } from '../components/AppSymbol';
 import { AccessKeyRow } from '../components/AccessKeyRow';
 import { AccessPointCard } from '../components/AccessPointCard';
@@ -22,8 +23,7 @@ import {
 
 @Component
 export struct AccessView {
-  @Prop state: AccessViewState;
-  @Prop featuredCamera?: FeaturedCameraState;
+  @ObjectLink appState: AppStateSnapshot;
   onBack: () => void = () => {};
   onTogglePrimaryLock: (locked: boolean) => void = () => {};
   onShareGuest: () => void = () => {};
@@ -33,14 +33,14 @@ export struct AccessView {
   build() {
     Column({ space: 28 }) {
       FeatureHeader({
-        title: 'Smart Access',
-        subtitle: 'Locks, guest keys, and entry points',
+        title: '智能门禁',
+        subtitle: '门锁、访客与安防管理',
         onBack: this.onBack,
       })
 
       Column({ space: 22 }) {
         Column({ space: 10 }) {
-          Text(this.state.primary.name)
+          Text(this.appState.access.primary.name)
             .fontSize(30)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
@@ -54,7 +54,7 @@ export struct AccessView {
               .height(8)
               .borderRadius(4)
               .backgroundColor(COLOR_PRIMARY)
-            Text(this.state.primary.locked ? 'Secure' : 'Unlocked')
+            Text(this.appState.access.primary.locked ? '已锁定' : '已解锁')
               .fontSize(12)
               .fontColor(COLOR_ON_SURFACE_VARIANT)
               .letterSpacing(1.5)
@@ -72,7 +72,7 @@ export struct AccessView {
 
           Row() {
             AppSymbol({
-              name: this.state.primary.locked ? 'lock' : 'lock_open',
+              name: this.appState.access.primary.locked ? 'lock' : 'lock_open',
               glyphSize: 56,
               color: COLOR_PRIMARY,
             })
@@ -84,11 +84,11 @@ export struct AccessView {
           .border({ width: 1, color: COLOR_PRIMARY + '1A' })
           .justifyContent(FlexAlign.Center)
           .shadow({ radius: 24, color: '#C2652A26', offsetX: 0, offsetY: 4 })
-          .onClick(() => this.onTogglePrimaryLock(!this.state.primary.locked))
+          .onClick(() => this.onTogglePrimaryLock(!this.appState.access.primary.locked))
         }
         .width('100%')
 
-        Text(this.state.primary.locked ? 'Tap to Unlock' : 'Tap to Lock')
+        Text(this.appState.access.primary.locked ? '点击解锁' : '点击锁定')
           .fontSize(13)
           .fontColor(COLOR_TEXT_MUTED)
           .letterSpacing(2)
@@ -98,7 +98,7 @@ export struct AccessView {
         Row({ space: 10 }) {
           Row({ space: 6 }) {
             AppSymbol({ name: 'schedule', glyphSize: 14, color: COLOR_TEXT_MUTED })
-            Text(this.state.primary.subtitle)
+            Text(this.appState.access.primary.subtitle)
               .fontSize(12)
               .fontColor(COLOR_ON_SURFACE_VARIANT)
           }
@@ -107,10 +107,10 @@ export struct AccessView {
           .backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST)
           .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' })
 
-          if (this.state.primary.metrics.length > 0) {
+          if (this.appState.access.primary.metrics.length > 0) {
             Row({ space: 6 }) {
               AppSymbol({ name: 'battery_horiz_075', glyphSize: 14, color: COLOR_TEXT_MUTED })
-              Text(this.state.primary.metrics[0].value)
+              Text(this.appState.access.primary.metrics[0].value)
                 .fontSize(12)
                 .fontColor(COLOR_ON_SURFACE_VARIANT)
             }
@@ -131,7 +131,7 @@ export struct AccessView {
       .width('100%')
       .alignItems(HorizontalAlign.Center)
 
-      if (this.featuredCamera !== undefined) {
+      if (this.appState.camera.featuredCamera !== undefined) {
         Column({ space: 14 }) {
           Row() {
             Text('Live Feed')
@@ -213,22 +213,22 @@ export struct AccessView {
                 AppSymbol({
                   name: 'fiber_manual_record',
                   glyphSize: 18,
-                  color: this.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
+                  color: this.appState.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
                 })
               }
               .width(40)
               .height(40)
               .borderRadius(20)
-              .backgroundColor(this.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST)
-              .border({ width: this.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' })
+              .backgroundColor(this.appState.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST)
+              .border({ width: this.appState.camera.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' })
               .justifyContent(FlexAlign.Center)
               .onClick(() => this.onToggleCameraRecording(
-                this.featuredCamera!.id,
-                !this.featuredCamera!.recording,
+                this.appState.camera.featuredCamera!.id,
+                !this.appState.camera.featuredCamera!.recording,
               ))
-              Text(this.featuredCamera!.recording ? 'Recording' : 'Record')
+              Text(this.appState.camera.featuredCamera!.recording ? '录制中' : '录制')
                 .fontSize(10)
-                .fontColor(this.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
+                .fontColor(this.appState.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
                 .fontWeight(FontWeight.Bold)
             }
             .layoutWeight(1)
@@ -244,7 +244,7 @@ export struct AccessView {
               .backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST)
               .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' })
               .justifyContent(FlexAlign.Center)
-              Text('Alerts')
+              Text('安全通知')
                 .fontSize(10)
                 .fontColor(COLOR_TEXT_MUTED)
             }
@@ -272,7 +272,7 @@ export struct AccessView {
 
           Row({ space: 4 }) {
             AppSymbol({ name: 'add', glyphSize: 15, color: COLOR_PRIMARY })
-            Text('Share Guest')
+            Text('分享 Guest')
               .fontSize(12)
               .fontColor(COLOR_PRIMARY)
               .fontWeight(FontWeight.Bold)
@@ -282,7 +282,7 @@ export struct AccessView {
         }
         .width('100%')
 
-        ForEach(this.state.keys, (keyItem: AccessKeyItemState) => {
+        ForEach(this.appState.access.keys, (keyItem: AccessKeyItemState) => {
           AccessKeyRow({ keyItem })
         }, (keyItem: AccessKeyItemState) => keyItem.id)
       }
@@ -296,9 +296,9 @@ export struct AccessView {
           .fontFamily('serif')
           .width('100%')
 
-        if (this.state.points.length > 0) {
+        if (this.appState.access.points.length > 0) {
           Row({ space: 12 }) {
-            ForEach(this.state.points, (point: AccessPointItemState) => {
+            ForEach(this.appState.access.points, (point: AccessPointItemState) => {
               AccessPointCard({ point })
             }, (point: AccessPointItemState) => point.id)
           }
@@ -307,8 +307,8 @@ export struct AccessView {
       }
       .width('100%')
 
-      if (this.state.feedback.length > 0) {
-        Text(this.state.feedback)
+      if (this.appState.access.feedback.length > 0) {
+        Text(this.appState.access.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)

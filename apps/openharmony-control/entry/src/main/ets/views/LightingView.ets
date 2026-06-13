@@ -1,4 +1,7 @@
 import { LightingViewState, LightDeviceCardState, RoomLightCardState, ScenePresetState } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { AppController } from '../controllers/AppController';
+import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
 import { FeatureHeader } from '../components/FeatureHeader';
 import { LightDeviceCard } from '../components/LightDeviceCard';
@@ -88,45 +91,40 @@ struct LightPresetChip {
 }
 
 @Component
-export struct LightingView {
-  @Prop state: LightingViewState;
-  onBack: () => void = () => {};
-  onToggleAll: (on: boolean) => void = () => {};
-  onApplyPreset: (label: string) => void = () => {};
-  onToggleRoom: (roomId: string, on: boolean) => void = () => {};
-  onSetRoomBrightness: (roomId: string, value: number) => void = () => {};
-  onToggleLight: (deviceId: string, on: boolean) => void = () => {};
-  onSetLightBrightness: (deviceId: string, value: number) => void = () => {};
-  onSetLightColorTemperature: (deviceId: string, value: number) => void = () => {};
+struct LightingContent {
+  @ObjectLink appState: AppStateSnapshot;
+  @Consume('controller') controller: AppController;
+  @Consume('navStack') navStack: NavProxy;
+
+  
 
   private houseEnabled(): boolean {
-    return this.state.rooms.some((room: RoomLightCardState) => room.enabled);
+    return this.appState.lighting.rooms.some((room: RoomLightCardState) => room.enabled);
   }
 
   private averageBrightness(): number {
-    if (this.state.rooms.length === 0) {
+    if (this.appState.lighting.rooms.length === 0) {
       return 0;
     }
-    const total = this.state.rooms.reduce((sum: number, room: RoomLightCardState) => sum + room.brightness, 0);
-    return Math.round(total / this.state.rooms.length);
+    const total = this.appState.lighting.rooms.reduce((sum: number, room: RoomLightCardState) => sum + room.brightness, 0);
+    return Math.round(total / this.appState.lighting.rooms.length);
   }
 
   private averageTemperature(): number {
-    if (this.state.presets.length === 0) {
+    if (this.appState.lighting.presets.length === 0) {
       return 3200;
     }
-    const total = this.state.presets.reduce((sum: number, preset: ScenePresetState) => {
+    const total = this.appState.lighting.presets.reduce((sum: number, preset: ScenePresetState) => {
       return sum + preset.colorTemperature;
     }, 0);
-    return Math.round(total / this.state.presets.length);
+    return Math.round(total / this.appState.lighting.presets.length);
   }
 
   build() {
     Column({ space: 28 }) {
       FeatureHeader({
-        title: 'Lighting Control Center',
-        subtitle: 'Manage the ambiance of your entire home from a single view',
-        onBack: this.onBack,
+        title: '智能照明',
+        subtitle: '全局控制与房间预设',
       })
 
       Column({ space: 26 }) {
@@ -157,11 +155,11 @@ export struct LightingView {
             isOn: this.houseEnabled(),
           })
             .selectedColor(COLOR_PRIMARY)
-            .onChange((value: boolean) => this.onToggleAll(value))
+            .onChange((value: boolean) => this.controller.handleLightingToggleAll(this.appState, value))
         }
         .width('100%')
 
-        Text(this.state.activeCountLabel)
+        Text(this.appState.lighting.activeCountLabel)
           .fontSize(14)
           .fontColor(COLOR_TEXT_MUTED)
 
@@ -232,10 +230,10 @@ export struct LightingView {
       .width('100%')
 
       Row({ space: 14 }) {
-        ForEach(this.state.presets, (preset: ScenePresetState) => {
+        ForEach(this.appState.lighting.presets, (preset: ScenePresetState) => {
           LightPresetChip({
             preset,
-            onTap: () => this.onApplyPreset(preset.label),
+            onTap: () => this.controller.handleLightingPreset(this.appState, preset.label),
           })
         }, (preset: ScenePresetState) => preset.label)
       }
@@ -249,11 +247,13 @@ export struct LightingView {
           .fontFamily('serif')
           .width('100%')
 
-        ForEach(this.state.rooms, (room: RoomLightCardState) => {
+        ForEach(this.appState.lighting.rooms, (room: RoomLightCardState) => {
           RoomLightCard({
             card: room,
-            onToggle: (value: boolean) => this.onToggleRoom(room.roomId, value),
-            onBrightnessChange: (value: number) => this.onSetRoomBrightness(room.roomId, value),
+            onToggle: (value: boolean) => this.controller.handleLightingToggleRoom(
+              this.appState, room.roomId, value),
+            onBrightnessChange: (value: number) => this.controller.handleLightingRoomBrightness(
+              this.appState, room.roomId, value),
           })
         }, (room: RoomLightCardState) => room.roomId)
       }
@@ -267,19 +267,22 @@ export struct LightingView {
           .fontFamily('serif')
           .width('100%')
 
-        ForEach(this.state.devices, (device: LightDeviceCardState) => {
+        ForEach(this.appState.lighting.devices, (device: LightDeviceCardState) => {
           LightDeviceCard({
             device,
-            onToggle: (value: boolean) => this.onToggleLight(device.id, value),
-            onBrightnessChange: (value: number) => this.onSetLightBrightness(device.id, value),
-            onColorTemperature: (value: number) => this.onSetLightColorTemperature(device.id, value),
+            onToggle: (value: boolean) => this.controller.handleLightingToggleLight(
+              this.appState, device.id, value),
+            onBrightnessChange: (value: number) => this.controller.handleLightingLightBrightness(
+              this.appState, device.id, value),
+            onColorTemperature: (value: number) => this.controller.handleLightingLightColor(
+              this.appState, device.id, value),
           })
         }, (device: LightDeviceCardState) => device.id)
       }
       .width('100%')
 
-      if (this.state.feedback.length > 0) {
-        Text(this.state.feedback)
+      if (this.appState.lighting.feedback.length > 0) {
+        Text(this.appState.lighting.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)
@@ -290,5 +293,15 @@ export struct LightingView {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
+  }
+}
+
+@Component
+export struct LightingView {
+  @ObjectLink appState: AppStateSnapshot;
+
+  build() {
+    LightingContent({ appState: this.appState })
+      .padding({ left: 20, right: 20, top: 16, bottom: 32 })
   }
 }

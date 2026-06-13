@@ -1,4 +1,4 @@
-import type { ClimateViewState } from '../model/page-view-state';
+import type { ClimateViewStateData } from '../model/page-view-state';
 import { mapClimateViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import type { TemperaturePayload } from '../services/device-api';
 import { normalizeRepositoryError } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
@@ -9,7 +9,7 @@ export class ClimateViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<ClimateViewState> {
+    async load(feedback: string = ''): Promise<ClimateViewStateData> {
         const overview = await this.repository.getClimateOverview();
         return mapClimateViewState(overview, feedback);
     }

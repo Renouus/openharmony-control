@@ -65,6 +65,20 @@ export class DeviceRegistry {
     );
     this.register(
       {
+        id: "sensor-motion-living-room",
+        name: "客厅人体感应",
+        kind: DeviceKind.MotionSensor,
+        capabilities: [DeviceCapability.MotionDetection],
+        state: {
+          motionDetected: false,
+          updatedAt: now,
+          online: true,
+        },
+      },
+      { room: "living-room", displayOrder: 25 },
+    );
+    this.register(
+      {
         id: "light-living-room",
         name: "客厅主灯",
         kind: DeviceKind.Light,

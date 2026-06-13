@@ -58,6 +58,7 @@ export class FeatureHeader extends ViewPU {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 12 });
             Row.debugLine("entry/src/main/ets/components/FeatureHeader.ets(11:5)", "entry");
+            Row.padding({ bottom: 4 });
             Row.width('100%');
             Row.alignItems(VerticalAlign.Center);
         }, Row);
@@ -68,6 +69,7 @@ export class FeatureHeader extends ViewPU {
             Row.height(40);
             Row.borderRadius(20);
             Row.backgroundColor(COLOR_PRIMARY_SOFT);
+            Row.border({ width: 1, color: COLOR_PRIMARY + '1A' });
             Row.justifyContent(FlexAlign.Center);
             Row.onClick(() => this.onBack());
         }, Row);
@@ -95,13 +97,13 @@ export class FeatureHeader extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/components/FeatureHeader.ets(22:7)", "entry");
+            Column.debugLine("entry/src/main/ets/components/FeatureHeader.ets(23:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.title);
-            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(23:9)", "entry");
+            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(24:9)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -110,8 +112,8 @@ export class FeatureHeader extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.subtitle);
-            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(28:9)", "entry");
-            Text.fontSize(12);
+            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(29:9)", "entry");
+            Text.fontSize(13);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
         Text.pop();

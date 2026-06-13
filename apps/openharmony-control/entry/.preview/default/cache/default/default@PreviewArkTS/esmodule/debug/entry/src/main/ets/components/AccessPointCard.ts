@@ -37,44 +37,45 @@ export class AccessPointCard extends ViewPU {
     set point(newValue: AccessPointItemState) {
         this.__point.set(newValue);
     }
+    private iconName(): string {
+        if (this.point.name.toLowerCase().indexOf('garage') >= 0) {
+            return 'garage';
+        }
+        return this.point.locked ? 'lock' : 'lock_open';
+    }
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/components/AccessPointCard.ets(18:5)", "entry");
+            Column.debugLine("entry/src/main/ets/components/AccessPointCard.ets(25:5)", "entry");
             Column.padding(20);
             Column.borderRadius(20);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
             Column.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' });
+            Column.shadow({ radius: 10, color: '#3A302A06', offsetX: 0, offsetY: 3 });
             Column.alignItems(HorizontalAlign.Start);
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            // Icon
             Row.create();
-            Row.debugLine("entry/src/main/ets/components/AccessPointCard.ets(20:7)", "entry");
-            // Icon
+            Row.debugLine("entry/src/main/ets/components/AccessPointCard.ets(26:7)", "entry");
             Row.width(40);
-            // Icon
             Row.height(40);
-            // Icon
             Row.borderRadius(20);
-            // Icon
             Row.backgroundColor(this.point.locked ? COLOR_SURFACE_CONTAINER : COLOR_PRIMARY_SOFT);
-            // Icon
             Row.justifyContent(FlexAlign.Center);
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
                     let componentCall = new AppSymbol(this, {
-                        name: this.point.locked ? 'garage' : 'lock_open',
+                        name: this.iconName(),
                         glyphSize: 20,
                         color: this.point.locked ? COLOR_TEXT_MUTED : COLOR_PRIMARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/AccessPointCard.ets", line: 21, col: 9 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/AccessPointCard.ets", line: 27, col: 9 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
-                            name: this.point.locked ? 'garage' : 'lock_open',
+                            name: this.iconName(),
                             glyphSize: 20,
                             color: this.point.locked ? COLOR_TEXT_MUTED : COLOR_PRIMARY
                         };
@@ -83,23 +84,22 @@ export class AccessPointCard extends ViewPU {
                 }
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: this.point.locked ? 'garage' : 'lock_open',
+                        name: this.iconName(),
                         glyphSize: 20,
                         color: this.point.locked ? COLOR_TEXT_MUTED : COLOR_PRIMARY
                     });
                 }
             }, { name: "AppSymbol" });
         }
-        // Icon
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/components/AccessPointCard.ets(33:7)", "entry");
+            Column.create({ space: 4 });
+            Column.debugLine("entry/src/main/ets/components/AccessPointCard.ets(39:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.point.name);
-            Text.debugLine("entry/src/main/ets/components/AccessPointCard.ets(34:9)", "entry");
+            Text.debugLine("entry/src/main/ets/components/AccessPointCard.ets(40:9)", "entry");
             Text.fontSize(15);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -107,7 +107,7 @@ export class AccessPointCard extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.point.locked ? 'Closed' : 'Unlocked');
-            Text.debugLine("entry/src/main/ets/components/AccessPointCard.ets(38:9)", "entry");
+            Text.debugLine("entry/src/main/ets/components/AccessPointCard.ets(44:9)", "entry");
             Text.fontSize(12);
             Text.fontColor(this.point.locked ? COLOR_TEXT_MUTED : COLOR_PRIMARY);
         }, Text);

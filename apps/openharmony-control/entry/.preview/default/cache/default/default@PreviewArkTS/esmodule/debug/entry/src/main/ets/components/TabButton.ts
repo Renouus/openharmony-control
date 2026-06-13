@@ -75,8 +75,13 @@ export class TabButton extends ViewPU {
             Column.justifyContent(FlexAlign.Center);
             Column.alignItems(HorizontalAlign.Center);
             Column.padding({ left: 10, right: 10, top: 6, bottom: 4 });
-            Column.borderRadius(12);
+            Column.borderRadius(14);
             Column.backgroundColor(this.selected ? COLOR_PRIMARY_CONTAINER + '33' : COLOR_SURFACE);
+            Column.shadow(this.selected ? {
+                radius: 10, color: '#3A302A0A', offsetX: 0, offsetY: 3,
+            } : {
+                radius: 0, color: '#00000000', offsetX: 0, offsetY: 0,
+            });
             Column.onClick(() => this.onTap());
         }, Column);
         {

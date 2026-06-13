@@ -48,7 +48,7 @@ export struct RoomLightCard {
               .fontWeight(FontWeight.Medium)
               .fontColor(COLOR_ON_SURFACE)
               .fontFamily('serif')
-            Text(`${this.card.totalCount} Devices - ${this.card.enabled ? 'Active' : 'Off'}`)
+            Text(`${this.card.totalCount} 个设备 - ${this.card.enabled ? '活跃' : '关闭'}`)
               .fontSize(11)
               .fontColor(COLOR_TEXT_MUTED)
               .fontWeight(FontWeight.Bold)
@@ -66,7 +66,7 @@ export struct RoomLightCard {
 
       Column({ space: 10 }) {
         Row() {
-          Text('Intensity')
+          Text('强度')
             .fontSize(12)
             .fontColor(COLOR_TEXT_MUTED)
             .fontWeight(FontWeight.Bold)

@@ -9,7 +9,14 @@ export type AppPageId =
   | 'family'
   | 'sceneEditor'
   | 'routineEditor'
+  | 'bathroom'
+  | 'kitchen'
+  | 'livingRoom'
+  | 'masterBedroom'
+  | 'pendantLight'
   | 'familySettings';
+
+// ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
 
 export interface MetricPillState {
   label: string;
@@ -68,23 +75,6 @@ export interface StatusChipState {
   useImage: boolean;  // true = shield icon via resource, false = text icon
 }
 
-export interface HomeViewState {
-  brandLabel: string;
-  title: string;
-  modeLabel: string;
-  securityTitle: string;
-  alertSummary: string;
-  securityBadge: string;
-  heroMetrics: MetricPillState[];
-  accessCard: SummaryCardState;
-  cameraCard: SummaryCardState;
-  quickScenes: SceneChipState[];
-  statusChips: StatusChipState[];
-  rooms: HomeRoomSectionState[];
-  devices: DevicePanelState[];
-  feedback: string;
-}
-
 export interface ScenePresetState {
   label: string;
   brightness: number;
@@ -109,14 +99,6 @@ export interface LightDeviceCardState {
   statusLabel: string;
   power: boolean;
   brightness: number;
-}
-
-export interface LightingViewState {
-  activeCountLabel: string;
-  rooms: RoomLightCardState[];
-  presets: ScenePresetState[];
-  devices: LightDeviceCardState[];
-  feedback: string;
 }
 
 export interface AccessPrimaryState {
@@ -144,13 +126,6 @@ export interface AccessPointItemState {
   locked: boolean;
 }
 
-export interface AccessViewState {
-  primary: AccessPrimaryState;
-  keys: AccessKeyItemState[];
-  points: AccessPointItemState[];
-  feedback: string;
-}
-
 export interface FeaturedCameraState {
   id: string;
   name: string;
@@ -171,15 +146,6 @@ export interface CameraRowState {
   actionDisabled: boolean;
 }
 
-export interface CameraViewState {
-  headline: string;
-  recordingLabel: string;
-  metrics: MetricPillState[];
-  featuredCamera?: FeaturedCameraState;
-  cameras: CameraRowState[];
-  feedback: string;
-}
-
 export interface SceneCardState {
   id: string;
   name: string;
@@ -191,11 +157,6 @@ export interface SceneCardState {
   repeatLabel: string;
 }
 
-export interface AutomationViewState {
-  scenes: SceneCardState[];
-  feedback: string;
-}
-
 export interface HistoryRowState {
   id: string;
   title: string;
@@ -204,10 +165,6 @@ export interface HistoryRowState {
   category: string;
   timeLabel: string;
   dayLabel: string;
-}
-
-export interface NotificationsViewState {
-  entries: HistoryRowState[];
 }
 
 export interface FamilyMemberCardState {
@@ -223,15 +180,6 @@ export interface FamilyActivityState {
   timeLabel: string;
 }
 
-export interface FamilyViewState {
-  title: string;
-  address: string;
-  presentCount: number;
-  members: FamilyMemberCardState[];
-  activities: FamilyActivityState[];
-  feedback: string;
-}
-
 export interface ClimateModeState {
   id: string;
   label: string;
@@ -245,7 +193,166 @@ export interface ClimateUsageBarState {
   active: boolean;
 }
 
-export interface ClimateViewState {
+// ── @Observed view-state classes ──────────────────────────────────────────────
+// Each class is the reactive counterpart consumed by views via @ObjectLink.
+// ViewModels still return plain objects; AppStateSnapshot.assign*() copies
+// the plain data into the @Observed instance to trigger UI updates.
+
+@Observed
+export class HomeViewState {
+  brandLabel: string = 'OmniHome';
+  title: string = 'Home';
+  modeLabel: string = 'Calm mode';
+  securityTitle: string = 'Connecting';
+  alertSummary: string = 'Checking devices';
+  securityBadge: string = 'Syncing';
+  heroMetrics: MetricPillState[] = [];
+  accessCard: SummaryCardState = {
+    title: 'Access', subtitle: 'Front door and guest keys', badgeLabel: 'Syncing', metrics: [],
+  };
+  cameraCard: SummaryCardState = {
+    title: 'Cameras', subtitle: 'Live activity and recording', badgeLabel: 'Syncing', metrics: [],
+  };
+  quickScenes: SceneChipState[] = [];
+  statusChips: StatusChipState[] = [];
+  rooms: HomeRoomSectionState[] = [];
+  devices: DevicePanelState[] = [];
+  feedback: string = '';
+}
+
+@Observed
+export class LightingViewState {
+  activeCountLabel: string = '0 lights on';
+  rooms: RoomLightCardState[] = [];
+  presets: ScenePresetState[] = [];
+  devices: LightDeviceCardState[] = [];
+  feedback: string = '';
+}
+
+@Observed
+export class AccessViewState {
+  primary: AccessPrimaryState = {
+    id: 'front-door',
+    name: 'Front Door',
+    locked: true,
+    statusLabel: 'Locked',
+    subtitle: 'Waiting for sync',
+    metrics: [],
+  };
+  keys: AccessKeyItemState[] = [];
+  points: AccessPointItemState[] = [];
+  feedback: string = '';
+}
+
+@Observed
+export class CameraViewState {
+  headline: string = 'Waiting for cameras';
+  recordingLabel: string = '0 recording';
+  metrics: MetricPillState[] = [];
+  featuredCamera: FeaturedCameraState | undefined = undefined;
+  cameras: CameraRowState[] = [];
+  feedback: string = '';
+}
+
+@Observed
+export class AutomationViewState {
+  scenes: SceneCardState[] = [];
+  feedback: string = '';
+}
+
+@Observed
+export class NotificationsViewState {
+  entries: HistoryRowState[] = [];
+}
+
+@Observed
+export class FamilyViewState {
+  title: string = 'The Henderson Family';
+  address: string = '1428 Elm Street, Sunnyvale';
+  presentCount: number = 0;
+  members: FamilyMemberCardState[] = [];
+  activities: FamilyActivityState[] = [];
+  feedback: string = '';
+}
+
+@Observed
+export class ClimateViewState {
+  roomLabel: string = 'Living Room';
+  indoorTemperature: number = 72;
+  humidity: number = 45;
+  currentTemperature: number = 72;
+  targetTemperature: number = 74;
+  modeLabel: string = 'Heat';
+  statusLabel: string = 'Heating steadily';
+  totalUsageLabel: string = '0 hrs total';
+  isPowered: boolean = true;
+  modes: ClimateModeState[] = [];
+  usageBars: ClimateUsageBarState[] = [];
+  feedback: string = '';
+}
+
+// ── Plain-object factory helpers (still used by ViewModels & tests) ───────────
+
+export interface HomeViewStateData {
+  brandLabel: string;
+  title: string;
+  modeLabel: string;
+  securityTitle: string;
+  alertSummary: string;
+  securityBadge: string;
+  heroMetrics: MetricPillState[];
+  accessCard: SummaryCardState;
+  cameraCard: SummaryCardState;
+  quickScenes: SceneChipState[];
+  statusChips: StatusChipState[];
+  rooms: HomeRoomSectionState[];
+  devices: DevicePanelState[];
+  feedback: string;
+}
+
+export interface LightingViewStateData {
+  activeCountLabel: string;
+  rooms: RoomLightCardState[];
+  presets: ScenePresetState[];
+  devices: LightDeviceCardState[];
+  feedback: string;
+}
+
+export interface AccessViewStateData {
+  primary: AccessPrimaryState;
+  keys: AccessKeyItemState[];
+  points: AccessPointItemState[];
+  feedback: string;
+}
+
+export interface CameraViewStateData {
+  headline: string;
+  recordingLabel: string;
+  metrics: MetricPillState[];
+  featuredCamera?: FeaturedCameraState;
+  cameras: CameraRowState[];
+  feedback: string;
+}
+
+export interface AutomationViewStateData {
+  scenes: SceneCardState[];
+  feedback: string;
+}
+
+export interface NotificationsViewStateData {
+  entries: HistoryRowState[];
+}
+
+export interface FamilyViewStateData {
+  title: string;
+  address: string;
+  presentCount: number;
+  members: FamilyMemberCardState[];
+  activities: FamilyActivityState[];
+  feedback: string;
+}
+
+export interface ClimateViewStateData {
   roomLabel: string;
   indoorTemperature: number;
   humidity: number;
@@ -260,7 +367,9 @@ export interface ClimateViewState {
   feedback: string;
 }
 
-export function createEmptyHomeViewState(): HomeViewState {
+// ── Empty-data factory helpers (used by AppController fallback paths) ─────────
+
+export function createEmptyHomeViewStateData(): HomeViewStateData {
   return {
     brandLabel: 'OmniHome',
     title: 'Home',
@@ -289,7 +398,7 @@ export function createEmptyHomeViewState(): HomeViewState {
   };
 }
 
-export function createEmptyLightingViewState(): LightingViewState {
+export function createEmptyLightingViewStateData(): LightingViewStateData {
   return {
     activeCountLabel: '0 lights on',
     rooms: [],
@@ -299,7 +408,7 @@ export function createEmptyLightingViewState(): LightingViewState {
   };
 }
 
-export function createEmptyAccessViewState(): AccessViewState {
+export function createEmptyAccessViewStateData(): AccessViewStateData {
   return {
     primary: {
       id: 'front-door',
@@ -315,7 +424,7 @@ export function createEmptyAccessViewState(): AccessViewState {
   };
 }
 
-export function createEmptyCameraViewState(): CameraViewState {
+export function createEmptyCameraViewStateData(): CameraViewStateData {
   return {
     headline: 'Waiting for cameras',
     recordingLabel: '0 recording',
@@ -325,20 +434,20 @@ export function createEmptyCameraViewState(): CameraViewState {
   };
 }
 
-export function createEmptyAutomationViewState(): AutomationViewState {
+export function createEmptyAutomationViewStateData(): AutomationViewStateData {
   return {
     scenes: [],
     feedback: '',
   };
 }
 
-export function createEmptyNotificationsViewState(): NotificationsViewState {
+export function createEmptyNotificationsViewStateData(): NotificationsViewStateData {
   return {
     entries: [],
   };
 }
 
-export function createEmptyFamilyViewState(): FamilyViewState {
+export function createEmptyFamilyViewStateData(): FamilyViewStateData {
   return {
     title: 'The Henderson Family',
     address: '1428 Elm Street, Sunnyvale',
@@ -349,7 +458,7 @@ export function createEmptyFamilyViewState(): FamilyViewState {
   };
 }
 
-export function createEmptyClimateViewState(): ClimateViewState {
+export function createEmptyClimateViewStateData(): ClimateViewStateData {
   return {
     roomLabel: 'Living Room',
     indoorTemperature: 72,
@@ -365,3 +474,16 @@ export function createEmptyClimateViewState(): ClimateViewState {
     feedback: '',
   };
 }
+
+// ── Legacy aliases kept for backward compatibility with ViewModels & tests ────
+// ViewModels return *Data types; callers that previously used the old names
+// still compile cleanly via these aliases.
+
+export { createEmptyHomeViewStateData as createEmptyHomeViewState };
+export { createEmptyLightingViewStateData as createEmptyLightingViewState };
+export { createEmptyAccessViewStateData as createEmptyAccessViewState };
+export { createEmptyCameraViewStateData as createEmptyCameraViewState };
+export { createEmptyAutomationViewStateData as createEmptyAutomationViewState };
+export { createEmptyNotificationsViewStateData as createEmptyNotificationsViewState };
+export { createEmptyFamilyViewStateData as createEmptyFamilyViewState };
+export { createEmptyClimateViewStateData as createEmptyClimateViewState };

@@ -22,10 +22,10 @@ interface FamilySettingOption {
 }
 
 const FAMILY_OPTIONS: FamilySettingOption[] = [
-  { id: 'homeInfo', icon: 'house', title: 'Home Information', subtitle: 'Address, timezone, and primary details.' },
-  { id: 'wifi', icon: 'wifi', title: 'WiFi Settings', subtitle: 'Manage network access for devices.' },
-  { id: 'hub', icon: 'router', title: 'Shared Hubs', subtitle: 'Configure central control panels.' },
-  { id: 'emergency', icon: 'contact_emergency', title: 'Emergency Contacts', subtitle: 'Numbers to call in case of alarms.', danger: true },
+  { id: 'homeInfo', icon: 'house', title: '家庭信息', subtitle: '地址、时区和主要详细信息。' },
+  { id: 'wifi', icon: 'wifi', title: 'WiFi 设置', subtitle: '管理设备的网络访问。' },
+  { id: 'hub', icon: 'router', title: '共享控制中枢', subtitle: '配置中央控制面板。' },
+  { id: 'emergency', icon: 'contact_emergency', title: '紧急联系人', subtitle: '报警时拨打的号码。', danger: true },
 ];
 
 @Component
@@ -33,13 +33,13 @@ export struct FamilySettingsView {
   build() {
     Column({ space: 26 }) {
       Row({ space: 14 }) {
-        this.highlightCard('person_add', 'Invite Member', 'Bring family or roommates into OmniHome.', true)
-        this.highlightCard('vpn_key', 'Guest Access', 'Manage temporary codes and smart access.', false)
+        this.highlightCard('person_add', '邀请成员', '邀请家人或室友加入 OmniHome。', true)
+        this.highlightCard('vpn_key', '访客访问', '管理临时密码和智能门禁。', false)
       }
       .width('100%')
 
       Column({ space: 16 }) {
-        Text('General Settings')
+        Text('通用设置')
           .fontSize(24)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)

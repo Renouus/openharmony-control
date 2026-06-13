@@ -46,6 +46,11 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'climate' ||
     page === 'sceneEditor' ||
     page === 'routineEditor' ||
+    page === 'bathroom' ||
+    page === 'kitchen' ||
+    page === 'livingRoom' ||
+    page === 'masterBedroom' ||
+    page === 'pendantLight' ||
     page === 'familySettings';
 }
 

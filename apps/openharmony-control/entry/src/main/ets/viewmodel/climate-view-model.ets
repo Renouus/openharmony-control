@@ -1,4 +1,4 @@
-import { ClimateViewState } from '../model/page-view-state';
+import { ClimateViewStateData } from '../model/page-view-state';
 import { mapClimateViewState } from '../model/smart-home-mappers';
 import { TemperaturePayload } from '../services/device-api';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
@@ -12,7 +12,7 @@ export class ClimateViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<ClimateViewState> {
+  async load(feedback: string = ''): Promise<ClimateViewStateData> {
     const overview = await this.repository.getClimateOverview();
     return mapClimateViewState(overview, feedback);
   }

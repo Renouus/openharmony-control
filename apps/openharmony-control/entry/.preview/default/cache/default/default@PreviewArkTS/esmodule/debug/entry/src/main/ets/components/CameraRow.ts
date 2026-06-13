@@ -47,27 +47,21 @@ export class CameraRow extends ViewPU {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 14 });
             Row.debugLine("entry/src/main/ets/components/CameraRow.ets(19:5)", "entry");
-            Row.padding(14);
-            Row.borderRadius(16);
+            Row.padding(16);
+            Row.borderRadius(18);
             Row.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
             Row.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' });
+            Row.shadow({ radius: 12, color: '#3A302A08', offsetX: 0, offsetY: 3 });
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            // Camera icon circle
             Row.create();
-            Row.debugLine("entry/src/main/ets/components/CameraRow.ets(21:7)", "entry");
-            // Camera icon circle
+            Row.debugLine("entry/src/main/ets/components/CameraRow.ets(20:7)", "entry");
             Row.width(42);
-            // Camera icon circle
             Row.height(42);
-            // Camera icon circle
             Row.borderRadius(21);
-            // Camera icon circle
             Row.backgroundColor(this.camera.recording ? COLOR_ERROR : COLOR_PRIMARY_SOFT);
-            // Camera icon circle
             Row.justifyContent(FlexAlign.Center);
-            // Camera icon circle
             Row.flexShrink(0);
         }, Row);
         {
@@ -77,7 +71,7 @@ export class CameraRow extends ViewPU {
                         name: this.camera.recording ? 'fiber_manual_record' : 'videocam',
                         glyphSize: 18,
                         color: this.camera.recording ? '#FFFFFF' : COLOR_PRIMARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/CameraRow.ets", line: 22, col: 9 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/CameraRow.ets", line: 21, col: 9 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -97,25 +91,24 @@ export class CameraRow extends ViewPU {
                 }
             }, { name: "AppSymbol" });
         }
-        // Camera icon circle
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/components/CameraRow.ets(35:7)", "entry");
+            Column.create({ space: 4 });
+            Column.debugLine("entry/src/main/ets/components/CameraRow.ets(34:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.camera.name);
-            Text.debugLine("entry/src/main/ets/components/CameraRow.ets(36:9)", "entry");
+            Text.debugLine("entry/src/main/ets/components/CameraRow.ets(35:9)", "entry");
             Text.fontSize(15);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(`${this.camera.location} | ${this.camera.motionLabel}`);
-            Text.debugLine("entry/src/main/ets/components/CameraRow.ets(40:9)", "entry");
+            Text.create(`${this.camera.location} - ${this.camera.motionLabel}`);
+            Text.debugLine("entry/src/main/ets/components/CameraRow.ets(39:9)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
@@ -123,7 +116,7 @@ export class CameraRow extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Button.createWithLabel(this.camera.recording ? 'Stop' : 'Record');
-            Button.debugLine("entry/src/main/ets/components/CameraRow.ets(47:7)", "entry");
+            Button.debugLine("entry/src/main/ets/components/CameraRow.ets(46:7)", "entry");
             Button.fontSize(12);
             Button.fontColor(this.camera.recording ? '#FFFFFF' : COLOR_PRIMARY);
             Button.height(36);

@@ -1,4 +1,4 @@
-import { AutomationViewState } from '../model/page-view-state';
+import { AutomationViewStateData } from '../model/page-view-state';
 import { mapAutomationViewState } from '../model/smart-home-mappers';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 
@@ -9,7 +9,7 @@ export class AutomationViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<AutomationViewState> {
+  async load(feedback: string = ''): Promise<AutomationViewStateData> {
     const scenes = await this.repository.listScenes();
     return mapAutomationViewState(scenes, feedback);
   }

@@ -1,4 +1,4 @@
-import { AccessViewState } from '../model/page-view-state';
+import { AccessViewStateData } from '../model/page-view-state';
 import { mapAccessViewState } from '../model/smart-home-mappers';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 import { LockPayload } from '../services/device-api';
@@ -10,7 +10,7 @@ export class AccessViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<AccessViewState> {
+  async load(feedback: string = ''): Promise<AccessViewStateData> {
     const overview = await this.repository.getAccessOverview();
     return mapAccessViewState(overview, feedback);
   }

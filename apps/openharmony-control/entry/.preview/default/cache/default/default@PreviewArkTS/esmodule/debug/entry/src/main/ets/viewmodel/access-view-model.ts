@@ -1,4 +1,4 @@
-import type { AccessViewState } from '../model/page-view-state';
+import type { AccessViewStateData } from '../model/page-view-state';
 import { mapAccessViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import { normalizeRepositoryError } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
 import type { SmartHomeRepositoryPort } from "@bundle:com.example.smarthomecontrol/entry/ets/services/smart-home-repository";
@@ -8,7 +8,7 @@ export class AccessViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<AccessViewState> {
+    async load(feedback: string = ''): Promise<AccessViewStateData> {
         const overview = await this.repository.getAccessOverview();
         return mapAccessViewState(overview, feedback);
     }

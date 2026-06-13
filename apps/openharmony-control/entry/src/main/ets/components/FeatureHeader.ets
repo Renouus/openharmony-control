@@ -9,17 +9,6 @@ export struct FeatureHeader {
 
   build() {
     Row({ space: 12 }) {
-      Row() {
-        AppSymbol({ name: 'arrow_back', glyphSize: 20, color: COLOR_PRIMARY })
-      }
-      .width(40)
-      .height(40)
-      .borderRadius(20)
-      .backgroundColor(COLOR_PRIMARY_SOFT)
-      .border({ width: 1, color: COLOR_PRIMARY + '1A' })
-      .justifyContent(FlexAlign.Center)
-      .onClick(() => this.onBack())
-
       Column({ space: 3 }) {
         Text(this.title)
           .fontSize(24)

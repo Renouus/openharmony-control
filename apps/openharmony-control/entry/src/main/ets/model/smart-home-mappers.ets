@@ -14,26 +14,26 @@ import {
   AccessKeyItemState,
   AccessPointItemState,
   AccessPrimaryState,
-  AccessViewState,
-  AutomationViewState,
+  AccessViewStateData,
+  AutomationViewStateData,
   CameraRowState,
-  CameraViewState,
+  CameraViewStateData,
   ClimateModeState,
   ClimateUsageBarState,
-  ClimateViewState,
+  ClimateViewStateData,
   DevicePanelState,
   FeaturedCameraState,
   FamilyActivityState,
   FamilyMemberCardState,
-  FamilyViewState,
+  FamilyViewStateData,
   HistoryRowState,
   HomeDeviceCardState,
   HomeRoomSectionState,
-  HomeViewState,
+  HomeViewStateData,
   LightDeviceCardState,
-  LightingViewState,
+  LightingViewStateData,
   MetricPillState,
-  NotificationsViewState,
+  NotificationsViewStateData,
   RoomLightCardState,
   SceneCardState,
   SceneChipState,
@@ -45,32 +45,32 @@ import { ROOM_ORDER } from '../theme/smart-home-theme';
 
 export function formatDeviceStatus(device: DeviceSnapshot): string {
   if (!device.state.online) {
-    return 'Offline';
+    return '离线';
   }
   if (device.kind === 'door-lock') {
-    return device.state.locked ? 'Locked' : 'Unlocked';
+    return device.state.locked ? '已上锁' : '已解锁';
   }
   if (device.kind === 'light') {
-    return device.state.power ? `${device.state.brightness ?? 0}% brightness` : 'Off';
+    return device.state.power ? `${device.state.brightness ?? 0}% 亮度` : '关闭';
   }
   if (device.kind === 'air-conditioner') {
-    return device.state.power ? `Target ${device.state.targetTemperature ?? 24} C` : 'Off';
+    return device.state.power ? `目标温度 ${device.state.targetTemperature ?? 24} ℃` : '关闭';
   }
-  return 'Online';
+  return '在线';
 }
 
 export function formatHistoryTitle(entry: CommandHistoryEntry): string {
   if (entry.commandName === 'lock') {
-    return 'Door control';
+    return '门禁控制';
   }
   if (entry.commandName === 'switch') {
-    return 'Power change';
+    return '电源开关';
   }
   if (entry.commandName === 'set-target-temperature') {
-    return 'Temperature change';
+    return '温度调节';
   }
   if (entry.commandName === 'set-brightness') {
-    return 'Brightness change';
+    return '亮度调节';
   }
   return entry.message;
 }
@@ -78,28 +78,28 @@ export function formatHistoryTitle(entry: CommandHistoryEntry): string {
 function notificationDayLabel(createdAt: number, now: number = Date.now()): string {
   const elapsed = now - createdAt;
   if (elapsed < 24 * 60 * 60 * 1000) {
-    return 'Today';
+    return '今天';
   }
   if (elapsed < 48 * 60 * 60 * 1000) {
-    return 'Yesterday';
+    return '昨天';
   }
-  return 'Earlier';
+  return '更早';
 }
 
 function notificationTimeLabel(createdAt: number, now: number = Date.now()): string {
   const dayLabel = notificationDayLabel(createdAt, now);
-  if (dayLabel === 'Today') {
+  if (dayLabel === '今天') {
     const minutes = Math.max(1, Math.round((now - createdAt) / 60000));
     if (minutes < 60) {
-      return `${minutes} min ago`;
+      return `${minutes} 分钟前`;
     }
     const hours = Math.round(minutes / 60);
-    return `${hours} hr ago`;
+    return `${hours} 小时前`;
   }
-  if (dayLabel === 'Yesterday') {
-    return 'Yesterday';
+  if (dayLabel === '昨天') {
+    return '昨天';
   }
-  return 'Earlier';
+  return '更早';
 }
 
 function notificationCategory(entry: CommandHistoryEntry): string {
@@ -117,30 +117,30 @@ function notificationCategory(entry: CommandHistoryEntry): string {
 
 export function formatSceneRepeat(scene: SceneSnapshot): string {
   if (scene.repeat.length === 0) {
-    return 'Does not repeat';
+    return '不重复';
   }
   return scene.repeat.join(' ');
 }
 
 export function accessKeyStatusLabel(key: AccessKey): string {
   if (key.status === 'temporary') {
-    return 'Temporary';
+    return '临时';
   }
   if (key.status === 'expired') {
-    return 'Expired';
+    return '已过期';
   }
-  return 'Active';
+  return '活跃';
 }
 
 export function accessKeySubtitle(key: AccessKey): string {
   if (key.expiresAt !== undefined) {
-    return `${key.role} - Time limited`;
+    return `${key.role} - 限时`;
   }
   return key.role;
 }
 
 export function accessPointSubtitle(point: AccessPointSnapshot): string {
-  return `${point.locked ? 'Locked' : 'Unlocked'} - ${point.battery}% battery`;
+  return `${point.locked ? '已上锁' : '已解锁'} - ${point.battery}% battery`;
 }
 
 export function pickPrimaryCamera(cameras: CameraSnapshot[]): CameraSnapshot | undefined {
@@ -153,34 +153,34 @@ export function pickPrimaryCamera(cameras: CameraSnapshot[]): CameraSnapshot | u
 
 export function cameraStatusLabel(camera: CameraSnapshot | undefined): string {
   if (camera === undefined) {
-    return 'Waiting';
+    return '等待中';
   }
   if (!camera.online) {
-    return 'Offline';
+    return '离线';
   }
-  return camera.recording ? 'Recording' : 'Live';
+  return camera.recording ? '录制中' : '实时';
 }
 
 export function cameraMotionText(camera: CameraSnapshot, now: number = Date.now()): string {
   if (camera.lastMotionAt === undefined) {
-    return 'No motion recorded';
+    return '未记录到活动';
   }
   const minutes = Math.max(1, Math.round((now - camera.lastMotionAt) / 60000));
-  return `${minutes} min ago`;
+  return `${minutes} 分钟前`;
 }
 
 export function roomName(room: string): string {
   if (room === 'living-room') {
-    return 'Living Room';
+    return '客厅';
   }
   if (room === 'kitchen') {
-    return 'Kitchen';
+    return '厨房';
   }
   if (room === 'bedroom') {
-    return 'Bedroom';
+    return '卧室';
   }
   if (room === 'bathroom') {
-    return 'Bathroom';
+    return '浴室';
   }
   return room;
 }
@@ -255,7 +255,7 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   if (kind === 'air-conditioner') {
     temperature = device.state.targetTemperature ?? 24;
     targetTemperature = device.state.targetTemperature ?? 24;
-    statusLabel = power ? `Heating to ${targetTemperature}.0\u00B0` : 'Off';
+    statusLabel = power ? `加热至 ${targetTemperature}.0\u00B0` : '关闭';
   }
   const card: HomeDeviceCardState = {
     id: device.id,
@@ -272,28 +272,14 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   return card;
 }
 
-export interface RoomDeviceSplit {
-  primary: HomeDeviceCardState;
-  secondary: HomeDeviceCardState[];
-}
 
-export function splitRoomDevices(devices: HomeDeviceCardState[]): RoomDeviceSplit {
-  const secondary: HomeDeviceCardState[] = [];
-  for (let index = 1; index < devices.length; index++) {
-    secondary.push(devices[index]);
-  }
-  return {
-    primary: devices[0],
-    secondary,
-  };
-}
 
 function roomDisplayName(roomId: string): string {
-  if (roomId === 'entry') { return 'Entry'; }
-  if (roomId === 'living-room') { return 'Living Room'; }
-  if (roomId === 'kitchen') { return 'Kitchen'; }
-  if (roomId === 'bedroom') { return 'Bedroom'; }
-  if (roomId === 'bathroom') { return 'Bathroom'; }
+  if (roomId === 'entry') { return '入户'; }
+  if (roomId === 'living-room') { return '客厅'; }
+  if (roomId === 'kitchen') { return '厨房'; }
+  if (roomId === 'bedroom') { return '卧室'; }
+  if (roomId === 'bathroom') { return '浴室'; }
   return roomId;
 }
 
@@ -343,32 +329,32 @@ export function mapHomeViewState(
   accessOverview: AccessOverview,
   cameras: CameraSnapshot[],
   feedback: string,
-): HomeViewState {
+): HomeViewStateData {
   const accessCard: SummaryCardState = {
-    title: 'Access Control',
-    subtitle: 'Front door, digital keys, and entry points',
-    badgeLabel: accessOverview.primary.locked ? 'Secure' : 'Unlocked',
+    title: '门禁控制',
+    subtitle: '入户门、数字钥匙及其他入口',
+    badgeLabel: accessOverview.primary.locked ? '安全' : '已解锁',
     metrics: [
-      { label: 'Front Door', value: accessOverview.primary.locked ? 'Locked' : 'Unlocked' },
-      { label: 'Battery', value: `${accessOverview.primary.battery}%` },
+      { label: '入户门', value: accessOverview.primary.locked ? '已上锁' : '已解锁' },
+      { label: '电量', value: `${accessOverview.primary.battery}%` },
     ],
   };
   const onlineCameras = cameras.filter((camera: CameraSnapshot) => camera.online).length;
   const recordingCameras = cameras.filter((camera: CameraSnapshot) => camera.recording).length;
   const primaryCamera = pickPrimaryCamera(cameras);
   const cameraCard: SummaryCardState = {
-    title: 'Camera Overview',
-    subtitle: primaryCamera === undefined ? 'No camera connected' : primaryCamera.location,
+    title: '监控概览',
+    subtitle: primaryCamera === undefined ? '无摄像头连接' : primaryCamera.location,
     badgeLabel: cameraStatusLabel(primaryCamera),
     metrics: [
-      { label: 'Online', value: `${onlineCameras}/${cameras.length}` },
-      { label: 'Recording', value: `${recordingCameras}` },
+      { label: '在线', value: `${onlineCameras}/${cameras.length}` },
+      { label: '录制中', value: `${recordingCameras}` },
     ],
   };
   const heroMetrics: MetricPillState[] = [
-    { label: 'Lights', value: `${summary.lighting.active} on` },
-    { label: 'Environment', value: `${summary.environment.aqi ?? '--'} AQI` },
-    { label: 'Online', value: `${summary.devices.online}/${summary.devices.total}` },
+    { label: '照明', value: `${summary.lighting.active} 盏亮起` },
+    { label: '环境', value: `${summary.environment.aqi ?? '--'} 空气质量` },
+    { label: '在线', value: `${summary.devices.online}/${summary.devices.total}` },
   ];
 
   const activeSceneId = scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
@@ -387,19 +373,19 @@ export function mapHomeViewState(
   const indoorTemp = summary.climate.temperature ?? 21;
   const totalDevices = summary.devices.total;
 
-  const chipLocked: StatusChipState = { icon: 'lock', label: `${lockedDoors} Doors Locked`, useImage: false };
-  const chipTemp: StatusChipState = { icon: 'thermostat', label: `${indoorTemp}\u00B0C Indoor`, useImage: false };
-  const chipDevices: StatusChipState = { icon: 'devices', label: `${totalDevices} Devices`, useImage: false };
-  const chipLights: StatusChipState = { icon: 'lightbulb', label: `${activeLights} Lights On`, useImage: false };
+  const chipLocked: StatusChipState = { icon: 'lock', label: `${lockedDoors} 扇门已上锁`, useImage: false };
+  const chipTemp: StatusChipState = { icon: 'thermostat', label: `${indoorTemp}\u00B0C 室内`, useImage: false };
+  const chipDevices: StatusChipState = { icon: 'devices', label: `${totalDevices} 个设备`, useImage: false };
+  const chipLights: StatusChipState = { icon: 'lightbulb', label: `${activeLights} 盏灯开启`, useImage: false };
   const statusChips: StatusChipState[] = [chipLocked, chipTemp, chipDevices, chipLights];
 
-  const homeState: HomeViewState = {
+  const homeState: HomeViewStateData = {
     brandLabel: 'OmniHome',
-    title: 'Home',
-    modeLabel: 'Calm mode',
+    title: '首页',
+    modeLabel: '宁静模式',
     securityTitle: summary.security.label,
-    alertSummary: summary.alerts.length === 0 ? 'No critical alerts' : `${summary.alerts.length} alert needs attention`,
-    securityBadge: summary.security.secure ? 'Secure' : 'Attention',
+    alertSummary: summary.alerts.length === 0 ? '无紧急警报' : `${summary.alerts.length} 个警报需注意`,
+    securityBadge: summary.security.secure ? '安全' : '需要注意',
     heroMetrics,
     accessCard,
     cameraCard,
@@ -414,13 +400,13 @@ export function mapHomeViewState(
 
 export function createLightingPresets(): ScenePresetState[] {
   return [
-    { label: 'Read', brightness: 45, colorTemperature: 3000, accent: false },
-    { label: 'Focus', brightness: 80, colorTemperature: 4200, accent: true },
-    { label: 'Morning', brightness: 65, colorTemperature: 3600, accent: false },
+    { label: '阅读', brightness: 45, colorTemperature: 3000, accent: false },
+    { label: '专注', brightness: 80, colorTemperature: 4200, accent: true },
+    { label: '清晨', brightness: 65, colorTemperature: 3600, accent: false },
   ];
 }
 
-export function mapLightingViewState(devices: DeviceSnapshot[], feedback: string): LightingViewState {
+export function mapLightingViewState(devices: DeviceSnapshot[], feedback: string): LightingViewStateData {
   const lights = lightDevices(devices);
   const activeCount = lights.filter((device: DeviceSnapshot) => device.state.power === true).length;
   const rooms: RoomLightCardState[] = ROOM_ORDER
@@ -450,7 +436,7 @@ export function mapLightingViewState(devices: DeviceSnapshot[], feedback: string
   });
 
   return {
-    activeCountLabel: `${activeCount} lights on`,
+    activeCountLabel: `${activeCount} 盏灯开启`,
     rooms,
     presets: createLightingPresets(),
     devices: lightCards,
@@ -463,17 +449,17 @@ export function mapAccessPrimary(primary: AccessPointSnapshot): AccessPrimarySta
     id: primary.id,
     name: primary.name,
     locked: primary.locked,
-    statusLabel: primary.locked ? 'Locked' : 'Unlocked',
-    subtitle: primary.locked ? 'Entry secure' : 'Tap to lock the door',
+    statusLabel: primary.locked ? '已上锁' : '已解锁',
+    subtitle: primary.locked ? '入口安全' : '点击以锁定',
     metrics: [
-      { label: 'Battery', value: `${primary.battery}%` },
-      { label: 'Power', value: 'Normal' },
-      { label: 'State', value: primary.locked ? 'Locked' : 'Unlocked' },
+      { label: '电量', value: `${primary.battery}%` },
+      { label: '电源', value: '正常' },
+      { label: '状态', value: primary.locked ? '已上锁' : '已解锁' },
     ],
   };
 }
 
-export function mapAccessViewState(overview: AccessOverview, feedback: string): AccessViewState {
+export function mapAccessViewState(overview: AccessOverview, feedback: string): AccessViewStateData {
   const keys: AccessKeyItemState[] = overview.keys.map((key: AccessKey) => {
     const keyItem: AccessKeyItemState = {
       id: key.id,
@@ -530,17 +516,17 @@ export function mapFeaturedCamera(camera: CameraSnapshot | undefined): FeaturedC
   };
 }
 
-export function mapCameraViewState(cameras: CameraSnapshot[], feedback: string): CameraViewState {
+export function mapCameraViewState(cameras: CameraSnapshot[], feedback: string): CameraViewStateData {
   const onlineCount = cameras.filter((camera: CameraSnapshot) => camera.online).length;
   const recordingCount = cameras.filter((camera: CameraSnapshot) => camera.recording).length;
   const featured = mapFeaturedCamera(pickPrimaryCamera(cameras));
 
   return {
-    headline: cameras.length === 0 ? 'Waiting for cameras' : 'Whole-home watch is active',
-    recordingLabel: `${recordingCount} recording`,
+    headline: cameras.length === 0 ? '等待摄像头连接' : '全屋安防已开启',
+    recordingLabel: `${recordingCount} 个正在录制`,
     metrics: [
-      { label: 'Online', value: `${onlineCount}/${cameras.length}` },
-      { label: 'Recording', value: `${recordingCount}` },
+      { label: '在线', value: `${onlineCount}/${cameras.length}` },
+      { label: '录制中', value: `${recordingCount}` },
     ],
     featuredCamera: featured,
     cameras: cameras.map(mapCameraRow),
@@ -561,14 +547,14 @@ export function mapSceneCard(scene: SceneSnapshot): SceneCardState {
   };
 }
 
-export function mapAutomationViewState(scenes: SceneSnapshot[], feedback: string): AutomationViewState {
+export function mapAutomationViewState(scenes: SceneSnapshot[], feedback: string): AutomationViewStateData {
   return {
     scenes: scenes.map(mapSceneCard),
     feedback,
   };
 }
 
-export function mapNotificationsViewState(history: CommandHistoryEntry[]): NotificationsViewState {
+export function mapNotificationsViewState(history: CommandHistoryEntry[]): NotificationsViewStateData {
   const entries: HistoryRowState[] = history.map((entry: CommandHistoryEntry) => {
     const historyEntry: HistoryRowState = {
       id: entry.id,
@@ -581,7 +567,7 @@ export function mapNotificationsViewState(history: CommandHistoryEntry[]): Notif
     };
     return historyEntry;
   });
-  const state: NotificationsViewState = { entries };
+  const state: NotificationsViewStateData = { entries };
   return state;
 }
 
@@ -598,18 +584,18 @@ export function filterNotificationEntries(entries: HistoryRowState[], activeFilt
 function familyTimeLabel(createdAt: number, now: number = Date.now()): string {
   const minutes = Math.max(1, Math.round((now - createdAt) / 60000));
   if (minutes < 60) {
-    return `${minutes} min ago`;
+    return `${minutes} 分钟前`;
   }
   const hours = Math.round(minutes / 60);
-  return `${hours} hr ago`;
+  return `${hours} 小时前`;
 }
 
-export function mapFamilyViewState(overview: FamilyOverview, feedback: string): FamilyViewState {
+export function mapFamilyViewState(overview: FamilyOverview, feedback: string): FamilyViewStateData {
   const members: FamilyMemberCardState[] = overview.members.map((member) => {
     const state: FamilyMemberCardState = {
       id: member.id,
       name: member.name,
-      subtitle: member.presence === 'home' ? 'At Home' : 'Away',
+      subtitle: member.presence === 'home' ? '在家' : '离家',
       atHome: member.presence === 'home',
     };
     return state;
@@ -624,9 +610,9 @@ export function mapFamilyViewState(overview: FamilyOverview, feedback: string): 
     return state;
   });
 
-  const state: FamilyViewState = {
-    title: 'The Henderson Family',
-    address: '1428 Elm Street, Sunnyvale',
+  const state: FamilyViewStateData = {
+    title: '家庭概览',
+    address: '我的家',
     presentCount: overview.presentCount,
     members,
     activities,
@@ -636,20 +622,20 @@ export function mapFamilyViewState(overview: FamilyOverview, feedback: string): 
 }
 
 function climateModeLabel(mode: string): string {
-  if (mode === 'heat') { return 'Heat'; }
-  if (mode === 'cool') { return 'Cool'; }
-  if (mode === 'auto') { return 'Auto'; }
-  return 'Off';
+  if (mode === 'heat') { return '制热'; }
+  if (mode === 'cool') { return '制冷'; }
+  if (mode === 'auto') { return '自动'; }
+  return '关闭';
 }
 
 function climateStatusLabel(mode: string): string {
-  if (mode === 'heat') { return 'Heating steadily'; }
-  if (mode === 'cool') { return 'Cooling quietly'; }
-  if (mode === 'auto') { return 'Balancing automatically'; }
-  return 'System standing by';
+  if (mode === 'heat') { return '稳定加热中'; }
+  if (mode === 'cool') { return '安静制冷中'; }
+  if (mode === 'auto') { return '自动平衡中'; }
+  return '系统待机中';
 }
 
-export function mapClimateViewState(overview: ClimateOverview, feedback: string): ClimateViewState {
+export function mapClimateViewState(overview: ClimateOverview, feedback: string): ClimateViewStateData {
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const peak = overview.weeklyUsageHours.length > 0 ? Math.max(...overview.weeklyUsageHours) : 1;
   const usageBars: ClimateUsageBarState[] = overview.weeklyUsageHours.map((value: number, index: number) => {
@@ -664,27 +650,27 @@ export function mapClimateViewState(overview: ClimateOverview, feedback: string)
   const modes: ClimateModeState[] = [];
   const heatMode: ClimateModeState = {
     id: 'heat',
-    label: 'Heat',
+    label: '制热',
     icon: 'mode_heat',
     active: overview.mode === 'heat',
   };
   modes.push(heatMode);
   const coolMode: ClimateModeState = {
     id: 'cool',
-    label: 'Cool',
+    label: '制冷',
     icon: 'ac_unit',
     active: overview.mode === 'cool',
   };
   modes.push(coolMode);
   const autoMode: ClimateModeState = {
     id: 'auto',
-    label: 'Auto',
+    label: '自动',
     icon: 'autorenew',
     active: overview.mode === 'auto',
   };
   modes.push(autoMode);
 
-  const state: ClimateViewState = {
+  const state: ClimateViewStateData = {
     roomLabel: roomDisplayName(overview.room),
     indoorTemperature: Math.round(overview.indoorTemperature),
     humidity: Math.round(overview.humidity),
@@ -692,7 +678,7 @@ export function mapClimateViewState(overview: ClimateOverview, feedback: string)
     targetTemperature: Math.round(overview.targetTemperature),
     modeLabel: climateModeLabel(overview.mode),
     statusLabel: climateStatusLabel(overview.mode),
-    totalUsageLabel: `${Math.round(total)} hrs total`,
+    totalUsageLabel: `共 ${Math.round(total)} 小时`,
     isPowered: overview.mode !== 'off',
     modes,
     usageBars,

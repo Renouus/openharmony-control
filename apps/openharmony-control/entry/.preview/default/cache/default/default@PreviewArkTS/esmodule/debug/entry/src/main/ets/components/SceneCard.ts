@@ -8,7 +8,7 @@ interface SceneCard_Params {
 }
 import type { SceneCardState } from '../model/page-view-state';
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
-import { COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_PRIMARY_SOFT, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
+import { COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
 function sceneIconSymbol(sceneId: string): string {
     if (sceneId === 'home') {
         return 'home';
@@ -23,6 +23,22 @@ function sceneIconSymbol(sceneId: string): string {
         return 'flight_takeoff';
     }
     return 'auto_awesome';
+}
+function sceneActionIcon(action: string): string {
+    const normalized = action.toLowerCase();
+    if (normalized.indexOf('light') >= 0) {
+        return 'lightbulb';
+    }
+    if (normalized.indexOf('lock') >= 0 || normalized.indexOf('door') >= 0) {
+        return 'lock';
+    }
+    if (normalized.indexOf('temperature') >= 0 || normalized.indexOf('climate') >= 0) {
+        return 'thermostat';
+    }
+    if (normalized.indexOf('camera') >= 0) {
+        return 'videocam';
+    }
+    return 'check_circle';
 }
 export class SceneCard extends ViewPU {
     constructor(parent, params, __localStorage, elmtId = -1, paramsLambda = undefined, extraInfo) {
@@ -66,33 +82,32 @@ export class SceneCard extends ViewPU {
     private onRun: () => void;
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/components/SceneCard.ets(31:5)", "entry");
-            Column.padding(18);
-            Column.borderRadius(20);
+            Column.create({ space: 28 });
+            Column.debugLine("entry/src/main/ets/components/SceneCard.ets(37:5)", "entry");
+            Column.padding(22);
+            Column.borderRadius(24);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
-            Column.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '33' });
+            Column.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' });
+            Column.shadow({
+                radius: this.scene.enabled ? 20 : 12,
+                color: this.scene.enabled ? '#3A302A0F' : '#3A302A08',
+                offsetX: 0,
+                offsetY: this.scene.enabled ? 6 : 4,
+            });
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            // Header: icon + name + toggle
-            Row.create();
-            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(33:7)", "entry");
-            // Header: icon + name + toggle
+            Row.create({ space: 14 });
+            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(38:7)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(34:9)", "entry");
-            Row.layoutWeight(1);
-        }, Row);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(35:11)", "entry");
+            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(39:9)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
-            Row.backgroundColor(this.scene.enabled ? COLOR_PRIMARY_SOFT : COLOR_SURFACE_CONTAINER_HIGH);
+            Row.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
             Row.justifyContent(FlexAlign.Center);
         }, Row);
         {
@@ -101,14 +116,14 @@ export class SceneCard extends ViewPU {
                     let componentCall = new AppSymbol(this, {
                         name: sceneIconSymbol(this.scene.id),
                         glyphSize: 20,
-                        color: this.scene.enabled ? COLOR_PRIMARY : COLOR_TEXT_MUTED,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/SceneCard.ets", line: 36, col: 13 });
+                        color: COLOR_PRIMARY,
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/SceneCard.ets", line: 40, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             name: sceneIconSymbol(this.scene.id),
                             glyphSize: 20,
-                            color: this.scene.enabled ? COLOR_PRIMARY : COLOR_TEXT_MUTED
+                            color: COLOR_PRIMARY
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
@@ -117,7 +132,7 @@ export class SceneCard extends ViewPU {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         name: sceneIconSymbol(this.scene.id),
                         glyphSize: 20,
-                        color: this.scene.enabled ? COLOR_PRIMARY : COLOR_TEXT_MUTED
+                        color: COLOR_PRIMARY
                     });
                 }
             }, { name: "AppSymbol" });
@@ -125,157 +140,152 @@ export class SceneCard extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/components/SceneCard.ets(48:11)", "entry");
+            Column.debugLine("entry/src/main/ets/components/SceneCard.ets(52:9)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.scene.name);
-            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(49:13)", "entry");
-            Text.fontSize(20);
+            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(53:11)", "entry");
+            Text.fontSize(22);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontFamily('serif');
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.scene.description);
-            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(53:13)", "entry");
-            Text.fontSize(12);
-            Text.fontColor(COLOR_TEXT_MUTED);
+            Text.create(`When ${this.scene.triggerLabel}`);
+            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(57:11)", "entry");
+            Text.fontSize(13);
+            Text.fontColor(COLOR_ON_SURFACE_VARIANT);
+            Text.fontFamily('serif');
+            Text.fontStyle(FontStyle.Italic);
         }, Text);
         Text.pop();
         Column.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Toggle.create({ type: ToggleType.Switch, isOn: this.scene.enabled });
-            Toggle.debugLine("entry/src/main/ets/components/SceneCard.ets(62:9)", "entry");
-            Toggle.selectedColor(COLOR_PRIMARY);
-            Toggle.onChange((value: boolean) => this.onToggle(value));
-        }, Toggle);
-        Toggle.pop();
-        // Header: icon + name + toggle
-        Row.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            // Action tags
-            Scroll.create();
-            Scroll.debugLine("entry/src/main/ets/components/SceneCard.ets(69:7)", "entry");
-            // Action tags
-            Scroll.scrollable(ScrollDirection.Horizontal);
-            // Action tags
-            Scroll.scrollBar(BarState.Off);
-            // Action tags
-            Scroll.width('100%');
-        }, Scroll);
+            Row.create();
+            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(68:7)", "entry");
+            Row.width('100%');
+        }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 8 });
-            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(70:9)", "entry");
+            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(69:9)", "entry");
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             ForEach.create();
             const forEachItemGenFunction = _item => {
                 const action = _item;
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    Row.create({ space: 4 });
-                    Row.debugLine("entry/src/main/ets/components/SceneCard.ets(72:13)", "entry");
-                    Row.padding({ left: 10, right: 10, top: 6, bottom: 6 });
-                    Row.borderRadius(8);
-                    Row.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
-                }, Row);
                 {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         if (isInitialRender) {
-                            let componentCall = new AppSymbol(this, { name: 'check_circle', glyphSize: 12, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/SceneCard.ets", line: 73, col: 15 });
+                            let componentCall = new AppSymbol(this, {
+                                name: sceneActionIcon(action),
+                                glyphSize: 18,
+                                color: COLOR_TEXT_MUTED,
+                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/SceneCard.ets", line: 71, col: 13 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
-                                    name: 'check_circle',
-                                    glyphSize: 12,
-                                    color: COLOR_PRIMARY
+                                    name: sceneActionIcon(action),
+                                    glyphSize: 18,
+                                    color: COLOR_TEXT_MUTED
                                 };
                             };
                             componentCall.paramsGenerator_ = paramsLambda;
                         }
                         else {
                             this.updateStateVarsOfChildByElmtId(elmtId, {
-                                name: 'check_circle', glyphSize: 12, color: COLOR_PRIMARY
+                                name: sceneActionIcon(action),
+                                glyphSize: 18,
+                                color: COLOR_TEXT_MUTED
                             });
                         }
                     }, { name: "AppSymbol" });
                 }
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    Text.create(action);
-                    Text.debugLine("entry/src/main/ets/components/SceneCard.ets(74:15)", "entry");
-                    Text.fontSize(12);
-                    Text.fontColor(COLOR_ON_SURFACE_VARIANT);
-                }, Text);
-                Text.pop();
-                Row.pop();
             };
-            this.forEachUpdateFunction(elmtId, this.scene.actions, forEachItemGenFunction, (action: string) => `${this.scene.id}-${action}`, false, false);
+            this.forEachUpdateFunction(elmtId, this.scene.actions.slice(0, 3), forEachItemGenFunction, (action: string) => `${this.scene.id}-${action}`, false, false);
         }, ForEach);
         ForEach.pop();
         Row.pop();
-        // Action tags
-        Scroll.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            // Trigger + repeat info
+            Blank.create();
+            Blank.debugLine("entry/src/main/ets/components/SceneCard.ets(79:9)", "entry");
+        }, Blank);
+        Blank.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Toggle.create({ type: ToggleType.Switch, isOn: this.scene.enabled });
+            Toggle.debugLine("entry/src/main/ets/components/SceneCard.ets(81:9)", "entry");
+            Toggle.selectedColor(COLOR_PRIMARY);
+            Toggle.switchPointColor('#FFFFFF');
+            Toggle.onChange((value: boolean) => this.onToggle(value));
+        }, Toggle);
+        Toggle.pop();
+        Row.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Column.create({ space: 10 });
+            Column.debugLine("entry/src/main/ets/components/SceneCard.ets(88:7)", "entry");
+            Column.width('100%');
+        }, Column);
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
+            Text.create(this.scene.description);
+            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(89:9)", "entry");
+            Text.fontSize(13);
+            Text.fontColor(COLOR_TEXT_MUTED);
+            Text.maxLines(2);
+            Text.textOverflow({ overflow: TextOverflow.Ellipsis });
+            Text.width('100%');
+        }, Text);
+        Text.pop();
+        this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 8 });
-            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(89:7)", "entry");
-            // Trigger + repeat info
+            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(96:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.scene.triggerTypeLabel);
-            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(90:9)", "entry");
-            Text.fontSize(12);
+            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(97:11)", "entry");
+            Text.fontSize(11);
             Text.fontColor(COLOR_PRIMARY);
             Text.padding({ left: 10, right: 10, top: 5, bottom: 5 });
-            Text.backgroundColor(COLOR_PRIMARY_SOFT);
+            Text.backgroundColor(COLOR_PRIMARY + '12');
             Text.borderRadius(999);
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.scene.triggerLabel);
-            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(96:9)", "entry");
-            Text.fontSize(12);
-            Text.fontColor(COLOR_TEXT_MUTED);
-            Text.layoutWeight(1);
-        }, Text);
-        Text.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.scene.repeatLabel);
-            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(100:9)", "entry");
-            Text.fontSize(12);
+            Text.debugLine("entry/src/main/ets/components/SceneCard.ets(104:11)", "entry");
+            Text.fontSize(11);
             Text.fontColor(COLOR_TEXT_MUTED);
+            Text.padding({ left: 10, right: 10, top: 5, bottom: 5 });
+            Text.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
+            Text.borderRadius(999);
         }, Text);
         Text.pop();
-        // Trigger + repeat info
         Row.pop();
+        Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            // Run button
             Row.create();
-            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(107:7)", "entry");
-            // Run button
+            Row.debugLine("entry/src/main/ets/components/SceneCard.ets(115:7)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/components/SceneCard.ets(108:9)", "entry");
+            Blank.debugLine("entry/src/main/ets/components/SceneCard.ets(116:9)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Button.createWithLabel('Run Now');
-            Button.debugLine("entry/src/main/ets/components/SceneCard.ets(109:9)", "entry");
+            Button.debugLine("entry/src/main/ets/components/SceneCard.ets(117:9)", "entry");
             Button.fontSize(13);
             Button.fontColor('#FFFFFF');
             Button.height(40);
             Button.borderRadius(999);
             Button.backgroundColor(COLOR_PRIMARY);
-            Button.padding({ left: 20, right: 20 });
+            Button.padding({ left: 18, right: 18 });
             Button.onClick(() => this.onRun());
         }, Button);
         Button.pop();
-        // Run button
         Row.pop();
         Column.pop();
     }

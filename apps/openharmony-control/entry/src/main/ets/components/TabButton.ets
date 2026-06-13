@@ -1,5 +1,6 @@
 import {
   COLOR_PRIMARY,
+  COLOR_ON_PRIMARY,
   COLOR_PRIMARY_CONTAINER,
   COLOR_SURFACE,
   COLOR_TEXT_MUTED,
@@ -14,30 +15,30 @@ export struct TabButton {
   onTap: () => void = () => {};
 
   build() {
-    Column({ space: 2 }) {
+    Row({ space: this.selected ? 6 : 0 }) {
       AppSymbol({
         name: this.icon,
         glyphSize: 22,
-        color: this.selected ? COLOR_PRIMARY : COLOR_TEXT_MUTED,
+        color: this.selected ? COLOR_ON_PRIMARY : COLOR_TEXT_MUTED,
       })
-      Text(this.label)
-        .fontSize(10)
-        .fontColor(this.selected ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
-        .fontWeight(this.selected ? FontWeight.Bold : FontWeight.Normal)
-        .letterSpacing(0.8)
+      if (this.selected) {
+        Text(this.label)
+          .fontSize(14)
+          .fontColor(COLOR_ON_PRIMARY)
+          .fontWeight(FontWeight.Medium)
+          .letterSpacing(0.5)
+          .transition(TransitionEffect.OPACITY.combine(TransitionEffect.scale({ x: 0.8, y: 0.8 })))
+      }
     }
-    .layoutWeight(1)
-    .height(58)
+    .layoutWeight(this.selected ? 1 : 0)
+    .width(this.selected ? 'auto' : 48)
+    .height(48)
     .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-    .padding({ left: 10, right: 10, top: 6, bottom: 4 })
-    .borderRadius(14)
-    .backgroundColor(this.selected ? COLOR_PRIMARY_CONTAINER + '33' : COLOR_SURFACE)
-    .shadow(this.selected ? {
-      radius: 10, color: '#3A302A0A', offsetX: 0, offsetY: 3,
-    } : {
-      radius: 0, color: '#00000000', offsetX: 0, offsetY: 0,
-    })
+    .alignItems(VerticalAlign.Center)
+    .padding({ left: this.selected ? 16 : 0, right: this.selected ? 16 : 0 })
+    .borderRadius(24)
+    .backgroundColor(this.selected ? COLOR_PRIMARY : 'transparent')
     .onClick(() => this.onTap())
+    .animation({ duration: 300, curve: Curve.Friction })
   }
 }

@@ -1,4 +1,4 @@
-import { CameraViewState } from '../model/page-view-state';
+import { CameraViewStateData } from '../model/page-view-state';
 import { mapCameraViewState } from '../model/smart-home-mappers';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 
@@ -9,7 +9,7 @@ export class CameraViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<CameraViewState> {
+  async load(feedback: string = ''): Promise<CameraViewStateData> {
     const cameras = await this.repository.getCameraOverview();
     return mapCameraViewState(cameras, feedback);
   }

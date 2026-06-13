@@ -10,3 +10,10 @@ dist/
 apps/openharmony-control/local.properties
 apps/openharmony-control/.idea/.deveco/
 apps/openharmony-control/.idea/openharmony-control.iml
+
+.agents/
+.claude/
+.gemini/
+.idea/
+.preview/
+*.cjs

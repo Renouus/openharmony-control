@@ -1,4 +1,4 @@
-import type { NotificationsViewState } from '../model/page-view-state';
+import type { NotificationsViewStateData } from '../model/page-view-state';
 import { mapNotificationsViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
 import type { SmartHomeRepositoryPort } from '../services/smart-home-repository';
 export class NotificationsViewModel {
@@ -6,7 +6,7 @@ export class NotificationsViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(): Promise<NotificationsViewState> {
+    async load(): Promise<NotificationsViewStateData> {
         const history = await this.repository.listHistory(20);
         return mapNotificationsViewState(history);
     }

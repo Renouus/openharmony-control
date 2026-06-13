@@ -9,3 +9,4 @@ media family_member_alex 0x01000008
 media family_member_david 0x01000009
 media family_member_sarah 0x0100000a
 profile main_pages 0x01000006
+profile network_config 0x0100000b

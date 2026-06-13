@@ -24,14 +24,14 @@ export struct AddDeviceSheet {
         .margin({ top: 6 })
 
       Row() {
-        Text('Add Device')
+        Text('添加设备')
           .fontSize(28)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .layoutWeight(1)
 
-        Button('Done')
+        Button('完成')
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_PRIMARY)
@@ -42,7 +42,7 @@ export struct AddDeviceSheet {
       }
       .width('100%')
 
-      Text('Scan the QR code on your device or enter a setup code manually.')
+      Text('扫描设备上的二维码，或手动输入设置代码。')
         .fontSize(13)
         .fontColor(COLOR_TEXT_MUTED)
         .width('100%')
@@ -58,12 +58,12 @@ export struct AddDeviceSheet {
           .backgroundColor(COLOR_PRIMARY + '12')
           .justifyContent(FlexAlign.Center)
 
-          Text('Ready to scan')
+          Text('准备扫描')
             .fontSize(18)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
 
-          Text('Point the camera at a device label or hub sticker.')
+          Text('将相机对准设备标签或中枢贴纸。')
             .fontSize(12)
             .fontColor(COLOR_TEXT_MUTED)
             .textAlign(TextAlign.Center)
@@ -83,7 +83,7 @@ export struct AddDeviceSheet {
       .padding(24)
 
       Column({ space: 14 }) {
-        Text('Manual Entry')
+        Text('手动输入')
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -91,7 +91,7 @@ export struct AddDeviceSheet {
 
         Row({ space: 12 }) {
           Row() {
-            Text('Enter setup code or device ID')
+            Text('输入设置代码或设备ID')
               .fontSize(13)
               .fontColor(COLOR_TEXT_MUTED)
           }
@@ -104,7 +104,7 @@ export struct AddDeviceSheet {
           .alignItems(VerticalAlign.Center)
 
           Row() {
-            Text('Add')
+            Text('添加')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor(COLOR_ON_PRIMARY)
@@ -120,16 +120,16 @@ export struct AddDeviceSheet {
       .width('100%')
 
       Column({ space: 12 }) {
-        Text('Suggested categories')
+        Text('推荐分类')
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .width('100%')
 
         Row({ space: 12 }) {
-          this.categoryCard('lightbulb', 'Lighting')
-          this.categoryCard('lock', 'Security')
-          this.categoryCard('thermostat', 'Climate')
+          this.categoryCard('lightbulb', '照明')
+          this.categoryCard('lock', '安防')
+          this.categoryCard('thermostat', '气候')
         }
         .width('100%')
       }
@@ -140,6 +140,7 @@ export struct AddDeviceSheet {
     .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
     .borderRadius(32)
     .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
+    .onClick(() => {})
   }
 
   @Builder

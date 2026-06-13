@@ -19,6 +19,7 @@ export const DeviceKind = {
   Light: "light",
   EnvironmentSensor: "environment-sensor",
   AirConditioner: "air-conditioner",
+  MotionSensor: "motion-sensor",
 } as const;
 
 /** 设备能力 */
@@ -29,6 +30,7 @@ export const DeviceCapability = {
   TargetTemperature: "target-temperature",
   Brightness: "brightness",
   ColorTemperature: "color-temperature",
+  MotionDetection: "motion-detection",
 } as const;
 
 export type DeviceKindName = (typeof DeviceKind)[keyof typeof DeviceKind];
@@ -50,6 +52,7 @@ export type DeviceState = {
   aqi?: number;
   filterLife?: number;
   purifierActive?: boolean;
+  motionDetected?: boolean;
   updatedAt: number;
   online: boolean;
 };

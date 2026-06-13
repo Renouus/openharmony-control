@@ -1,4 +1,6 @@
 import { AutomationViewState, SceneCardState } from '../model/page-view-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
 import { SceneCard } from '../components/SceneCard';
 import {
@@ -12,21 +14,22 @@ import {
 
 @Component
 export struct AutomationView {
-  @Prop state: AutomationViewState;
-  onRunScene: (sceneId: string) => void = () => {};
-  onToggleScene: (sceneId: string, enabled: boolean) => void = () => {};
+  @ObjectLink appState: AppStateSnapshot;
+  @Consume('controller') controller: AppController;
+
+  
 
   build() {
     Column({ space: 28 }) {
       Column({ space: 12 }) {
-        Text('Automations')
+        Text('自动化')
           .fontSize(38)
           .fontWeight(FontWeight.Bold)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .width('100%')
 
-        Text('Automate your home environment.')
+        Text('自动化您的家庭环境。')
           .fontSize(18)
           .fontColor(COLOR_TEXT_MUTED)
           .width('100%')
@@ -34,7 +37,7 @@ export struct AutomationView {
       .width('100%')
 
       Row() {
-        Text('Scenes')
+        Text('场景')
           .fontSize(22)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -52,10 +55,10 @@ export struct AutomationView {
       }
       .width('100%')
 
-      if (this.state.scenes.length === 0) {
+      if (this.appState.automation.scenes.length === 0) {
         Column({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
-          Text('No scenes yet')
+          Text('暂无场景')
             .fontSize(16)
             .fontColor(COLOR_TEXT_MUTED)
         }
@@ -66,11 +69,12 @@ export struct AutomationView {
         .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
       } else {
         Column({ space: 18 }) {
-          ForEach(this.state.scenes, (scene: SceneCardState) => {
+          ForEach(this.appState.automation.scenes, (scene: SceneCardState) => {
             SceneCard({
               scene,
-              onToggle: (value: boolean) => this.onToggleScene(scene.id, value),
-              onRun: () => this.onRunScene(scene.id),
+              onToggle: (value: boolean) => this.controller.handleAutomationToggleScene(
+                this.appState, scene.id, value),
+              onRun: () => this.controller.handleAutomationRunScene(this.appState, scene.id),
             })
           }, (scene: SceneCardState) => scene.id)
         }
@@ -80,7 +84,7 @@ export struct AutomationView {
       Row() {
         Row({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 20, color: '#FFFFFF' })
-          Text('New Routine')
+          Text('新建自动化')
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFF')
@@ -98,8 +102,8 @@ export struct AutomationView {
         .height(1)
         .backgroundColor(COLOR_OUTLINE_VARIANT + '66')
 
-      if (this.state.feedback.length > 0) {
-        Text(this.state.feedback)
+      if (this.appState.automation.feedback.length > 0) {
+        Text(this.appState.automation.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)
