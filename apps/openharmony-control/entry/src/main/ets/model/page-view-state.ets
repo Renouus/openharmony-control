@@ -147,6 +147,11 @@ export interface CameraRowState {
   actionDisabled: boolean;
 }
 
+export interface DeviceActionState {
+  icon: string;
+  text: string;
+}
+
 export interface SceneCardState {
   id: string;
   name: string;
@@ -156,7 +161,7 @@ export interface SceneCardState {
   triggerTypeLabel: string;
   actions: string[];
   repeatLabel: string;
-  deviceActions?: { icon: string, text: string }[];
+  deviceActions?: DeviceActionState[];
 }
 
 export interface HistoryRowState {

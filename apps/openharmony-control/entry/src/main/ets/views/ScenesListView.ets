@@ -1,5 +1,5 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { SceneCardState } from '../model/page-view-state';
+import { SceneCardState, DeviceActionState } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
 import {
@@ -7,7 +7,7 @@ import {
   COLOR_PRIMARY,
   COLOR_SURFACE_CONTAINER_LOW,
   COLOR_TEXT_MUTED,
-  COLOR_SURFACE_VARIANT,
+  COLOR_SECONDARY_CONTAINER,
   COLOR_OUTLINE_VARIANT,
   COLOR_PRIMARY_CONTAINER,
   COLOR_ON_PRIMARY_CONTAINER
@@ -19,7 +19,7 @@ export struct ScenesListView {
   @Consume('controller') controller: AppController;
 
   private getIconBackground(index: number): string {
-    return index % 2 === 0 ? COLOR_SURFACE_VARIANT : COLOR_PRIMARY_CONTAINER;
+    return index % 2 === 0 ? COLOR_SECONDARY_CONTAINER : COLOR_PRIMARY_CONTAINER;
   }
 
   private getIconColor(index: number): string {
@@ -75,7 +75,7 @@ export struct ScenesListView {
 
             if (scene.deviceActions && scene.deviceActions.length > 0) {
               Row({ space: 8 }) {
-                ForEach(scene.deviceActions, (action: { icon: string, text: string }) => {
+                ForEach(scene.deviceActions, (action: DeviceActionState) => {
                   Row({ space: 4 }) {
                     AppSymbol({ name: action.icon, glyphSize: 14, color: COLOR_TEXT_MUTED })
                     Text(action.text)
@@ -83,9 +83,9 @@ export struct ScenesListView {
                       .fontColor(COLOR_TEXT_MUTED)
                   }
                   .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                  .backgroundColor(COLOR_SURFACE_VARIANT)
+                  .backgroundColor(COLOR_SECONDARY_CONTAINER)
                   .borderRadius(6)
-                }, (action: { icon: string, text: string }) => action.text)
+                }, (action: DeviceActionState) => action.text)
               }
               .width('100%')
               .margin({ top: 16 })
@@ -109,7 +109,7 @@ export struct ScenesListView {
           .width(48)
           .height(48)
           .borderRadius(24)
-          .backgroundColor(COLOR_SURFACE_VARIANT)
+          .backgroundColor(COLOR_SECONDARY_CONTAINER)
           .justifyContent(FlexAlign.Center)
 
           Text('Create New Scene')
