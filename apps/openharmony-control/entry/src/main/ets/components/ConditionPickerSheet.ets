@@ -13,6 +13,7 @@ export struct ConditionPickerSheet {
   @State selectedDeviceId: string = '';
   @State selectedPropertyConfig: DevicePropertyConfig | null = null;
   @State thresholdValue: number = 25; // Default for slider
+  @State selectedTimeStr: string = '08:00';
 
   build() {
     Column({ space: 16 }) {
@@ -81,19 +82,20 @@ export struct ConditionPickerSheet {
     }
     .width('100%')
 
-    // Mock TimePicker
     TimePicker({
       selected: new Date()
     })
     .useMilitaryTime(false)
     .onChange((value: TimePickerResult) => {
-      // Typically we'd keep this in state, but let's mock the final selection
+      let h = value.hour.toString().padStart(2, '0');
+      let m = value.minute.toString().padStart(2, '0');
+      this.selectedTimeStr = `${h}:${m}`;
     })
 
     Button('完成')
       .width('100%')
       .onClick(() => {
-        this.onSelect({ id: Date.now().toString(), type: 'time', time: '08:00' });
+        this.onSelect({ id: Date.now().toString(), type: 'time', time: this.selectedTimeStr });
       })
   }
 
