@@ -16,7 +16,8 @@ export type AppPageId =
   | 'masterBedroom'
   | 'pendantLight'
   | 'familySettings'
-  | 'scenesList';
+  | 'scenesList'
+  | 'lightControl';
 
 // ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
 
