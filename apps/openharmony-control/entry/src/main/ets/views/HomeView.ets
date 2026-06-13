@@ -28,6 +28,7 @@ import {
 struct StatusChip {
   @Prop chip: StatusChipState;
   onTap: () => void = () => {};
+  @State isPressed: boolean = false;
 
   build() {
     Row({ space: 6 }) {
@@ -41,6 +42,14 @@ struct StatusChip {
     .borderRadius(20)
     .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
     .shadow({ radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+    .scale({ x: this.isPressed ? 0.95 : 1, y: this.isPressed ? 0.95 : 1 })
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.isPressed = true;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.isPressed = false;
+      }
+    })
     .onClick(() => this.onTap())
     .animation({ duration: 200, curve: Curve.Friction })
   }
@@ -50,6 +59,7 @@ struct StatusChip {
 struct SceneChip {
   @Prop scene: SceneChipState;
   onTap: () => void = () => {};
+  @State isPressed: boolean = false;
 
   build() {
     Row({ space: 10 }) {
@@ -70,6 +80,14 @@ struct SceneChip {
       radius: 14, color: '#C2652A33', offsetX: 0, offsetY: 4,
     } : {
       radius: 12, color: '#3A302A0D', offsetX: 0, offsetY: 3,
+    })
+    .scale({ x: this.isPressed ? 0.95 : 1, y: this.isPressed ? 0.95 : 1 })
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.isPressed = true;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.isPressed = false;
+      }
     })
     .onClick(() => this.onTap())
     .animation({ duration: 250, curve: Curve.Friction })

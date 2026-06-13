@@ -13,6 +13,10 @@ export struct AppHeader {
   onAdd?: () => void;
   onMenu?: () => void;
 
+  @State isBackPressed: boolean = false;
+  @State isAddPressed: boolean = false;
+  @State isMenuPressed: boolean = false;
+
   build() {
     Row() {
       if (this.isSubPage) {
@@ -22,11 +26,20 @@ export struct AppHeader {
         .width(44)
         .height(44)
         .borderRadius(22)
-        .backgroundColor(COLOR_SURFACE)
-        .shadow({ radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+        .backgroundColor(this.isBackPressed ? COLOR_PRIMARY_SOFT : COLOR_SURFACE)
+        .shadow(this.isBackPressed ? { radius: 4, color: '#3A302A0D', offsetX: 0, offsetY: 1 } : { radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
         .justifyContent(FlexAlign.Center)
         .margin({ right: 8 })
+        .scale({ x: this.isBackPressed ? 0.95 : 1, y: this.isBackPressed ? 0.95 : 1 })
+        .onTouch((e: TouchEvent) => {
+          if (e.type === TouchType.Down) {
+            this.isBackPressed = true;
+          } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+            this.isBackPressed = false;
+          }
+        })
         .onClick(() => this.onBack?.())
+        .animation({ duration: 200, curve: Curve.Friction })
       }
 
       Text('OmniHome')
@@ -47,9 +60,18 @@ export struct AppHeader {
           .height(44)
           .borderRadius(22)
           .justifyContent(FlexAlign.Center)
-          .backgroundColor(COLOR_SURFACE)
-          .shadow({ radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+          .backgroundColor(this.isAddPressed ? COLOR_PRIMARY_SOFT : COLOR_SURFACE)
+          .shadow(this.isAddPressed ? { radius: 4, color: '#3A302A0D', offsetX: 0, offsetY: 1 } : { radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+          .scale({ x: this.isAddPressed ? 0.95 : 1, y: this.isAddPressed ? 0.95 : 1 })
+          .onTouch((e: TouchEvent) => {
+            if (e.type === TouchType.Down) {
+              this.isAddPressed = true;
+            } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+              this.isAddPressed = false;
+            }
+          })
           .onClick(() => this.onAdd?.())
+          .animation({ duration: 200, curve: Curve.Friction })
 
           Row() {
             AppSymbol({ name: 'menu', glyphSize: 22, color: COLOR_PRIMARY })
@@ -58,9 +80,18 @@ export struct AppHeader {
           .height(44)
           .borderRadius(22)
           .justifyContent(FlexAlign.Center)
-          .backgroundColor(COLOR_SURFACE)
-          .shadow({ radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+          .backgroundColor(this.isMenuPressed ? COLOR_PRIMARY_SOFT : COLOR_SURFACE)
+          .shadow(this.isMenuPressed ? { radius: 4, color: '#3A302A0D', offsetX: 0, offsetY: 1 } : { radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+          .scale({ x: this.isMenuPressed ? 0.95 : 1, y: this.isMenuPressed ? 0.95 : 1 })
+          .onTouch((e: TouchEvent) => {
+            if (e.type === TouchType.Down) {
+              this.isMenuPressed = true;
+            } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+              this.isMenuPressed = false;
+            }
+          })
           .onClick(() => this.onMenu?.())
+          .animation({ duration: 200, curve: Curve.Friction })
         }
       }
     }
