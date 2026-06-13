@@ -24,6 +24,7 @@ import { LivingRoomView } from '../views/LivingRoomView';
 import { MasterBedroomView } from '../views/MasterBedroomView';
 import { LightControlView } from '../views/LightControlView';
 import { ScenesListView } from '../views/ScenesListView';
+import { CreateAutomationView } from '../views/CreateAutomationView';
 import {
   COLOR_BG,
   COLOR_BORDER,
@@ -251,6 +252,18 @@ struct Index {
         Scroll() {
           ScenesListView({ appState: this.appState })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
+        }
+        .scrollBar(BarState.Off)
+        .layoutWeight(1)
+      } else if (pageName === 'createAutomation') {
+        Scroll() {
+          CreateAutomationView({
+            onCancel: () => this.popSubPage(),
+            onSave: (draft) => {
+              console.info('Draft saved in Index:', JSON.stringify(draft));
+              this.popSubPage();
+            }
+          })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)

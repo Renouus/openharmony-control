@@ -1,6 +1,7 @@
 import { AutomationViewState } from '../model/page-view-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
+import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
 import {
   COLOR_ON_SURFACE,
@@ -15,6 +16,7 @@ import {
 export struct AutomationView {
   @ObjectLink appState: AppStateSnapshot;
   @Consume('controller') controller: AppController;
+  @Consume('navStack') navStack: NavProxy;
 
   
 
@@ -65,6 +67,9 @@ export struct AutomationView {
       .alignItems(HorizontalAlign.Center)
       .borderRadius(20)
       .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
+      .onClick(() => {
+        this.navStack.push('createAutomation');
+      })
 
       Row() {
         Row({ space: 10 }) {
@@ -78,6 +83,9 @@ export struct AutomationView {
         .borderRadius(999)
         .backgroundColor(COLOR_PRIMARY)
         .shadow({ radius: 16, color: '#C2652A30', offsetX: 0, offsetY: 6 })
+        .onClick(() => {
+          this.navStack.push('createAutomation');
+        })
       }
       .width('100%')
       .justifyContent(FlexAlign.End)

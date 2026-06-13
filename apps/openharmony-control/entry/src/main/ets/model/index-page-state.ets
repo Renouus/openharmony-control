@@ -48,6 +48,7 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'routineEditor' ||
     page === 'bathroom' ||
     page === 'kitchen' ||
+    page === 'createAutomation' ||
     page === 'livingRoom' ||
     page === 'masterBedroom' ||
     page === 'pendantLight' ||

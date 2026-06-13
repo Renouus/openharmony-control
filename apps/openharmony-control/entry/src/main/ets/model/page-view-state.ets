@@ -11,6 +11,7 @@ export type AppPageId =
   | 'routineEditor'
   | 'bathroom'
   | 'kitchen'
+  | 'createAutomation'
   | 'livingRoom'
   | 'masterBedroom'
   | 'pendantLight'
@@ -494,3 +495,27 @@ export { createEmptyAutomationViewStateData as createEmptyAutomationViewState };
 export { createEmptyNotificationsViewStateData as createEmptyNotificationsViewState };
 export { createEmptyFamilyViewStateData as createEmptyFamilyViewState };
 export { createEmptyClimateViewStateData as createEmptyClimateViewState };
+
+export interface RoutineDraft {
+  name: string;
+  conditions: ConditionDraft[];
+  actions: ActionDraft[];
+}
+
+export interface ConditionDraft {
+  id: string;
+  type: 'time' | 'device';
+  time?: string;
+  deviceId?: string;
+  property?: string;
+  operator?: string;
+  threshold?: string;
+}
+
+export interface ActionDraft {
+  id: string;
+  type: 'device' | 'scene';
+  deviceId?: string;
+  command?: string;
+  sceneId?: string;
+}

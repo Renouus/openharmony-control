@@ -1,7 +1,7 @@
 import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppSymbol } from './AppSymbol';
 
-export type HeaderActionMenuItem = 'sceneEditor' | 'routineEditor' | 'familySettings';
+export type HeaderActionMenuItem = 'sceneEditor' | 'createAutomation' | 'familySettings';
 
 interface HeaderActionConfig {
   id: HeaderActionMenuItem;
@@ -18,7 +18,7 @@ const HEADER_ACTIONS: HeaderActionConfig[] = [
     subtitle: '创建房间情境预设。',
   },
   {
-    id: 'routineEditor',
+    id: 'createAutomation',
     icon: 'auto_awesome',
     title: '新建自动化',
     subtitle: '将触发器和操作连接在一起。',
