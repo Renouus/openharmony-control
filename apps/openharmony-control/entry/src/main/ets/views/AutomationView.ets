@@ -1,5 +1,6 @@
-import { AutomationViewState } from '../model/page-view-state';
+import { AutomationViewState, SceneCardState } from '../model/page-view-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { SceneCard } from '../components/SceneCard';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
@@ -56,20 +57,40 @@ export struct AutomationView {
       }
       .width('100%')
 
-      Column({ space: 10 }) {
-        AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
-        Text('暂无自动化')
-          .fontSize(16)
-          .fontColor(COLOR_TEXT_MUTED)
+      if (this.appState.automation.scenes.length === 0) {
+        Column({ space: 10 }) {
+          AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
+          Text('暂无自动化')
+            .fontSize(16)
+            .fontColor(COLOR_TEXT_MUTED)
+        }
+        .width('100%')
+        .padding({ top: 40, bottom: 40 })
+        .alignItems(HorizontalAlign.Center)
+        .borderRadius(20)
+        .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
+        .onClick(() => {
+          this.navStack.pushPathByName('createAutomation', null);
+        })
+      } else {
+        Column({ space: 16 }) {
+          ForEach(this.appState.automation.scenes, (scene: SceneCardState) => {
+            SceneCard({
+              scene: scene,
+              onToggle: (enabled: boolean) => {
+                scene.enabled = enabled;
+                // Since @ObjectLink doesn't do deep proxying automatically on array items,
+                // we'll trigger a UI update by re-assigning the array
+                this.appState.automation.scenes = [...this.appState.automation.scenes];
+              },
+              onRun: () => {
+                this.controller.showToast('执行自动化: ' + scene.name);
+              }
+            })
+          }, (s: SceneCardState) => s.id)
+        }
+        .width('100%')
       }
-      .width('100%')
-      .padding({ top: 40, bottom: 40 })
-      .alignItems(HorizontalAlign.Center)
-      .borderRadius(20)
-      .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
-      .onClick(() => {
-        this.navStack.pushPathByName('createAutomation', null);
-      })
 
       Row() {
         Row({ space: 10 }) {
@@ -107,6 +128,5 @@ export struct AutomationView {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
-    .justifyContent(FlexAlign.Start)
   }
 }
