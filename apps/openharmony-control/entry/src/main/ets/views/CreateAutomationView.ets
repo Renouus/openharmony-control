@@ -146,6 +146,8 @@ export struct CreateAutomationView {
         }
         .padding(16)
         .width('100%')
+        .constraintSize({ minHeight: '100%' })
+        .justifyContent(FlexAlign.Start)
       }
       .layoutWeight(1)
     }

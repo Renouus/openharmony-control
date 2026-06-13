@@ -256,16 +256,13 @@ struct Index {
         .scrollBar(BarState.Off)
         .layoutWeight(1)
       } else if (pageName === 'createAutomation') {
-        Scroll() {
-          CreateAutomationView({
-            onCancel: () => this.popSubPage(),
-            onSave: (draft) => {
-              console.info('Draft saved in Index:', JSON.stringify(draft));
-              this.popSubPage();
-            }
-          })
-        }
-        .scrollBar(BarState.Off)
+        CreateAutomationView({
+          onCancel: () => this.popSubPage(),
+          onSave: (draft) => {
+            console.info('Draft saved in Index:', JSON.stringify(draft));
+            this.popSubPage();
+          }
+        })
         .layoutWeight(1)
       }
     }
@@ -304,6 +301,8 @@ struct Index {
               }
               .padding({ left: 20, right: 20, top: 16, bottom: 120 })
               .width('100%')
+              .constraintSize({ minHeight: '100%' })
+              .justifyContent(FlexAlign.Start)
             }
             .scrollBar(BarState.Off)
             .width('100%')
@@ -317,7 +316,7 @@ struct Index {
                 onTap: () => this.setTabPage('home'),
               })
               TabButton({
-                label: '场景',
+                label: '自动化',
                 icon: 'auto_awesome',
                 selected: this.currentTab === 1,
                 onTap: () => this.setTabPage('automation'),
