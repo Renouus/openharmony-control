@@ -57,7 +57,7 @@ export struct AutomationView {
       }
       .width('100%')
 
-      if (this.appState.automation.scenes.length === 0) {
+      if (this.appState.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual').length === 0) {
         Column({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
           Text('暂无自动化')
@@ -74,7 +74,7 @@ export struct AutomationView {
         })
       } else {
         Column({ space: 16 }) {
-          ForEach(this.appState.automation.scenes, (scene: SceneCardState) => {
+          ForEach(this.appState.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual'), (scene: SceneCardState) => {
             SceneCard({
               scene: scene,
               onToggle: (enabled: boolean) => {

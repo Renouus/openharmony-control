@@ -41,7 +41,7 @@ export struct ScenesListView {
         .width('100%')
 
       Column({ space: 20 }) {
-        ForEach(this.appState.automation.scenes, (scene: SceneCardState, index: number) => {
+        ForEach(this.appState.automation.scenes.filter(s => s.triggerTypeLabel === 'manual'), (scene: SceneCardState, index: number) => {
           Column() {
             Row() {
               Row({ space: 16 }) {
