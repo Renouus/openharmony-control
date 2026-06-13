@@ -1,5 +1,5 @@
 import { ActionDraft, DevicePanelState, SceneChipState } from '../model/page-view-state';
-import { AppStateSnapshot } from '../model/app-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DeviceCommandConfig } from '../model/automation-capabilities';
 import { COLOR_PRIMARY, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 
@@ -162,7 +162,7 @@ export struct ActionPickerSheet {
     if (this.selectedDeviceId) {
       Scroll() {
         Column({ space: 16 }) {
-          ForEach(this.appState.home.devices.filter(d => d.id === this.selectedDeviceId), (device: DevicePanelState) => {
+          ForEach(this.appState.home.devices.filter((d: DevicePanelState) => d.id === this.selectedDeviceId), (device: DevicePanelState) => {
             ForEach(DEVICE_CAPABILITIES[device.kind]?.actions || [], (config: DeviceCommandConfig) => {
               if (config.type === 'boolean') {
                 Column({ space: 8 }) {

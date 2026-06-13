@@ -1,5 +1,5 @@
 import { ConditionDraft, DevicePanelState } from '../model/page-view-state';
-import { AppStateSnapshot } from '../model/app-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DevicePropertyConfig } from '../model/automation-capabilities';
 import { COLOR_PRIMARY, COLOR_SURFACE, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 
@@ -162,7 +162,7 @@ export struct ConditionPickerSheet {
           // In ArkTS, we cannot put complex expressions in ForEach directly or define local variables.
           // We rely on component state or simple array iteration.
           // Since we need the capabilities for the selected device, we filter appState.home.devices.
-          ForEach(this.appState.home.devices.filter(d => d.id === this.selectedDeviceId), (device: DevicePanelState) => {
+          ForEach(this.appState.home.devices.filter((d: DevicePanelState) => d.id === this.selectedDeviceId), (device: DevicePanelState) => {
             ForEach(DEVICE_CAPABILITIES[device.kind]?.conditions || [], (config: DevicePropertyConfig) => {
               if (config.type === 'boolean') {
                 Column({ space: 8 }) {

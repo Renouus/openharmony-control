@@ -3,7 +3,7 @@ import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
-import { AppStateSnapshot } from '../model/app-state';
+import { AppStateSnapshot } from '../model/app-state-snapshot';
 
 @Component
 export struct CreateAutomationView {
