@@ -37,17 +37,46 @@ export struct SceneCard {
   onDelete: () => void = () => {};
 
   @Builder
+  EditMenuItem() {
+    Row({ space: 12 }) {
+      AppSymbol({ name: 'edit', glyphSize: 20, color: COLOR_ON_SURFACE })
+      Text('编辑')
+        .fontSize(16)
+        .fontColor(COLOR_ON_SURFACE)
+        .fontWeight(FontWeight.Medium)
+    }
+    .padding({ top: 4, bottom: 4 })
+    .width('100%')
+  }
+
+  @Builder
+  DeleteMenuItem() {
+    Row({ space: 12 }) {
+      AppSymbol({ name: 'delete', glyphSize: 20, color: '#D32F2F' })
+      Text('删除')
+        .fontSize(16)
+        .fontColor('#D32F2F')
+        .fontWeight(FontWeight.Medium)
+    }
+    .padding({ top: 4, bottom: 4 })
+    .width('100%')
+  }
+
+  @Builder
   CardMenu() {
     Menu() {
-      MenuItem({ content: '编辑' })
+      MenuItem(this.EditMenuItem)
         .onClick(() => {
           this.onEdit();
         })
-      MenuItem({ content: '删除' })
+      MenuItem(this.DeleteMenuItem)
         .onClick(() => {
           this.onDelete();
         })
     }
+    .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
+    .radius(16)
+    .width(160)
   }
 
   build() {
