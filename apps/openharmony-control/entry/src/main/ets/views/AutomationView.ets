@@ -39,7 +39,7 @@ export struct AutomationView {
       .width('100%')
 
       Row() {
-        Text('场景')
+        Text('我的自动化')
           .fontSize(22)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
