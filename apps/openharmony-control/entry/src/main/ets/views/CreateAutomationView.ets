@@ -3,7 +3,8 @@ import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED,
-  COLOR_SURFACE_CONTAINER_HIGH } from '../theme/smart-home-theme';
+  COLOR_SURFACE_CONTAINER_HIGH,
+  COLOR_SURFACE_CONTAINER_LOW} from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DevicePropertyConfig, DeviceCommandConfig } from '../model/automation-capabilities';
 
@@ -186,6 +187,7 @@ export struct CreateAutomationView {
                 .height(32)
                 .borderRadius(16)
                 .justifyContent(FlexAlign.Center)
+                .alignItems(VerticalAlign.Center)
                 .onClick(() => {
                   let newCond = [...this.draft.conditions];
                   newCond.splice(index, 1);
@@ -193,6 +195,7 @@ export struct CreateAutomationView {
                 })
               }
               .width('100%')
+              .alignItems(VerticalAlign.Center)
               .padding({ left: 20, right: 12, top: 12, bottom: 12 })
               .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
               .borderRadius(16)
@@ -235,6 +238,7 @@ export struct CreateAutomationView {
                 .height(32)
                 .borderRadius(16)
                 .justifyContent(FlexAlign.Center)
+                .alignItems(VerticalAlign.Center)
                 .onClick(() => {
                   let newAct = [...this.draft.actions];
                   newAct.splice(index, 1);
@@ -242,6 +246,7 @@ export struct CreateAutomationView {
                 })
               }
               .width('100%')
+              .alignItems(VerticalAlign.Center)
               .padding({ left: 20, right: 12, top: 12, bottom: 12 })
               .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
               .borderRadius(16)
