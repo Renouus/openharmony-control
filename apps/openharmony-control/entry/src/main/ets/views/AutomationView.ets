@@ -1,8 +1,7 @@
-import { AutomationViewState, SceneCardState } from '../model/page-view-state';
+import { AutomationViewState } from '../model/page-view-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
-import { SceneCard } from '../components/SceneCard';
 import {
   COLOR_ON_SURFACE,
   COLOR_OUTLINE_VARIANT,
@@ -55,31 +54,17 @@ export struct AutomationView {
       }
       .width('100%')
 
-      if (this.appState.automation.scenes.length === 0) {
-        Column({ space: 10 }) {
-          AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
-          Text('暂无场景')
-            .fontSize(16)
-            .fontColor(COLOR_TEXT_MUTED)
-        }
-        .width('100%')
-        .padding({ top: 40, bottom: 40 })
-        .alignItems(HorizontalAlign.Center)
-        .borderRadius(20)
-        .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
-      } else {
-        Column({ space: 18 }) {
-          ForEach(this.appState.automation.scenes, (scene: SceneCardState) => {
-            SceneCard({
-              scene,
-              onToggle: (value: boolean) => this.controller.handleAutomationToggleScene(
-                this.appState, scene.id, value),
-              onRun: () => this.controller.handleAutomationRunScene(this.appState, scene.id),
-            })
-          }, (scene: SceneCardState) => scene.id)
-        }
-        .width('100%')
+      Column({ space: 10 }) {
+        AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
+        Text('暂无自动化')
+          .fontSize(16)
+          .fontColor(COLOR_TEXT_MUTED)
       }
+      .width('100%')
+      .padding({ top: 40, bottom: 40 })
+      .alignItems(HorizontalAlign.Center)
+      .borderRadius(20)
+      .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
 
       Row() {
         Row({ space: 10 }) {
