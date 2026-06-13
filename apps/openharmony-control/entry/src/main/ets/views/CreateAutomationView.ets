@@ -9,9 +9,10 @@ import { DEVICE_CAPABILITIES, DevicePropertyConfig, DeviceCommandConfig } from '
 @Component
 export struct CreateAutomationView {
   @Prop appState: AppStateSnapshot;
-  @State draft: RoutineDraft = { name: '', conditions: [], actions: [] };
+  @State draft: RoutineDraft = { name: '', icon: 'auto_awesome', conditions: [], actions: [] };
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
+  @State showIconPicker: boolean = false;
   onCancel: () => void = () => {};
   onSave: (scene: SceneCardState) => void = () => {};
 
@@ -53,6 +54,38 @@ export struct CreateAutomationView {
     return '未知动作';
   }
 
+  @Builder
+  IconPickerSheet() {
+    Column() {
+      Text('选择图标')
+        .fontSize(20)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(COLOR_ON_SURFACE)
+        .padding({ top: 24, bottom: 24 })
+      
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+        ForEach(['auto_awesome', 'home', 'bedtime', 'movie', 'lightbulb', 'ac_unit', 'lock', 'videocam', 'water_drop', 'power_settings_new'], (icon: string) => {
+          Row() {
+            AppSymbol({ name: icon, glyphSize: 28, color: this.draft.icon === icon ? COLOR_PRIMARY : COLOR_ON_SURFACE })
+          }
+          .width(64)
+          .height(64)
+          .borderRadius(32)
+          .margin(8)
+          .backgroundColor(this.draft.icon === icon ? COLOR_PRIMARY + '22' : 'transparent')
+          .justifyContent(FlexAlign.Center)
+          .onClick(() => {
+            this.draft.icon = icon;
+            this.showIconPicker = false;
+          })
+        }, (i: string) => i)
+      }
+      .padding({ left: 16, right: 16 })
+    }
+    .width('100%')
+    .height('100%')
+  }
+
   build() {
     Column() {
       // Header
@@ -85,6 +118,7 @@ export struct CreateAutomationView {
             let scene: SceneCardState = {
               id: Date.now().toString(),
               name: this.draft.name,
+              icon: this.draft.icon,
               description: '自定义自动化规则',
               enabled: true,
               triggerLabel: this.getConditionLabel(this.draft.conditions[0]),
@@ -104,13 +138,31 @@ export struct CreateAutomationView {
       Scroll() {
         Column({ space: 24 }) {
           // Name Input
-          TextInput({ placeholder: '自动化名称', text: this.draft.name })
-            .onChange((value: string) => {
-              this.draft.name = value;
-            })
-            .backgroundColor(COLOR_SURFACE)
+          Row({ space: 16 }) {
+            Row() {
+              AppSymbol({ name: this.draft.icon || 'auto_awesome', glyphSize: 24, color: COLOR_PRIMARY })
+            }
+            .width(56)
             .height(56)
-            .width('100%')
+            .backgroundColor(COLOR_SURFACE)
+            .borderRadius(16)
+            .justifyContent(FlexAlign.Center)
+            .onClick(() => { this.showIconPicker = true; })
+            .bindSheet($$this.showIconPicker, this.IconPickerSheet(), {
+              height: 340,
+              dragBar: true,
+              backgroundColor: COLOR_SURFACE_CONTAINER_HIGH
+            })
+
+            TextInput({ placeholder: '自动化名称', text: this.draft.name })
+              .onChange((value: string) => {
+                this.draft.name = value;
+              })
+              .backgroundColor(COLOR_SURFACE)
+              .height(56)
+              .layoutWeight(1)
+          }
+          .width('100%')
 
           // Conditions
           Column({ space: 12 }) {

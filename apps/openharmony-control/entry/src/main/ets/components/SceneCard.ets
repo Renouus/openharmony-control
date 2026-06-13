@@ -84,7 +84,7 @@ export struct SceneCard {
       Row({ space: 14 }) {
         Row() {
           AppSymbol({
-            name: sceneIconSymbol(this.scene.id),
+            name: this.scene.icon || sceneIconSymbol(this.scene.id),
             glyphSize: 20,
             color: COLOR_PRIMARY,
           })

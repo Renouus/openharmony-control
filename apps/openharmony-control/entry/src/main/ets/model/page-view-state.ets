@@ -156,6 +156,7 @@ export interface DeviceActionState {
 export interface SceneCardState {
   id: string;
   name: string;
+  icon?: string;
   description: string;
   enabled: boolean;
   triggerLabel: string;
@@ -498,6 +499,7 @@ export { createEmptyClimateViewStateData as createEmptyClimateViewState };
 
 export interface RoutineDraft {
   name: string;
+  icon?: string;
   conditions: ConditionDraft[];
   actions: ActionDraft[];
 }
