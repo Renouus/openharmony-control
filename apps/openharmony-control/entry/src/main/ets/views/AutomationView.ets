@@ -107,5 +107,6 @@ export struct AutomationView {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
+    .justifyContent(FlexAlign.Start)
   }
 }
