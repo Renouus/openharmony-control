@@ -146,7 +146,7 @@ export struct CreateAutomationView {
             }
             .width(56)
             .height(56)
-            .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+            .backgroundColor(COLOR_PRIMARY + '12')
             .borderRadius(16)
             .justifyContent(FlexAlign.Center)
             .onClick(() => { this.showIconPicker = true; })
@@ -160,12 +160,15 @@ export struct CreateAutomationView {
               .onChange((value: string) => {
                 this.draft.name = value;
               })
-              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-              .borderRadius(16)
+              .backgroundColor(Color.Transparent)
               .height(56)
               .layoutWeight(1)
           }
           .width('100%')
+          .padding({ left: 12, right: 16, top: 12, bottom: 12 })
+          .backgroundColor(COLOR_SURFACE)
+          .borderRadius(20)
+          .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
 
           // Conditions
           Column({ space: 12 }) {
@@ -173,50 +176,59 @@ export struct CreateAutomationView {
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
+              .width('100%')
+              .padding({ left: 4 })
             
-            ForEach(this.draft.conditions, (cond: ConditionDraft, index: number) => {
-              Row() {
-                Text(this.getConditionLabel(cond))
-                  .layoutWeight(1)
-                  .fontSize(15)
-                  .fontColor(COLOR_ON_SURFACE)
+            Column() {
+              ForEach(this.draft.conditions, (cond: ConditionDraft, index: number) => {
                 Row() {
-                  AppSymbol({ name: 'xmark', glyphSize: 14, color: COLOR_TEXT_MUTED })
+                  Text(this.getConditionLabel(cond))
+                    .layoutWeight(1)
+                    .fontSize(15)
+                    .fontColor(COLOR_ON_SURFACE)
+                  Row() {
+                    AppSymbol({ name: 'xmark', glyphSize: 14, color: COLOR_TEXT_MUTED })
+                  }
+                  .width(32)
+                  .height(32)
+                  .borderRadius(16)
+                  .justifyContent(FlexAlign.Center)
+                  .alignItems(VerticalAlign.Center)
+                  .onClick(() => {
+                    let newCond = [...this.draft.conditions];
+                    newCond.splice(index, 1);
+                    this.draft.conditions = newCond;
+                  })
                 }
-                .width(32)
-                .height(32)
-                .borderRadius(16)
-                .justifyContent(FlexAlign.Center)
+                .width('100%')
                 .alignItems(VerticalAlign.Center)
-                .onClick(() => {
-                  let newCond = [...this.draft.conditions];
-                  newCond.splice(index, 1);
-                  this.draft.conditions = newCond;
-                })
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-              .padding({ left: 20, right: 12, top: 12, bottom: 12 })
-              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-              .borderRadius(16)
-            })
-            
-            Button('+ 添加条件', { type: ButtonType.Normal })
-              .width('100%')
-              .height(48)
-              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-              .fontColor(COLOR_PRIMARY)
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .borderRadius(16)
-              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
-              .onClick(() => {
-                this.showConditionSheet = true;
+                .padding({ left: 16, right: 12, top: 16, bottom: 16 })
+                
+                if (index < this.draft.conditions.length - 1 || this.draft.conditions.length > 0) {
+                  Divider().color(COLOR_OUTLINE_VARIANT).strokeWidth(0.5).margin({ left: 16, right: 16 })
+                }
               })
-              .bindSheet($$this.showConditionSheet, this.ConditionSheetBuilder(), { height: SheetSize.MEDIUM })
+              
+              Button('+ 添加条件', { type: ButtonType.Normal })
+                .width('100%')
+                .height(48)
+                .backgroundColor(Color.Transparent)
+                .fontColor(COLOR_PRIMARY)
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+                .onClick(() => {
+                  this.showConditionSheet = true;
+                })
+            }
+            .width('100%')
+            .backgroundColor(COLOR_SURFACE)
+            .borderRadius(20)
+            .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
+            .clip(true)
+            .bindSheet($$this.showConditionSheet, this.ConditionSheetBuilder(), { height: SheetSize.MEDIUM })
           }
           .width('100%')
-          .alignItems(HorizontalAlign.Start)
 
           // Actions
           Column({ space: 12 }) {
@@ -224,50 +236,59 @@ export struct CreateAutomationView {
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
+              .width('100%')
+              .padding({ left: 4 })
             
-            ForEach(this.draft.actions, (action: ActionDraft, index: number) => {
-              Row() {
-                Text(this.getActionLabel(action))
-                  .layoutWeight(1)
-                  .fontSize(15)
-                  .fontColor(COLOR_ON_SURFACE)
+            Column() {
+              ForEach(this.draft.actions, (action: ActionDraft, index: number) => {
                 Row() {
-                  AppSymbol({ name: 'xmark', glyphSize: 14, color: COLOR_TEXT_MUTED })
+                  Text(this.getActionLabel(action))
+                    .layoutWeight(1)
+                    .fontSize(15)
+                    .fontColor(COLOR_ON_SURFACE)
+                  Row() {
+                    AppSymbol({ name: 'xmark', glyphSize: 14, color: COLOR_TEXT_MUTED })
+                  }
+                  .width(32)
+                  .height(32)
+                  .borderRadius(16)
+                  .justifyContent(FlexAlign.Center)
+                  .alignItems(VerticalAlign.Center)
+                  .onClick(() => {
+                    let newAct = [...this.draft.actions];
+                    newAct.splice(index, 1);
+                    this.draft.actions = newAct;
+                  })
                 }
-                .width(32)
-                .height(32)
-                .borderRadius(16)
-                .justifyContent(FlexAlign.Center)
+                .width('100%')
                 .alignItems(VerticalAlign.Center)
-                .onClick(() => {
-                  let newAct = [...this.draft.actions];
-                  newAct.splice(index, 1);
-                  this.draft.actions = newAct;
-                })
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-              .padding({ left: 20, right: 12, top: 12, bottom: 12 })
-              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-              .borderRadius(16)
-            })
-            
-            Button('+ 添加动作', { type: ButtonType.Normal })
-              .width('100%')
-              .height(48)
-              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-              .fontColor(COLOR_PRIMARY)
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .borderRadius(16)
-              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
-              .onClick(() => {
-                this.showActionSheet = true;
+                .padding({ left: 16, right: 12, top: 16, bottom: 16 })
+                
+                if (index < this.draft.actions.length - 1 || this.draft.actions.length > 0) {
+                  Divider().color(COLOR_OUTLINE_VARIANT).strokeWidth(0.5).margin({ left: 16, right: 16 })
+                }
               })
-              .bindSheet($$this.showActionSheet, this.ActionSheetBuilder(), { height: SheetSize.MEDIUM })
+              
+              Button('+ 添加动作', { type: ButtonType.Normal })
+                .width('100%')
+                .height(48)
+                .backgroundColor(Color.Transparent)
+                .fontColor(COLOR_PRIMARY)
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+                .onClick(() => {
+                  this.showActionSheet = true;
+                })
+            }
+            .width('100%')
+            .backgroundColor(COLOR_SURFACE)
+            .borderRadius(20)
+            .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
+            .clip(true)
+            .bindSheet($$this.showActionSheet, this.ActionSheetBuilder(), { height: SheetSize.MEDIUM })
           }
           .width('100%')
-          .alignItems(HorizontalAlign.Start)
         }
         .padding(16)
         .width('100%')
@@ -277,7 +298,7 @@ export struct CreateAutomationView {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(COLOR_SURFACE)
+    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
   }
 
   @Builder
