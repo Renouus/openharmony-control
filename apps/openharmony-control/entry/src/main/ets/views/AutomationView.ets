@@ -84,7 +84,7 @@ export struct AutomationView {
                 this.appState.automation.scenes = [...this.appState.automation.scenes];
               },
               onRun: () => {
-                this.controller.showToast('执行自动化: ' + scene.name);
+                console.info('执行自动化: ' + scene.name);
               }
             })
           }, (s: SceneCardState) => s.id)
