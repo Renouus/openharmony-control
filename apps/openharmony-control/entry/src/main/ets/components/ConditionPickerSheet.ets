@@ -1,7 +1,7 @@
 import { ConditionDraft, DevicePanelState } from '../model/page-view-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DevicePropertyConfig } from '../model/automation-capabilities';
-import { COLOR_PRIMARY, COLOR_SURFACE, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
+import { COLOR_PRIMARY, COLOR_SURFACE, COLOR_TEXT_MUTED, COLOR_SURFACE_CONTAINER, COLOR_ON_PRIMARY, COLOR_OUTLINE_VARIANT } from '../theme/smart-home-theme';
 
 @Component
 export struct ConditionPickerSheet {
@@ -52,7 +52,7 @@ export struct ConditionPickerSheet {
           .padding(16)
           .width('100%')
       }
-      .backgroundColor('#F5F5F5')
+      .backgroundColor(COLOR_SURFACE_CONTAINER)
       .borderRadius(8)
       .onClick(() => {
         this.selectedType = 'time';
@@ -65,7 +65,7 @@ export struct ConditionPickerSheet {
           .padding(16)
           .width('100%')
       }
-      .backgroundColor('#F5F5F5')
+      .backgroundColor(COLOR_SURFACE_CONTAINER)
       .borderRadius(8)
       .onClick(() => {
         this.selectedType = 'device';
@@ -93,6 +93,11 @@ export struct ConditionPickerSheet {
       selected: new Date()
     })
     .useMilitaryTime(false)
+    .textStyle({ color: COLOR_TEXT_MUTED, font: { size: '16vp', weight: FontWeight.Normal } })
+    .selectedTextStyle({ color: COLOR_PRIMARY, font: { size: '24vp', weight: FontWeight.Medium } })
+    .disappearTextStyle({ color: COLOR_OUTLINE_VARIANT, font: { size: '14vp', weight: FontWeight.Normal } })
+    .backgroundColor(Color.Transparent)
+    .margin({ top: 16, bottom: 16 })
     .onChange((value: TimePickerResult) => {
       let h = value.hour.toString().padStart(2, '0');
       let m = value.minute.toString().padStart(2, '0');
@@ -101,6 +106,10 @@ export struct ConditionPickerSheet {
 
     Button('完成')
       .width('100%')
+      .height(48)
+      .backgroundColor(COLOR_PRIMARY)
+      .fontColor(COLOR_ON_PRIMARY)
+      .borderRadius(24)
       .onClick(() => {
         this.onSelect({ id: Date.now().toString(), type: 'time', time: this.selectedTimeStr });
       })
@@ -136,7 +145,7 @@ export struct ConditionPickerSheet {
               .padding(16)
               .width('100%')
             }
-            .backgroundColor('#F5F5F5')
+            .backgroundColor(COLOR_SURFACE_CONTAINER)
             .borderRadius(8)
             .onClick(() => {
               this.selectedDeviceId = device.id;
@@ -177,10 +186,16 @@ export struct ConditionPickerSheet {
                 Column({ space: 8 }) {
                   Text(config.label).fontSize(16).fontWeight(FontWeight.Medium)
                   Row({ space: 10 }) {
-                    Button('开启').onClick(() => {
+                    Button('开启')
+                      .backgroundColor(COLOR_PRIMARY)
+                      .fontColor(COLOR_ON_PRIMARY)
+                      .onClick(() => {
                       this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '==', threshold: 'true' });
                     })
-                    Button('关闭').onClick(() => {
+                    Button('关闭')
+                      .backgroundColor(COLOR_SURFACE_CONTAINER)
+                      .fontColor(COLOR_PRIMARY)
+                      .onClick(() => {
                       this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '==', threshold: 'false' });
                     })
                   }
@@ -196,11 +211,19 @@ export struct ConditionPickerSheet {
                     max: config.range?.[1] || 100,
                     step: 1,
                   })
+                  .selectedColor(COLOR_PRIMARY)
+                  .blockColor(COLOR_PRIMARY)
                   .showSteps(true)
                   .onChange((value: number) => {
                     this.thresholdValue = value;
                   })
-                  Button('确定').width('100%').onClick(() => {
+                  Button('确定')
+                    .width('100%')
+                    .height(48)
+                    .backgroundColor(COLOR_PRIMARY)
+                    .fontColor(COLOR_ON_PRIMARY)
+                    .borderRadius(24)
+                    .onClick(() => {
                     this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '>', threshold: this.thresholdValue.toString() });
                   })
                 }
