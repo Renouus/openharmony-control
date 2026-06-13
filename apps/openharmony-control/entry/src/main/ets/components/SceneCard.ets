@@ -30,6 +30,7 @@ function sceneActionIcon(action: string): string {
 @Component
 export struct SceneCard {
   @Prop scene: SceneCardState;
+  @State isPressed: boolean = false;
   onToggle: (enabled: boolean) => void = () => {};
   onRun: () => void = () => {};
 
@@ -52,13 +53,15 @@ export struct SceneCard {
         Column({ space: 3 }) {
           Text(this.scene.name)
             .fontSize(22)
-            .fontColor(COLOR_ON_SURFACE)
+            .fontColor(this.scene.enabled ? COLOR_ON_SURFACE : COLOR_TEXT_MUTED)
             .fontFamily('serif')
-          Text(`When ${this.scene.triggerLabel}`)
-            .fontSize(13)
-            .fontColor(COLOR_ON_SURFACE_VARIANT)
-            .fontFamily('serif')
-            .fontStyle(FontStyle.Italic)
+          
+          if (this.scene.triggerLabel) {
+            Text(this.scene.triggerTypeLabel === 'manual' ? this.scene.triggerLabel : `条件: ${this.scene.triggerLabel}`)
+              .fontSize(13)
+              .fontColor(COLOR_ON_SURFACE_VARIANT)
+              .fontStyle(FontStyle.Italic)
+          }
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
@@ -112,28 +115,39 @@ export struct SceneCard {
       }
       .width('100%')
 
-      Row() {
-        Blank()
-        Button('Run Now')
-          .fontSize(13)
-          .fontColor('#FFFFFF')
-          .height(40)
-          .borderRadius(999)
-          .backgroundColor(COLOR_PRIMARY)
-          .padding({ left: 18, right: 18 })
-          .onClick(() => this.onRun())
+      if (this.scene.triggerTypeLabel === 'manual') {
+        Row() {
+          Blank()
+          Button('立即执行')
+            .fontSize(13)
+            .fontColor('#FFFFFF')
+            .height(40)
+            .borderRadius(999)
+            .backgroundColor(COLOR_PRIMARY)
+            .padding({ left: 18, right: 18 })
+            .onClick(() => this.onRun())
+        }
+        .width('100%')
       }
-      .width('100%')
     }
     .padding(22)
     .borderRadius(24)
     .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
     .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' })
     .shadow({
-      radius: this.scene.enabled ? 20 : 12,
+      radius: this.scene.enabled ? (this.isPressed ? 12 : 20) : 12,
       color: this.scene.enabled ? '#3A302A0F' : '#3A302A08',
       offsetX: 0,
-      offsetY: this.scene.enabled ? 6 : 4,
+      offsetY: this.scene.enabled ? (this.isPressed ? 3 : 6) : 4,
+    })
+    .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
+    .animation({ duration: 200, curve: Curve.EaseOut })
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down) {
+        this.isPressed = true;
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.isPressed = false;
+      }
     })
     .width('100%')
   }
