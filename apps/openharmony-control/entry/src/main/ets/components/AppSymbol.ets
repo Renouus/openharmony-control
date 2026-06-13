@@ -18,6 +18,10 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.arrow_clockwise');
     case 'add':
       return $r('sys.symbol.plus');
+    case 'edit':
+      return $r('sys.symbol.square_and_pencil');
+    case 'delete':
+      return $r('sys.symbol.trash');
     case 'menu':
       return $r('sys.symbol.more');
     case 'lock':
