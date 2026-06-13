@@ -329,6 +329,7 @@ export function mapHomeViewState(
   accessOverview: AccessOverview,
   cameras: CameraSnapshot[],
   feedback: string,
+  activeSceneId?: string,
 ): HomeViewStateData {
   const accessCard: SummaryCardState = {
     title: '门禁控制',
@@ -357,13 +358,13 @@ export function mapHomeViewState(
     { label: '在线', value: `${summary.devices.online}/${summary.devices.total}` },
   ];
 
-  const activeSceneId = scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
+  const finalActiveSceneId = activeSceneId ?? scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
   const quickScenes: SceneChipState[] = scenes.slice(0, 4).map((scene: SceneSnapshot) => {
     const chip: SceneChipState = {
       id: scene.id,
       label: scene.name,
       icon: sceneIcon(scene.id),
-      active: scene.id === activeSceneId,
+      active: scene.id === finalActiveSceneId,
     };
     return chip;
   });

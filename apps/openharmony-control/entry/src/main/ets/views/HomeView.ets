@@ -194,6 +194,9 @@ struct HomeContent {
           Blank()
         }
         .width('100%')
+        .onClick(() => {
+          this.navStack.pushPathByName('automation', null);
+        })
 
         Scroll() {
           Row({ space: 14 }) {
@@ -202,7 +205,7 @@ struct HomeContent {
                 scene,
                 onTap: () => this.controller.handleHomeRunScene(this.appState, scene.id),
               })
-            }, (scene: SceneChipState) => scene.id)
+            }, (scene: SceneChipState) => `${scene.id}_${scene.active}`)
           }
           .padding({ right: 20, top: 6, bottom: 16 })
         }
@@ -220,7 +223,7 @@ struct HomeContent {
             onRoomTap: (roomId: string) => this.handleRoomTap(roomId),
             onDeviceTap: (deviceId: string, kind: string) => this.handleDeviceTap(deviceId, kind),
           })
-        }, (room: HomeRoomSectionState) => room.roomId)
+        }, (room: HomeRoomSectionState) => `${room.roomId}_${room.devices.map(d => `${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`).join('-')}`)
       }
       .width('100%')
 

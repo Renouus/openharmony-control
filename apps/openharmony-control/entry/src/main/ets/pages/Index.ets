@@ -60,12 +60,14 @@ struct Index {
     // 注入导航回调 — 所有视图中的 navStack.push/pop 都会转发到这里
     this.navStack.setCallbacks(
       (name: string, param: Object | null) => { 
-        this.currentSubPage = name; 
-        this.subPageParam = param;
+        if (isSubPageId(name as AppPageId)) {
+          this.pushSubPage(name, param);
+        } else {
+          this.setTabPage(name as AppPageId);
+        }
       },
       () => { 
-        this.currentSubPage = ''; 
-        this.subPageParam = null;
+        this.popSubPage();
       }
     );
     this.isLoading = true;
@@ -92,6 +94,7 @@ struct Index {
 
   private setTabPage(page: AppPageId): void {
     this.closeTransientUi();
+    this.popSubPage();
     animateTo({ duration: 300, curve: Curve.Friction }, () => {
       this.currentTab = tabIndexForPage(page);
     });

@@ -9,13 +9,19 @@ describe("device snapshot routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       devices: [
-        { id: "door-front", kind: "door-lock" },
-        { id: "sensor-living-room", kind: "environment-sensor" },
+        { id: "door-front", kind: "door-lock", room: "entry" },
+        { id: "light-entry", kind: "light", room: "entry" },
+        { id: "door-back", kind: "door-lock", room: "kitchen" },
+        { id: "sensor-living-room", kind: "environment-sensor", room: "living-room" },
+        { id: "sensor-bedroom", kind: "environment-sensor", room: "bedroom" },
+        { id: "sensor-motion-living-room", kind: "motion-sensor", room: "living-room" },
+        { id: "sensor-motion-kitchen", kind: "motion-sensor", room: "kitchen" },
         { id: "light-living-room", kind: "light", room: "living-room" },
         { id: "light-kitchen", kind: "light", room: "kitchen" },
         { id: "light-bedroom", kind: "light", room: "bedroom" },
         { id: "light-bathroom", kind: "light", room: "bathroom" },
-        { id: "ac-living-room", kind: "air-conditioner" },
+        { id: "ac-living-room", kind: "air-conditioner", room: "living-room" },
+        { id: "ac-bedroom", kind: "air-conditioner", room: "bedroom" },
       ],
     });
   });
@@ -55,7 +61,7 @@ describe("device snapshot routes", () => {
     expect(response.json()).toMatchObject({
       mode: "home",
       security: { secure: true },
-      devices: { total: 7, online: 7, offline: 0 },
+      devices: { total: 13, online: 13, offline: 0 },
       lighting: { active: 2 },
       environment: { aqi: 12, label: "优秀" },
     });
@@ -68,15 +74,16 @@ describe("device snapshot routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       rooms: {
-        entry: 1,
-        "living-room": 3,
-        kitchen: 1,
-        bedroom: 1,
+        entry: 2,
+        "living-room": 4,
+        kitchen: 3,
+        bedroom: 3,
         bathroom: 1,
       },
       lighting: {
         active: 2,
         rooms: {
+          entry: { total: 1, active: 0, averageBrightness: 0 },
           "living-room": { total: 1, active: 1, averageBrightness: 80 },
           kitchen: { total: 1, active: 0, averageBrightness: 0 },
           bedroom: { total: 1, active: 1, averageBrightness: 55 },

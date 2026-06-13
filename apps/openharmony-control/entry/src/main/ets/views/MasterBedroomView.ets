@@ -22,7 +22,7 @@ export struct MasterBedroomView {
   @Consume('navStack') navStack: NavProxy;
 
   private getRoomDevices(): HomeDeviceCardState[] {
-    const room = this.appState.home.rooms.find(r => r.roomId === 'master-bedroom');
+    const room = this.appState.home.rooms.find(r => r.roomId === 'bedroom');
     return room?.devices ?? [];
   }
 

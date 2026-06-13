@@ -15,9 +15,10 @@ import type {
 } from "./device-simulator";
 
 export class AirConditionerDevice implements DeviceSimulator {
-  readonly deviceId = "ac-living-room";
+  readonly deviceId: string;
 
   constructor(
+    deviceId = "ac-living-room",
     private current: DeviceState = {
       power: false,
       targetTemperature: 26,
@@ -26,7 +27,9 @@ export class AirConditionerDevice implements DeviceSimulator {
     },
     private readonly adapter: AirConditionerAdapter =
       new SimulatedAirConditionerAdapter("haier"),
-  ) {}
+  ) {
+    this.deviceId = deviceId;
+  }
 
   execute(command: DeviceCommand): DeviceExecutionResult {
     this.current = {

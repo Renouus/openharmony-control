@@ -13,6 +13,7 @@
  */
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import { SimulatedAirConditionerAdapter } from "./adapters/air-conditioner-adapter";
 import { AirConditionerDevice } from "./devices/air-conditioner-device";
 import { DoorLockDevice } from "./devices/door-lock-device";
 import { LightDevice } from "./devices/light-device";
@@ -38,14 +39,21 @@ export function buildApp(
   const sceneRegistry = new SceneRegistry();
   const faultState = createDemoFaultState();
 
-  // 6 个设备模拟器：1 门锁 + 4 灯光 + 1 空调
+  // 9 个设备模拟器：2 门锁 + 5 灯光 + 2 空调
   const simulators = [
     new DoorLockDevice(),
+    new DoorLockDevice("door-back", { locked: true, online: true }),
     new LightDevice(),
+    new LightDevice("light-entry", { power: false, brightness: 0, colorTemperature: 3000 }),
     new LightDevice("light-kitchen", { power: false, brightness: 0, colorTemperature: 4200 }),
     new LightDevice("light-bedroom", { power: true, brightness: 55, colorTemperature: 2800 }),
     new LightDevice("light-bathroom", { power: false, brightness: 0, colorTemperature: 3600 }),
     new AirConditionerDevice(),
+    new AirConditionerDevice(
+      "ac-bedroom",
+      { power: false, targetTemperature: 26, online: true },
+      new SimulatedAirConditionerAdapter("gree"),
+    ),
   ];
 
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问）

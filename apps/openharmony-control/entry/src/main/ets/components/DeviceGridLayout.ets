@@ -44,33 +44,38 @@ export struct SmallDeviceCard {
         AppSymbol({
           name: this.iconText(),
           glyphSize: 18,
-          color: this.isOn() ? COLOR_PRIMARY : COLOR_SECONDARY,
+          color: this.isOn() ? COLOR_ON_PRIMARY : COLOR_SECONDARY,
         })
       }
       .width(40)
       .height(40)
       .borderRadius(20)
-      .backgroundColor(this.isOn() ? COLOR_PRIMARY_SOFT : COLOR_SURFACE_CONTAINER_HIGH)
+      .backgroundColor(this.isOn() ? '#33FFFFFF' : COLOR_SURFACE_CONTAINER_HIGH)
       .justifyContent(FlexAlign.Center)
 
       Column({ space: 3 }) {
         Text(this.device.name)
           .fontSize(13)
           .fontWeight(FontWeight.Bold)
-          .fontColor(COLOR_ON_SURFACE)
+          .fontColor(this.isOn() ? COLOR_ON_PRIMARY : COLOR_ON_SURFACE)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.device.statusLabel)
           .fontSize(11)
-          .fontColor(COLOR_TEXT_MUTED)
+          .fontColor(this.isOn() ? COLOR_ON_PRIMARY + 'E6' : COLOR_TEXT_MUTED)
+          .opacity(0.9)
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
     }
     .padding(12)
     .borderRadius(16)
-    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-    .shadow({ radius: 14, color: '#3A302A0D', offsetX: 0, offsetY: 4 })
+    .backgroundColor(this.isOn() ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOW)
+    .shadow(this.isOn() ? {
+      radius: 16, color: '#C2652A33', offsetX: 0, offsetY: 6,
+    } : {
+      radius: 14, color: '#3A302A0D', offsetX: 0, offsetY: 4,
+    })
     .width('100%')
     .height(this.fillHeight ? '100%' : undefined)
     .onClick(() => this.onTap())
@@ -201,8 +206,12 @@ export struct DeviceGridLayout {
         }
       }
 
+      const stateHash = [...smalls, ...(large ? [large] : [])]
+        .map(d => `${d.id}_${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`)
+        .join('-');
+
       chunks.push({
-        id: `chunk_${i}`,
+        id: `chunk_${i}_${stateHash}`,
         large,
         smalls,
         reversed

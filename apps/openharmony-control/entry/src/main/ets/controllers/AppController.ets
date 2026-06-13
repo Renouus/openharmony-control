@@ -34,6 +34,7 @@ const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
 export class AppController {
   readonly repository: SmartHomeRepository;
   readonly homeViewModel: HomeViewModel;
+  private activeSceneId?: string;
   readonly lightingViewModel: LightingViewModel;
   readonly accessViewModel: AccessViewModel;
   readonly cameraViewModel: CameraViewModel;
@@ -115,7 +116,7 @@ export class AppController {
 
   private async fetchHome(feedback: string = ''): Promise<HomeViewStateData> {
     try {
-      return await this.homeViewModel.load(feedback);
+      return await this.homeViewModel.load(feedback, this.activeSceneId);
     } catch {
       const next = createEmptyHomeViewStateData();
       next.feedback = 'Control center unavailable';
@@ -195,6 +196,7 @@ export class AppController {
 
   async handleHomeRunScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
     const feedback = await this.homeViewModel.runScene(sceneId);
+    this.activeSceneId = sceneId;
     return this.refreshPlannedTargets(snapshot, 'homeRunScene', feedback);
   }
 
@@ -321,6 +323,7 @@ export class AppController {
 
   async handleAutomationRunScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
     const feedback = await this.automationViewModel.runScene(sceneId);
+    this.activeSceneId = sceneId;
     return this.refreshPlannedTargets(snapshot, 'automationRunScene', feedback);
   }
 

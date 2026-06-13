@@ -44,6 +44,26 @@ export class DeviceRegistry {
       },
       { room: "entry", displayOrder: 10 },
     );
+    this.register(
+      {
+        id: "light-entry",
+        name: "玄关廊灯",
+        kind: DeviceKind.Light,
+        capabilities: [
+          DeviceCapability.Switch,
+          DeviceCapability.Brightness,
+          DeviceCapability.ColorTemperature,
+        ],
+        state: {
+          power: false,
+          brightness: 0,
+          colorTemperature: 3000,
+          updatedAt: now,
+          online: true,
+        },
+      },
+      { room: "entry", displayOrder: 12 },
+    );
     // ── 客厅区域 ──
     this.register(
       {
@@ -118,6 +138,30 @@ export class DeviceRegistry {
       },
       { room: "kitchen", displayOrder: 35 },
     );
+    this.register(
+      {
+        id: "door-back",
+        name: "后门智能锁",
+        kind: DeviceKind.DoorLock,
+        capabilities: [DeviceCapability.Lock],
+        state: { locked: true, updatedAt: now, online: true },
+      },
+      { room: "kitchen", displayOrder: 15 },
+    );
+    this.register(
+      {
+        id: "sensor-motion-kitchen",
+        name: "厨房人体感应",
+        kind: DeviceKind.MotionSensor,
+        capabilities: [DeviceCapability.MotionDetection],
+        state: {
+          motionDetected: false,
+          updatedAt: now,
+          online: true,
+        },
+      },
+      { room: "kitchen", displayOrder: 26 },
+    );
     // ── 主卧 ──
     this.register(
       {
@@ -138,6 +182,43 @@ export class DeviceRegistry {
         },
       },
       { room: "bedroom", displayOrder: 36 },
+    );
+    this.register(
+      {
+        id: "sensor-bedroom",
+        name: "卧室环境传感器",
+        kind: DeviceKind.EnvironmentSensor,
+        capabilities: [DeviceCapability.EnvironmentReading],
+        state: {
+          temperature: 22,
+          humidity: 45,
+          aqi: 15,
+          filterLife: 95,
+          purifierActive: false,
+          updatedAt: now,
+          online: true,
+        },
+      },
+      { room: "bedroom", displayOrder: 22 },
+    );
+    this.register(
+      {
+        id: "ac-bedroom",
+        name: "卧室空调",
+        brand: "gree",
+        kind: DeviceKind.AirConditioner,
+        capabilities: [
+          DeviceCapability.Switch,
+          DeviceCapability.TargetTemperature,
+        ],
+        state: {
+          power: false,
+          targetTemperature: 26,
+          updatedAt: now,
+          online: true,
+        },
+      },
+      { room: "bedroom", displayOrder: 42 },
     );
     // ── 浴室 ──
     this.register(

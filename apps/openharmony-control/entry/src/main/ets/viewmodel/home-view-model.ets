@@ -21,7 +21,7 @@ export class HomeViewModel {
     this.repository = repository;
   }
 
-  async load(feedback: string = ''): Promise<HomeViewStateData> {
+  async load(feedback: string = '', activeSceneId?: string): Promise<HomeViewStateData> {
     const summary: HomeSummary = await this.repository.getSummary();
     let devices: DeviceSnapshot[] = [];
     let scenes: SceneSnapshot[] = [];
@@ -52,6 +52,7 @@ export class HomeViewModel {
       accessOverview,
       cameras,
       feedback,
+      activeSceneId,
     );
   }
 
