@@ -257,6 +257,7 @@ struct Index {
         .layoutWeight(1)
       } else if (pageName === 'createAutomation') {
         CreateAutomationView({
+          appState: this.appState,
           onCancel: () => this.popSubPage(),
           onSave: (draft) => {
             console.info('Draft saved in Index:', JSON.stringify(draft));

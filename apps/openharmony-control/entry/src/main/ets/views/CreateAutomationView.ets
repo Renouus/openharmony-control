@@ -3,9 +3,11 @@ import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
+import { AppStateSnapshot } from '../model/app-state';
 
 @Component
 export struct CreateAutomationView {
+  @Prop appState: AppStateSnapshot;
   @State draft: RoutineDraft = { name: '', conditions: [], actions: [] };
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
@@ -146,20 +148,18 @@ export struct CreateAutomationView {
         }
         .padding(16)
         .width('100%')
-        .constraintSize({ minHeight: '100%' })
-        .justifyContent(FlexAlign.Start)
       }
       .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
     .backgroundColor(COLOR_SURFACE)
-    .justifyContent(FlexAlign.Start)
   }
 
   @Builder
   ConditionSheetBuilder() {
     ConditionPickerSheet({
+      appState: this.appState,
       onSelect: (condition) => {
         this.draft.conditions = [...this.draft.conditions, condition];
         this.showConditionSheet = false;
@@ -170,6 +170,7 @@ export struct CreateAutomationView {
   @Builder
   ActionSheetBuilder() {
     ActionPickerSheet({
+      appState: this.appState,
       onSelect: (action) => {
         this.draft.actions = [...this.draft.actions, action];
         this.showActionSheet = false;

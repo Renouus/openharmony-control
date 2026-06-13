@@ -1,7 +1,10 @@
 import { ConditionDraft } from '../model/page-view-state';
 
+import { AppStateSnapshot } from '../model/app-state';
+
 @Component
 export struct ConditionPickerSheet {
+  @Prop appState: AppStateSnapshot;
   onSelect: (condition: ConditionDraft) => void = () => {};
 
   build() {

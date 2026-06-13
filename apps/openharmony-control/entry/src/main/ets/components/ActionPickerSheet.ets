@@ -1,7 +1,10 @@
 import { ActionDraft } from '../model/page-view-state';
 
+import { AppStateSnapshot } from '../model/app-state';
+
 @Component
 export struct ActionPickerSheet {
+  @Prop appState: AppStateSnapshot;
   onSelect: (action: ActionDraft) => void = () => {};
 
   build() {
