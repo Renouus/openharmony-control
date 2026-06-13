@@ -9,10 +9,79 @@ import {
   COLOR_TEXT_MUTED,
 } from '../theme/smart-home-theme';
 import { AppSymbol } from './AppSymbol';
+import camera from '@ohos.multimedia.camera';
+import abilityAccessCtrl from '@ohos.abilityAccessCtrl';
+import common from '@ohos.app.ability.common';
 
 @Component
 export struct AddDeviceSheet {
   onClose: () => void = () => {};
+
+  @State hasCameraPermission: boolean = false;
+  private cameraManager: camera.CameraManager | undefined;
+  private cameraSession: camera.CaptureSession | undefined;
+  private previewOutput: camera.PreviewOutput | undefined;
+  private cameraInput: camera.CameraInput | undefined;
+  private xComponentController: XComponentController = new XComponentController();
+
+  aboutToAppear() {
+    this.requestCameraPermission();
+  }
+
+  aboutToDisappear() {
+    this.releaseCamera();
+  }
+
+  async requestCameraPermission() {
+    let context = getContext(this) as common.UIAbilityContext;
+    let atManager = abilityAccessCtrl.createAtManager();
+    try {
+      let data = await atManager.requestPermissionsFromUser(context, ['ohos.permission.CAMERA']);
+      if (data.authResults[0] === 0) {
+        this.hasCameraPermission = true;
+      }
+    } catch (e) {
+      console.error('Camera permission request failed', JSON.stringify(e));
+    }
+  }
+
+  async initCamera(surfaceId: string) {
+    if (!this.hasCameraPermission) return;
+    try {
+      this.cameraManager = camera.getCameraManager(getContext(this));
+      let cameras = this.cameraManager.getSupportedCameras();
+      let rearCamera = cameras.find(c => c.cameraPosition === camera.CameraPosition.CAMERA_POSITION_BACK) || cameras[0];
+      if (!rearCamera) return;
+
+      this.cameraInput = this.cameraManager.createCameraInput(rearCamera);
+      await this.cameraInput.open();
+
+      let cameraOutputCapability = this.cameraManager.getSupportedOutputCapability(rearCamera, camera.SceneMode.NORMAL_VIDEO);
+      let previewProfile = cameraOutputCapability.previewProfiles[0];
+
+      this.previewOutput = this.cameraManager.createPreviewOutput(previewProfile, surfaceId);
+
+      this.cameraSession = this.cameraManager.createCaptureSession();
+      this.cameraSession.beginConfig();
+      this.cameraSession.addInput(this.cameraInput);
+      this.cameraSession.addOutput(this.previewOutput);
+      await this.cameraSession.commitConfig();
+      await this.cameraSession.start();
+    } catch (e) {
+      console.error('Failed to init camera', JSON.stringify(e));
+    }
+  }
+
+  releaseCamera() {
+    try {
+      this.cameraSession?.stop();
+      this.cameraSession?.release();
+      this.cameraInput?.close();
+      this.previewOutput?.release();
+    } catch (e) {
+      console.error('Failed to release camera', JSON.stringify(e));
+    }
+  }
 
   build() {
     Column({ space: 22 }) {
@@ -48,27 +117,38 @@ export struct AddDeviceSheet {
         .width('100%')
 
       Stack({ alignContent: Alignment.Center }) {
-        Column({ space: 18 }) {
-          Row() {
-            AppSymbol({ name: 'add', glyphSize: 42, color: COLOR_PRIMARY })
+        if (this.hasCameraPermission) {
+          XComponent({ id: 'add_device_camera', type: XComponentType.SURFACE, controller: this.xComponentController })
+            .onLoad(() => {
+              let surfaceId = this.xComponentController.getXComponentSurfaceId();
+              this.initCamera(surfaceId);
+            })
+            .width('100%')
+            .height('100%')
+            .borderRadius(32)
+        } else {
+          Column({ space: 18 }) {
+            Row() {
+              AppSymbol({ name: 'add', glyphSize: 42, color: COLOR_PRIMARY })
+            }
+            .width(88)
+            .height(88)
+            .borderRadius(44)
+            .backgroundColor(COLOR_PRIMARY + '12')
+            .justifyContent(FlexAlign.Center)
+
+            Text('准备扫描')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(COLOR_ON_SURFACE)
+
+            Text('将相机对准设备标签或中枢贴纸。')
+              .fontSize(12)
+              .fontColor(COLOR_TEXT_MUTED)
+              .textAlign(TextAlign.Center)
           }
-          .width(88)
-          .height(88)
-          .borderRadius(44)
-          .backgroundColor(COLOR_PRIMARY + '12')
-          .justifyContent(FlexAlign.Center)
-
-          Text('准备扫描')
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(COLOR_ON_SURFACE)
-
-          Text('将相机对准设备标签或中枢贴纸。')
-            .fontSize(12)
-            .fontColor(COLOR_TEXT_MUTED)
-            .textAlign(TextAlign.Center)
+          .alignItems(HorizontalAlign.Center)
         }
-        .alignItems(HorizontalAlign.Center)
 
         Row()
           .width('78%')
@@ -79,8 +159,9 @@ export struct AddDeviceSheet {
       .width('100%')
       .height(248)
       .borderRadius(32)
+      .clip(true)
       .backgroundColor(COLOR_SURFACE_CONTAINER_HIGHEST)
-      .padding(24)
+      .padding(this.hasCameraPermission ? 0 : 24)
 
       Column({ space: 14 }) {
         Text('手动输入')
