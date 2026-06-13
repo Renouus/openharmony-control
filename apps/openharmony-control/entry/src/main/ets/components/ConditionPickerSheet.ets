@@ -13,7 +13,14 @@ export struct ConditionPickerSheet {
   @State selectedDeviceId: string = '';
   @State selectedPropertyConfig: DevicePropertyConfig | null = null;
   @State thresholdValue: number = 25; // Default for slider
-  @State selectedTimeStr: string = '08:00';
+  @State selectedTimeStr: string = '';
+
+  aboutToAppear() {
+    let now = new Date();
+    let h = now.getHours().toString().padStart(2, '0');
+    let m = now.getMinutes().toString().padStart(2, '0');
+    this.selectedTimeStr = `${h}:${m}`;
+  }
 
   build() {
     Column({ space: 16 }) {
