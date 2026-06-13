@@ -2,7 +2,8 @@ import { RoutineDraft, ConditionDraft, ActionDraft, DevicePanelState, SceneChipS
 import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
-import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
+import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED,
+  COLOR_SURFACE_CONTAINER_HIGH } from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DevicePropertyConfig, DeviceCommandConfig } from '../model/automation-capabilities';
 
@@ -251,6 +252,7 @@ export struct CreateAutomationView {
         .padding(16)
         .width('100%')
       }
+      .align(Alignment.Top)
       .layoutWeight(1)
     }
     .width('100%')
