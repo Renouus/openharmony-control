@@ -4,6 +4,7 @@ import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { DEVICE_CAPABILITIES, DevicePropertyConfig, DeviceCommandConfig } from '../model/automation-capabilities';
 
 @Component
 export struct CreateAutomationView {
@@ -13,6 +14,44 @@ export struct CreateAutomationView {
   @State showActionSheet: boolean = false;
   onCancel: () => void = () => {};
   onSave: (draft: RoutineDraft) => void = () => {};
+
+  getConditionLabel(cond: ConditionDraft): string {
+    if (cond.type === 'time') {
+      return `定时: ${cond.time}`;
+    }
+    if (cond.type === 'device') {
+      let device = this.appState.home.devices.find((d: DevicePanelState) => d.id === cond.deviceId);
+      if (!device) return '未知设备';
+      let cap = DEVICE_CAPABILITIES[device.kind]?.conditions?.find((c: DevicePropertyConfig) => c.property === cond.property);
+      let propLabel = cap ? cap.label : cond.property;
+      let thresholdLabel = cond.threshold === 'true' ? '开启' : (cond.threshold === 'false' ? '关闭' : cond.threshold);
+      let opLabel = cond.operator === '==' ? '变为' : (cond.operator === '>' ? '大于' : cond.operator);
+      return `${device.roomName} ${device.name} ${propLabel} ${opLabel} ${thresholdLabel}`;
+    }
+    return '未知条件';
+  }
+
+  getActionLabel(action: ActionDraft): string {
+    if (action.type === 'scene') {
+      let scene = this.appState.home.quickScenes.find((s: SceneChipState) => s.id === action.sceneId);
+      return scene ? `执行场景: ${scene.label}` : '未知场景';
+    }
+    if (action.type === 'device') {
+      let device = this.appState.home.devices.find((d: DevicePanelState) => d.id === action.deviceId);
+      if (!device) return '未知设备';
+      
+      let cmdParts = (action.command || '').split(':');
+      let cmdName = cmdParts[0];
+      let cmdValue = cmdParts.length > 1 ? cmdParts[1] : '';
+      
+      let cap = DEVICE_CAPABILITIES[device.kind]?.actions?.find((a: DeviceCommandConfig) => a.command === cmdName);
+      let cmdLabel = cap ? cap.label : cmdName;
+      let valLabel = cmdValue === 'true' ? '开启' : (cmdValue === 'false' ? '关闭' : cmdValue);
+      
+      return `${device.roomName} ${device.name} ${cmdLabel} ${valLabel}`;
+    }
+    return '未知动作';
+  }
 
   build() {
     Column() {
@@ -71,7 +110,7 @@ export struct CreateAutomationView {
             
             ForEach(this.draft.conditions, (cond: ConditionDraft, index: number) => {
               Row() {
-                Text(cond.type === 'time' ? '定时: ' + cond.time : '设备状态')
+                Text(this.getConditionLabel(cond))
                   .layoutWeight(1)
                   .fontSize(16)
                 Text('X')
@@ -113,7 +152,7 @@ export struct CreateAutomationView {
             
             ForEach(this.draft.actions, (action: ActionDraft, index: number) => {
               Row() {
-                Text(action.type === 'scene' ? '场景' : '设备')
+                Text(this.getActionLabel(action))
                   .layoutWeight(1)
                   .fontSize(16)
                 Text('X')
