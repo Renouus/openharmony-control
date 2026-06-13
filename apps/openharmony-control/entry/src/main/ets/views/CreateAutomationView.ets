@@ -99,7 +99,7 @@ export struct CreateAutomationView {
           })
         Text('新建自动化')
           .fontSize(18)
-          .fontWeight(FontWeight.Bold)
+          .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
@@ -145,7 +145,7 @@ export struct CreateAutomationView {
             }
             .width(56)
             .height(56)
-            .backgroundColor(COLOR_SURFACE)
+            .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
             .borderRadius(16)
             .justifyContent(FlexAlign.Center)
             .onClick(() => { this.showIconPicker = true; })
@@ -159,7 +159,8 @@ export struct CreateAutomationView {
               .onChange((value: string) => {
                 this.draft.name = value;
               })
-              .backgroundColor(COLOR_SURFACE)
+              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+              .borderRadius(16)
               .height(56)
               .layoutWeight(1)
           }
@@ -176,29 +177,36 @@ export struct CreateAutomationView {
               Row() {
                 Text(this.getConditionLabel(cond))
                   .layoutWeight(1)
-                  .fontSize(16)
-                Text('X')
-                  .fontSize(16)
-                  .fontColor('#FF4444')
-                  .onClick(() => {
-                    let newCond = [...this.draft.conditions];
-                    newCond.splice(index, 1);
-                    this.draft.conditions = newCond;
-                  })
+                  .fontSize(15)
+                  .fontColor(COLOR_ON_SURFACE)
+                Row() {
+                  AppSymbol({ name: 'xmark', glyphSize: 14, color: COLOR_TEXT_MUTED })
+                }
+                .width(32)
+                .height(32)
+                .borderRadius(16)
+                .justifyContent(FlexAlign.Center)
+                .onClick(() => {
+                  let newCond = [...this.draft.conditions];
+                  newCond.splice(index, 1);
+                  this.draft.conditions = newCond;
+                })
               }
               .width('100%')
-              .padding(16)
-              .backgroundColor('#F5F5F5')
-              .borderRadius(8)
+              .padding({ left: 20, right: 12, top: 12, bottom: 12 })
+              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+              .borderRadius(16)
             })
             
             Button('+ 添加条件', { type: ButtonType.Normal })
               .width('100%')
               .height(48)
-              .backgroundColor(Color.Transparent)
+              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
               .fontColor(COLOR_PRIMARY)
-              .border({ width: 1, color: COLOR_OUTLINE_VARIANT, style: BorderStyle.Dashed })
-              .borderRadius(12)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .borderRadius(16)
+              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
               .onClick(() => {
                 this.showConditionSheet = true;
               })
@@ -218,29 +226,36 @@ export struct CreateAutomationView {
               Row() {
                 Text(this.getActionLabel(action))
                   .layoutWeight(1)
-                  .fontSize(16)
-                Text('X')
-                  .fontSize(16)
-                  .fontColor('#FF4444')
-                  .onClick(() => {
-                    let newAct = [...this.draft.actions];
-                    newAct.splice(index, 1);
-                    this.draft.actions = newAct;
-                  })
+                  .fontSize(15)
+                  .fontColor(COLOR_ON_SURFACE)
+                Row() {
+                  AppSymbol({ name: 'xmark', glyphSize: 14, color: COLOR_TEXT_MUTED })
+                }
+                .width(32)
+                .height(32)
+                .borderRadius(16)
+                .justifyContent(FlexAlign.Center)
+                .onClick(() => {
+                  let newAct = [...this.draft.actions];
+                  newAct.splice(index, 1);
+                  this.draft.actions = newAct;
+                })
               }
               .width('100%')
-              .padding(16)
-              .backgroundColor('#F5F5F5')
-              .borderRadius(8)
+              .padding({ left: 20, right: 12, top: 12, bottom: 12 })
+              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+              .borderRadius(16)
             })
             
             Button('+ 添加动作', { type: ButtonType.Normal })
               .width('100%')
               .height(48)
-              .backgroundColor(Color.Transparent)
+              .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
               .fontColor(COLOR_PRIMARY)
-              .border({ width: 1, color: COLOR_OUTLINE_VARIANT, style: BorderStyle.Dashed })
-              .borderRadius(12)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .borderRadius(16)
+              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
               .onClick(() => {
                 this.showActionSheet = true;
               })
