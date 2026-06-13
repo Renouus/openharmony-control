@@ -23,6 +23,7 @@ import { KitchenView } from '../views/KitchenView';
 import { LivingRoomView } from '../views/LivingRoomView';
 import { MasterBedroomView } from '../views/MasterBedroomView';
 import { LightControlView } from '../views/LightControlView';
+import { ScenesListView } from '../views/ScenesListView';
 import {
   COLOR_BG,
   COLOR_BORDER,
@@ -242,6 +243,13 @@ struct Index {
       } else if (pageName === 'lightControl') {
         Scroll() {
           LightControlView({ deviceId: this.subPageParam as string, appState: this.appState, home: this.appState.home })
+            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
+        }
+        .scrollBar(BarState.Off)
+        .layoutWeight(1)
+      } else if (pageName === 'scenesList') {
+        Scroll() {
+          ScenesListView({ appState: this.appState })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)

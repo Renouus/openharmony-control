@@ -195,7 +195,7 @@ struct HomeContent {
         }
         .width('100%')
         .onClick(() => {
-          this.navStack.pushPathByName('automation', null);
+          this.navStack.pushPathByName('scenesList', null);
         })
 
         Scroll() {
