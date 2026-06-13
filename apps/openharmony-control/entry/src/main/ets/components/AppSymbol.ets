@@ -16,6 +16,8 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.arrow_left');
     case 'refresh':
       return $r('sys.symbol.arrow_clockwise');
+    case 'xmark':
+      return $r('sys.symbol.xmark');
     case 'add':
       return $r('sys.symbol.plus');
     case 'edit':
