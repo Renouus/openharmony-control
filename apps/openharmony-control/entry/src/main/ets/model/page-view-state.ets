@@ -14,7 +14,8 @@ export type AppPageId =
   | 'livingRoom'
   | 'masterBedroom'
   | 'pendantLight'
-  | 'familySettings';
+  | 'familySettings'
+  | 'scenesList';
 
 // ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
 
@@ -155,6 +156,7 @@ export interface SceneCardState {
   triggerTypeLabel: string;
   actions: string[];
   repeatLabel: string;
+  deviceActions?: { icon: string, text: string }[];
 }
 
 export interface HistoryRowState {
