@@ -54,5 +54,16 @@ export struct AccessPointCard {
     .shadow({ radius: 10, color: '#3A302A06', offsetX: 0, offsetY: 3 })
     .alignItems(HorizontalAlign.Start)
     .width('100%')
+    .stateStyles({
+      pressed: {
+        .scale({ x: 0.95, y: 0.95 })
+        .opacity(0.8)
+      },
+      normal: {
+        .scale({ x: 1, y: 1 })
+        .opacity(1)
+      }
+    })
+    .animation({ duration: 250, curve: Curve.Friction })
   }
 }

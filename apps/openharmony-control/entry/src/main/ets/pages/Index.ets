@@ -1,11 +1,12 @@
-import { AppPageId } from '../model/page-view-state';
+import { AppPageId, RoomItemState } from '../model/page-view-state';
 import { isSubPageId } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
-import { AppHeader } from '../components/AppHeader';
+import { AppHeader, AppHeaderMenuItem } from '../components/AppHeader';
 import { TabButton } from '../components/TabButton';
 import { AddDeviceSheet } from '../components/AddDeviceSheet';
+import { AddRoomSheet } from '../components/AddRoomSheet';
 import { HeaderActionMenu, HeaderActionMenuItem } from '../components/HeaderActionMenu';
 import { HomeView } from '../views/HomeView';
 import { AutomationView } from '../views/AutomationView';
@@ -18,10 +19,7 @@ import { ClimateView } from '../views/ClimateView';
 import { SceneEditorView } from '../views/SceneEditorView';
 import { RoutineEditorView } from '../views/RoutineEditorView';
 import { FamilySettingsView } from '../views/FamilySettingsView';
-import { BathroomView } from '../views/BathroomView';
-import { KitchenView } from '../views/KitchenView';
-import { LivingRoomView } from '../views/LivingRoomView';
-import { MasterBedroomView } from '../views/MasterBedroomView';
+import { GenericRoomView } from '../views/GenericRoomView';
 import { LightControlView } from '../views/LightControlView';
 import { ScenesListView } from '../views/ScenesListView';
 import { CreateAutomationView } from '../views/CreateAutomationView';
@@ -57,6 +55,8 @@ struct Index {
   @State isRefreshing: boolean = false;
   @State isHeaderMenuOpen: boolean = false;
   @State isAddSheetOpen: boolean = false;
+  @State isAddRoomSheetOpen: boolean = false;
+  @State isEditRoomSheetOpen: boolean = false;
 
   async aboutToAppear(): Promise<void> {
     // 注入导航回调 — 所有视图中的 navStack.push/pop 都会转发到这里
@@ -119,10 +119,12 @@ struct Index {
   private closeTransientUi(): void {
     this.isHeaderMenuOpen = false;
     this.isAddSheetOpen = false;
+    this.isAddRoomSheetOpen = false;
   }
 
   private toggleHeaderMenu(): void {
     this.isAddSheetOpen = false;
+    this.isAddRoomSheetOpen = false;
     this.isHeaderMenuOpen = !this.isHeaderMenuOpen;
   }
 
@@ -133,7 +135,42 @@ struct Index {
 
   private handleHeaderMenuSelect(item: HeaderActionMenuItem): void {
     this.isHeaderMenuOpen = false;
-    this.setPage(item as AppPageId);
+    if (item === 'createRoom') {
+      this.isAddRoomSheetOpen = true;
+    } else {
+      this.setPage(item as AppPageId);
+    }
+  }
+
+  private getAppHeaderTitle(): string {
+    if (this.isOnSubPage() && this.currentSubPage === 'room') {
+      const roomId = this.subPageParam as string;
+      const room = this.appState.roomList.rooms.find((r: RoomItemState) => r.id === roomId);
+      return room ? room.name : 'OmniHome';
+    }
+    return 'OmniHome';
+  }
+
+  private getAppHeaderMenuItems(): AppHeaderMenuItem[] {
+    if (this.isOnSubPage() && this.currentSubPage === 'room') {
+      return [
+        {
+          value: '编辑房间',
+          action: () => {
+            this.isEditRoomSheetOpen = true;
+          }
+        },
+        {
+          value: '删除房间',
+          action: async () => {
+            const roomId = this.subPageParam as string;
+            await this.controller.handleDeleteRoom(this.appState, roomId);
+            this.popSubPage();
+          }
+        }
+      ];
+    }
+    return [];
   }
 
   private handleTopRefresh(): void {
@@ -151,20 +188,22 @@ struct Index {
   // ── Sub-page overlay content ─────────────────────────────────────────────
 
   @Builder
-  SubPageOverlay(pageName: string) {
+  SubPageOverlay() {
     Column() {
       // 子页面内容
-      if (pageName === 'lighting') {
+      if (this.currentSubPage === 'lighting') {
         Scroll() {
           LightingView({ appState: this.appState })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'access') {
+      } else if (this.currentSubPage === 'access') {
         Scroll() {
           AccessView({
             appState: this.appState,
+            access: this.appState.access,
+            camera: this.appState.camera,
             onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
             onShareGuest: () => this.controller.handleShareGuest(this.appState),
             onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
@@ -173,14 +212,14 @@ struct Index {
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'camera') {
+      } else if (this.currentSubPage === 'camera') {
         Scroll() {
           CameraView({ appState: this.appState })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'climate') {
+      } else if (this.currentSubPage === 'climate') {
         Scroll() {
           ClimateView({
             appState: this.appState,
@@ -192,77 +231,65 @@ struct Index {
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'sceneEditor') {
-        Scroll() {
-          SceneEditorView()
-            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
-        }
-        .scrollBar(BarState.Off)
-        .layoutWeight(1)
-      } else if (pageName === 'routineEditor') {
+        .align(Alignment.Top)
+      } else if (this.currentSubPage === 'routineEditor') {
         Scroll() {
           RoutineEditorView()
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'familySettings') {
+      } else if (this.currentSubPage === 'familySettings') {
         Scroll() {
           FamilySettingsView()
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'bathroom') {
+      } else if (this.currentSubPage === 'room') {
         Scroll() {
-          BathroomView({ appState: this.appState })
+          GenericRoomView({ roomId: this.subPageParam as string, appState: this.appState })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'kitchen') {
-        Scroll() {
-          KitchenView({ appState: this.appState })
-            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
-        }
-        .scrollBar(BarState.Off)
-        .layoutWeight(1)
-      } else if (pageName === 'livingRoom') {
-        Scroll() {
-          LivingRoomView({ appState: this.appState })
-            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
-        }
-        .scrollBar(BarState.Off)
-        .layoutWeight(1)
-      } else if (pageName === 'masterBedroom') {
-        Scroll() {
-          MasterBedroomView({ appState: this.appState })
-            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
-        }
-        .scrollBar(BarState.Off)
-        .layoutWeight(1)
-      } else if (pageName === 'lightControl') {
+      } else if (this.currentSubPage === 'lightControl') {
         Scroll() {
           LightControlView({ deviceId: this.subPageParam as string, appState: this.appState, home: this.appState.home })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'scenesList') {
+      } else if (this.currentSubPage === 'scenesList') {
         Scroll() {
-          ScenesListView({ appState: this.appState })
+          ScenesListView({ appState: this.appState, automation: this.appState.automation })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
-      } else if (pageName === 'createAutomation') {
+        .align(Alignment.Top)
+      } else if (this.currentSubPage === 'createAutomation') {
         CreateAutomationView({
           appState: this.appState,
           onCancel: () => this.popSubPage(),
-          onSave: (scene) => {
-            console.info('Scene saved in Index:', JSON.stringify(scene));
-            let newScenes = [scene, ...this.appState.automation.scenes];
-            this.appState.automation.scenes = newScenes;
+          onSave: (payload) => {
+            console.info('Automation saved in Index:', JSON.stringify(payload));
+            this.controller.handleCreateScene(this.appState, payload);
+            this.popSubPage();
+          }
+        })
+        .layoutWeight(1)
+      } else if (this.currentSubPage === 'sceneEditor') {
+        SceneEditorView({
+          appState: this.appState,
+          editingSceneId: this.subPageParam as string,
+          onCancel: () => this.popSubPage(),
+          onSave: (payload) => {
+            if (this.subPageParam) {
+              this.controller.handleUpdateScene(this.appState, this.subPageParam as string, payload);
+            } else {
+              this.controller.handleCreateScene(this.appState, payload);
+            }
             this.popSubPage();
           }
         })
@@ -281,13 +308,16 @@ struct Index {
       Column() {
         AppHeader({
           isSubPage: this.isOnSubPage(),
+          title: this.getAppHeaderTitle(),
+          showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room',
+          menuItems: this.getAppHeaderMenuItems(),
           onBack: () => this.popSubPage(),
           onAdd: () => this.openAddDeviceSheet(),
           onMenu: () => this.toggleHeaderMenu(),
         })
 
         if (this.isOnSubPage()) {
-          this.SubPageOverlay(this.currentSubPage)
+          this.SubPageOverlay()
         } else {
           Stack({ alignContent: Alignment.Bottom }) {
             Scroll() {
@@ -295,11 +325,11 @@ struct Index {
                 if (this.currentTab === 0) {
                   HomeView({ appState: this.appState })
                 } else if (this.currentTab === 1) {
-                  AutomationView({ appState: this.appState })
+                  AutomationView({ appState: this.appState, automation: this.appState.automation })
                 } else if (this.currentTab === 2) {
-                  NotificationsView({ appState: this.appState })
+                  NotificationsView({ appState: this.appState, notifications: this.appState.notifications })
                 } else {
-                  FamilyView({ appState: this.appState })
+                  FamilyView({ appState: this.appState, family: this.appState.family })
                 }
               }
               .padding({ left: 20, right: 20, top: 16, bottom: 120 })
@@ -377,6 +407,30 @@ struct Index {
         .justifyContent(FlexAlign.End)
         .backgroundColor('#201B142E')
         .onClick(() => this.closeTransientUi())
+      }
+
+      if (this.isAddRoomSheetOpen) {
+        Column() {
+          Blank()
+          AddRoomSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+        .backgroundColor('#201B142E')
+        .onClick(() => this.closeTransientUi())
+      }
+
+      if (this.isEditRoomSheetOpen) {
+        Column() {
+          Blank()
+          AddRoomSheet({ appState: this.appState, editingRoomId: this.subPageParam as string, onClose: () => { this.isEditRoomSheetOpen = false; } })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+        .backgroundColor('#201B142E')
+        .onClick(() => { this.isEditRoomSheetOpen = false; })
       }
 
       if (this.isLoading) {

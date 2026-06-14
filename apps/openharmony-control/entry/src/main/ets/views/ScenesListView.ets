@@ -1,6 +1,7 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { SceneCardState, DeviceActionState } from '../model/page-view-state';
+import { SceneCardState, DeviceActionState, AutomationViewState } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
+import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
 import {
   COLOR_ON_SURFACE,
@@ -16,7 +17,23 @@ import {
 @Component
 export struct ScenesListView {
   @ObjectLink appState: AppStateSnapshot;
+  @ObjectLink automation: AutomationViewState;
   @Consume('controller') controller: AppController;
+  @Consume('navStack') navStack: NavProxy;
+
+  @Builder
+  SceneMenu(sceneId: string) {
+    Menu() {
+      MenuItem({ content: '编辑场景' })
+        .onClick(() => {
+          this.navStack.pushPathByName('sceneEditor', sceneId);
+        })
+      MenuItem({ content: '删除场景' })
+        .onClick(() => {
+          this.controller.handleDeleteScene(this.appState, sceneId);
+        })
+    }
+  }
 
   private getIconBackground(index: number): string {
     return index % 2 === 0 ? COLOR_SECONDARY_CONTAINER : COLOR_PRIMARY_CONTAINER;
@@ -41,12 +58,12 @@ export struct ScenesListView {
         .width('100%')
 
       Column({ space: 20 }) {
-        ForEach(this.appState.automation.scenes.filter(s => s.triggerTypeLabel === 'manual'), (scene: SceneCardState, index: number) => {
+        ForEach(this.automation.scenes.filter((s: SceneCardState) => s.triggerTypeLabel === 'manual'), (scene: SceneCardState, index: number) => {
           Column() {
             Row() {
               Row({ space: 16 }) {
                 Row() {
-                  AppSymbol({ name: this.getIconName(index), glyphSize: 20, color: this.getIconColor(index) })
+                  AppSymbol({ name: scene.icon || this.getIconName(index), glyphSize: 20, color: this.getIconColor(index) })
                 }
                 .width(40)
                 .height(40)
@@ -69,6 +86,7 @@ export struct ScenesListView {
               .layoutWeight(1)
 
               AppSymbol({ name: 'more_horiz', glyphSize: 24, color: COLOR_TEXT_MUTED })
+                .bindMenu(this.SceneMenu(scene.id))
             }
             .width('100%')
             .alignItems(VerticalAlign.Top)
@@ -122,6 +140,9 @@ export struct ScenesListView {
         .justifyContent(FlexAlign.Center)
         .border({ width: 1, color: COLOR_OUTLINE_VARIANT, style: BorderStyle.Dashed })
         .borderRadius(16)
+        .onClick(() => {
+          this.navStack.pushPathByName('sceneEditor', null);
+        })
       }
       .width('100%')
     }

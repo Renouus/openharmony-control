@@ -1,6 +1,5 @@
 import {
-  BrightnessPayload,
-  ColorTemperaturePayload,
+  BrightnessPayload, TemperaturePayload, ColorTemperaturePayload,
   SwitchPayload,
 } from '../services/device-api';
 import { LightingViewStateData } from '../model/page-view-state';

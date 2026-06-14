@@ -91,7 +91,7 @@ export type DeviceHealthName =
   (typeof DeviceHealth)[keyof typeof DeviceHealth];
 
 /** 房间名称 */
-export type RoomName = "entry" | "living-room" | "bedroom" | "kitchen" | "bathroom";
+export type RoomName = string;
 
 /** 门禁入口点 ID */
 export const AccessPointId = {
@@ -171,7 +171,7 @@ export const SceneId = {
   Movie: "movie",
 } as const;
 
-export type SceneIdName = (typeof SceneId)[keyof typeof SceneId];
+export type SceneIdName = string; // Allows dynamic scenes like scene-12345
 
 /** 设备命令名称联合类型 */
 export type DeviceCommandName =
@@ -269,7 +269,7 @@ export function isCommandStatus(value: unknown): value is CommandStatusName {
 
 /** 类型守卫：验证值是否为合法场景 ID */
 export function isSceneId(value: unknown): value is SceneIdName {
-  return Object.values(SceneId).includes(value as SceneIdName);
+  return typeof value === 'string' && value.length > 0;
 }
 
 /** 类型守卫：验证值是否为合法门禁入口点 ID */

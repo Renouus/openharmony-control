@@ -15,9 +15,12 @@ import {
   createEmptyAutomationViewStateData,
   createEmptyFamilyViewStateData,
   createEmptyNotificationsViewStateData,
+  RoomItemState,
 } from '../model/page-view-state';
+import { mapRoomList } from '../model/smart-home-mappers';
 import { createRefreshPlan, AppPageRefreshTarget, IndexPageAction } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
+import { ScenePayloadDraft } from '../services/device-api';
 import { DeviceApi } from '../services/device-api';
 import { SmartHomeRepository } from '../services/smart-home-repository';
 import { HomeViewModel } from '../viewmodel/home-view-model';
@@ -67,6 +70,7 @@ export class AppController {
     snapshot.assignAutomation(await this.fetchAutomation(feedback));
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
+    snapshot.assignRoomList(await this.fetchRoomList());
   }
 
   async refreshTargets(
@@ -113,6 +117,18 @@ export class AppController {
   }
 
   // ── Private fetch helpers ─────────────────────────────────────────────────
+
+  private async fetchRoomList(): Promise<RoomItemState[]> {
+    try {
+      const rooms = await this.repository.listRooms();
+      const devices = await this.repository.listDevices();
+      return mapRoomList(rooms, devices);
+    } catch {
+      return [];
+    }
+  }
+
+  // ── Action Handlers ─────────────────────────────────────────────────────────
 
   private async fetchHome(feedback: string = ''): Promise<HomeViewStateData> {
     try {
@@ -327,10 +343,88 @@ export class AppController {
     return this.refreshPlannedTargets(snapshot, 'automationRunScene', feedback);
   }
 
+  async handleCreateScene(snapshot: AppStateSnapshot, payload: ScenePayloadDraft): Promise<void> {
+    try {
+      await this.repository.createScene(payload);
+      snapshot.assignAutomation(await this.fetchAutomation('场景已创建'));
+      snapshot.assignHome(await this.fetchHome('场景已创建'));
+    } catch {
+      snapshot.assignAutomation(await this.fetchAutomation('创建场景失败'));
+      snapshot.assignHome(await this.fetchHome('创建场景失败'));
+    }
+  }
+
+  async handleUpdateScene(snapshot: AppStateSnapshot, sceneId: string, payload: ScenePayloadDraft): Promise<void> {
+    try {
+      await this.repository.updateScene(sceneId, payload);
+      snapshot.assignAutomation(await this.fetchAutomation('场景已更新'));
+      snapshot.assignHome(await this.fetchHome('场景已更新'));
+    } catch {
+      snapshot.assignAutomation(await this.fetchAutomation('更新场景失败'));
+      snapshot.assignHome(await this.fetchHome('更新场景失败'));
+    }
+  }
+
+  async handleDeleteScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
+    try {
+      await this.repository.deleteScene(sceneId);
+      snapshot.assignAutomation(await this.fetchAutomation('场景已删除'));
+      snapshot.assignHome(await this.fetchHome('场景已删除'));
+    } catch {
+      snapshot.assignAutomation(await this.fetchAutomation('删除场景失败'));
+      snapshot.assignHome(await this.fetchHome('删除场景失败'));
+    }
+  }
+
   // ====== Family handlers ======
 
   async handleFamilyBroadcast(snapshot: AppStateSnapshot, message: string = 'Whole-home broadcast'): Promise<void> {
     const feedback = await this.familyViewModel.sendBroadcast(message);
     return this.refreshPlannedTargets(snapshot, 'familyBroadcast', feedback);
   }
+
+  // ====== Room handlers ======
+
+  async handleCreateRoom(snapshot: AppStateSnapshot, name: string, icon: string): Promise<void> {
+    try {
+      await this.repository.createRoom(name, icon);
+      snapshot.assignRoomList(await this.fetchRoomList());
+      snapshot.assignHome(await this.fetchHome('房间已创建'));
+    } catch {
+      snapshot.assignHome(await this.fetchHome('创建房间失败'));
+    }
+  }
+
+  async handleUpdateRoom(snapshot: AppStateSnapshot, roomId: string, name?: string, icon?: string): Promise<void> {
+    try {
+      await this.repository.updateRoom(roomId, name, icon);
+      snapshot.assignRoomList(await this.fetchRoomList());
+      snapshot.assignHome(await this.fetchHome('房间已更新'));
+    } catch {
+      snapshot.assignHome(await this.fetchHome('更新房间失败'));
+    }
+  }
+
+  async handleDeleteRoom(snapshot: AppStateSnapshot, roomId: string): Promise<void> {
+    try {
+      await this.repository.deleteRoom(roomId);
+      snapshot.assignRoomList(await this.fetchRoomList());
+      snapshot.assignHome(await this.fetchHome('房间已删除'));
+    } catch {
+      snapshot.assignHome(await this.fetchHome('删除房间失败'));
+    }
+  }
+
+  async handleAssignDeviceToRoom(snapshot: AppStateSnapshot, deviceIds: string[], roomId: string): Promise<void> {
+    try {
+      for (const deviceId of deviceIds) {
+        await this.repository.updateDeviceRoom(deviceId, roomId);
+      }
+      snapshot.assignRoomList(await this.fetchRoomList());
+      snapshot.assignHome(await this.fetchHome('设备已分配'));
+    } catch {
+      snapshot.assignHome(await this.fetchHome('分配设备失败'));
+    }
+  }
 }
+

@@ -114,6 +114,7 @@ struct FamilySettingsRow {
 @Component
 export struct FamilyView {
   @ObjectLink appState: AppStateSnapshot;
+  @ObjectLink family: FamilyViewState;
   @Consume('controller') controller: AppController;
 
   
@@ -132,7 +133,7 @@ export struct FamilyView {
         .width('100%')
         .justifyContent(FlexAlign.Center)
 
-        Text(this.appState.family.title)
+        Text(this.family.title)
           .fontSize(38)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -140,7 +141,7 @@ export struct FamilyView {
           .width('100%')
           .textAlign(TextAlign.Center)
 
-        Text(this.appState.family.address)
+        Text(this.family.address)
           .fontSize(13)
           .fontColor(COLOR_TEXT_MUTED)
           .letterSpacing(1.4)
@@ -160,13 +161,13 @@ export struct FamilyView {
             .fontColor(COLOR_ON_SURFACE)
             .fontFamily('serif')
             .layoutWeight(1)
-          Text(`${this.appState.family.presentCount} 人活跃`)
+          Text(`${this.family.presentCount} 人活跃`)
             .fontSize(13)
             .fontColor(COLOR_TEXT_MUTED)
         }
         .width('100%')
 
-        ForEach(this.appState.family.members, (member: FamilyMemberCardState) => {
+        ForEach(this.family.members, (member: FamilyMemberCardState) => {
           FamilyMemberCard({ member })
         }, (member: FamilyMemberCardState) => member.id)
       }
@@ -262,7 +263,7 @@ export struct FamilyView {
         .width('100%')
 
         Column({ space: 0 }) {
-          ForEach(this.appState.family.activities, (activity: FamilyActivityState, index: number) => {
+          ForEach(this.family.activities, (activity: FamilyActivityState, index: number) => {
             Column({ space: 8 }) {
               Row() {
                 Column({ space: 4 }) {
@@ -279,7 +280,7 @@ export struct FamilyView {
               }
               .width('100%')
 
-              if (index < this.appState.family.activities.length - 1) {
+              if (index < this.family.activities.length - 1) {
                 Divider().color(COLOR_OUTLINE_VARIANT + '4D')
               }
             }
@@ -337,8 +338,8 @@ export struct FamilyView {
       }
       .width('100%')
 
-      if (this.appState.family.feedback.length > 0) {
-        Text(this.appState.family.feedback)
+      if (this.family.feedback.length > 0) {
+        Text(this.family.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)

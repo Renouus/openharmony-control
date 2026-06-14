@@ -1,7 +1,7 @@
 import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppSymbol } from './AppSymbol';
 
-export type HeaderActionMenuItem = 'sceneEditor' | 'createAutomation' | 'familySettings';
+export type HeaderActionMenuItem = 'sceneEditor' | 'createAutomation' | 'familySettings' | 'createRoom';
 
 interface HeaderActionConfig {
   id: HeaderActionMenuItem;
@@ -28,6 +28,12 @@ const HEADER_ACTIONS: HeaderActionConfig[] = [
     icon: 'group',
     title: '家庭设置',
     subtitle: '管理成员、家庭信息和访问权限。',
+  },
+  {
+    id: 'createRoom',
+    icon: 'add',
+    title: '添加房间',
+    subtitle: '创建自定义房间分组设备。',
   },
 ];
 

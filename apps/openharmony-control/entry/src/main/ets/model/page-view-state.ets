@@ -17,7 +17,8 @@ export type AppPageId =
   | 'pendantLight'
   | 'familySettings'
   | 'scenesList'
-  | 'lightControl';
+  | 'lightControl'
+  | 'room';
 
 // ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
 
@@ -203,6 +204,14 @@ export interface ClimateUsageBarState {
   active: boolean;
 }
 
+export interface RoomItemState {
+  id: string;
+  name: string;
+  icon: string;
+  builtIn: boolean;
+  deviceCount: number;
+}
+
 // ── @Observed view-state classes ──────────────────────────────────────────────
 // Each class is the reactive counterpart consumed by views via @ObjectLink.
 // ViewModels still return plain objects; AppStateSnapshot.assign*() copies
@@ -299,6 +308,11 @@ export class ClimateViewState {
   modes: ClimateModeState[] = [];
   usageBars: ClimateUsageBarState[] = [];
   feedback: string = '';
+}
+
+@Observed
+export class RoomListState {
+  rooms: RoomItemState[] = [];
 }
 
 // ── Plain-object factory helpers (still used by ViewModels & tests) ───────────
@@ -485,6 +499,10 @@ export function createEmptyClimateViewStateData(): ClimateViewStateData {
   };
 }
 
+export function createEmptyRoomListState(): RoomListState {
+  return new RoomListState();
+}
+
 // ── Legacy aliases kept for backward compatibility with ViewModels & tests ────
 // ViewModels return *Data types; callers that previously used the old names
 // still compile cleanly via these aliases.
@@ -498,16 +516,16 @@ export { createEmptyNotificationsViewStateData as createEmptyNotificationsViewSt
 export { createEmptyFamilyViewStateData as createEmptyFamilyViewState };
 export { createEmptyClimateViewStateData as createEmptyClimateViewState };
 
-export interface RoutineDraft {
-  name: string;
+export class RoutineDraft {
+  name: string = '';
   icon?: string;
-  conditions: ConditionDraft[];
-  actions: ActionDraft[];
+  conditions: ConditionDraft[] = [];
+  actions: ActionDraft[] = [];
 }
 
-export interface ConditionDraft {
-  id: string;
-  type: 'time' | 'device';
+export class ConditionDraft {
+  id: string = '';
+  type: 'time' | 'device' = 'time';
   time?: string;
   deviceId?: string;
   property?: string;
@@ -515,9 +533,9 @@ export interface ConditionDraft {
   threshold?: string;
 }
 
-export interface ActionDraft {
-  id: string;
-  type: 'device' | 'scene';
+export class ActionDraft {
+  id: string = '';
+  type: 'device' | 'scene' = 'device';
   deviceId?: string;
   command?: string;
   sceneId?: string;

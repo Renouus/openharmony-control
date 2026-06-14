@@ -54,7 +54,8 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'pendantLight' ||
     page === 'familySettings' ||
     page === 'scenesList' ||
-    page === 'lightControl';
+    page === 'lightControl' ||
+    page === 'room';
 }
 
 export function navigateToPage(state: IndexPageState, page: AppPageId): IndexPageState {

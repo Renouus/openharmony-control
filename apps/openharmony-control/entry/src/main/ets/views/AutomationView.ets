@@ -16,6 +16,7 @@ import {
 @Component
 export struct AutomationView {
   @ObjectLink appState: AppStateSnapshot;
+  @ObjectLink automation: AutomationViewState;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
@@ -40,7 +41,7 @@ export struct AutomationView {
 
 
 
-      if (this.appState.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual').length === 0) {
+      if (this.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual').length === 0) {
         Column({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
           Text('暂无自动化')
@@ -57,14 +58,14 @@ export struct AutomationView {
         })
       } else {
         Column({ space: 16 }) {
-          ForEach(this.appState.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual'), (scene: SceneCardState) => {
+          ForEach(this.automation.scenes.filter(s => s.triggerTypeLabel !== 'manual'), (scene: SceneCardState) => {
             SceneCard({
               scene: scene,
               onToggle: (enabled: boolean) => {
                 scene.enabled = enabled;
                 // Since @ObjectLink doesn't do deep proxying automatically on array items,
                 // we'll trigger a UI update by re-assigning the array
-                this.appState.automation.scenes = [...this.appState.automation.scenes];
+                this.automation.scenes = [...this.automation.scenes];
               },
               onRun: () => {
                 console.info('执行自动化: ' + scene.name);
@@ -74,7 +75,7 @@ export struct AutomationView {
                 // Future: Navigate to edit screen
               },
               onDelete: () => {
-                this.appState.automation.scenes = this.appState.automation.scenes.filter(item => item.id !== scene.id);
+                this.automation.scenes = this.automation.scenes.filter(item => item.id !== scene.id);
               }
             })
           }, (s: SceneCardState) => s.id)
@@ -106,8 +107,8 @@ export struct AutomationView {
         .height(1)
         .backgroundColor(COLOR_OUTLINE_VARIANT + '66')
 
-      if (this.appState.automation.feedback.length > 0) {
-        Text(this.appState.automation.feedback)
+      if (this.automation.feedback.length > 0) {
+        Text(this.automation.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)

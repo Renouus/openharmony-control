@@ -5,6 +5,18 @@ export interface DeviceListResponse {
   devices: DeviceSnapshot[];
 }
 
+export interface RoomItem {
+  id: string;
+  name: string;
+  icon: string;
+  builtIn: boolean;
+  createdAt: number;
+}
+
+export interface RoomListResponse {
+  rooms: RoomItem[];
+}
+
 export interface HomeSummary {
   mode: string;
   security: SummarySecurity;
@@ -86,6 +98,39 @@ export interface SceneSnapshot {
   repeat: string[];
   actionsLabel: string[];
   commands: SceneCommand[];
+}
+
+export class SceneCommandPayload {
+  on?: boolean;
+  locked?: boolean;
+  targetTemperature?: number;
+  brightness?: number;
+}
+
+export class SceneCommandDraft {
+  deviceId: string = '';
+  name: string = '';
+  payload: SceneCommandPayload = new SceneCommandPayload();
+}
+
+export class SceneTriggerDraft {
+  type: string = '';
+  label: string = '';
+}
+
+export class ScenePayloadDraft {
+  name: string = '';
+  icon?: string;
+  enabled: boolean = true;
+  description: string = '';
+  trigger: SceneTriggerDraft = new SceneTriggerDraft();
+  repeat: string[] = [];
+  actionsLabel: string[] = [];
+  commands: SceneCommandDraft[] = [];
+}
+
+export class SceneEnablePayload {
+  enabled: boolean = false;
 }
 
 export interface SceneTrigger {
@@ -262,6 +307,78 @@ export class DeviceApi {
     }
   }
 
+  async listRooms(): Promise<RoomItem[]> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/rooms`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      const body = JSON.parse(response.result as string) as RoomListResponse;
+      return body.rooms;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async createRoom(name: string, icon: string): Promise<RoomItem> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/rooms`, {
+        method: http.RequestMethod.POST,
+        header: { 'Content-Type': 'application/json' },
+        extraData: JSON.stringify({ name, icon }),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as RoomItem;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateRoom(id: string, name?: string, icon?: string): Promise<RoomItem> {
+    const client = http.createHttp();
+    try {
+      const payload: Record<string, string> = {};
+      if (name !== undefined) payload.name = name;
+      if (icon !== undefined) payload.icon = icon;
+      
+      const response = await client.request(`${this.baseUrl}/api/rooms/${id}`, {
+        method: http.RequestMethod.PUT,
+        header: { 'Content-Type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as RoomItem;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async deleteRoom(id: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      await client.request(`${this.baseUrl}/api/rooms/${id}`, {
+        method: http.RequestMethod.DELETE,
+      });
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateDeviceRoom(deviceId: string, roomId: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      await client.request(`${this.baseUrl}/api/devices/${deviceId}/room`, {
+        method: http.RequestMethod.PUT,
+        header: { 'Content-Type': 'application/json' },
+        extraData: JSON.stringify({ room: roomId }),
+      });
+    } finally {
+      client.destroy();
+    }
+  }
+
   async getSummary(): Promise<HomeSummary> {
     const client = http.createHttp();
     try {
@@ -304,13 +421,49 @@ export class DeviceApi {
     }
   }
 
-  async updateScene(sceneId: string, enabled: boolean): Promise<void> {
+  async createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/scenes`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const data = JSON.parse(response.result as string) as Record<string, Object>;
+      return data.scene as SceneSnapshot;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot> {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
         method: http.RequestMethod.PUT,
         header: { 'content-type': 'application/json' },
-        extraData: JSON.stringify({ enabled }),
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const data = JSON.parse(response.result as string) as Record<string, Object>;
+      return data.scene as SceneSnapshot;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async deleteScene(sceneId: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
+        method: http.RequestMethod.DELETE,
         expectDataType: http.HttpDataType.STRING,
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {

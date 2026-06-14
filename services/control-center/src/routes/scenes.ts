@@ -39,6 +39,16 @@ export async function registerSceneRoutes(
     scenes: options.sceneRegistry.list(),
   }));
 
+  // POST /api/scenes             — 创建场景
+  app.post("/api/scenes", async (request, reply) => {
+    const body = request.body as Omit<SceneDescriptor, "id">;
+    if (!body || !body.name || !body.trigger) {
+      return reply.code(400).send({ code: "INVALID_PAYLOAD" });
+    }
+    const scene = options.sceneRegistry.create(body);
+    return reply.code(201).send({ scene });
+  });
+
   // PATCH /api/scenes/:sceneId   — 启用/停用指定场景
   app.patch("/api/scenes/:sceneId", async (request, reply) => {
     const { sceneId } = request.params as { sceneId: string };
@@ -55,19 +65,31 @@ export async function registerSceneRoutes(
     return { scene };
   });
 
+  // PUT /api/scenes/:sceneId     — 更新指定场景全部信息
   app.put("/api/scenes/:sceneId", async (request, reply) => {
     const { sceneId } = request.params as { sceneId: string };
     if (!isSceneId(sceneId)) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }
-    const body = request.body as { enabled?: boolean };
-    const scene = options.sceneRegistry.update(sceneId, {
-      enabled: body.enabled,
-    });
+    const body = request.body as Partial<Omit<SceneDescriptor, "id">>;
+    const scene = options.sceneRegistry.update(sceneId, body);
     if (!scene) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }
     return { scene };
+  });
+
+  // DELETE /api/scenes/:sceneId  — 删除场景
+  app.delete("/api/scenes/:sceneId", async (request, reply) => {
+    const { sceneId } = request.params as { sceneId: string };
+    if (!isSceneId(sceneId)) {
+      return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
+    }
+    const success = options.sceneRegistry.delete(sceneId);
+    if (!success) {
+      return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
+    }
+    return reply.code(204).send();
   });
 
   // POST /api/scenes/:sceneId/run — 执行场景（批量命令）

@@ -15,6 +15,8 @@ import {
   AutomationViewState,
   NotificationsViewState,
   FamilyViewState,
+  RoomListState,
+  RoomItemState,
 } from '../model/page-view-state';
 
 @Observed
@@ -27,6 +29,7 @@ export class AppStateSnapshot {
   automation: AutomationViewState = new AutomationViewState();
   notifications: NotificationsViewState = new NotificationsViewState();
   family: FamilyViewState = new FamilyViewState();
+  roomList: RoomListState = new RoomListState();
 
   // In-place mutation so @Observed proxies propagate changes to @ObjectLink subscribers
   assignHome(data: HomeViewStateData): void {
@@ -103,5 +106,9 @@ export class AppStateSnapshot {
     this.family.members = data.members;
     this.family.activities = data.activities;
     this.family.feedback = data.feedback;
+  }
+
+  assignRoomList(rooms: RoomItemState[]): void {
+    this.roomList.rooms = rooms;
   }
 }

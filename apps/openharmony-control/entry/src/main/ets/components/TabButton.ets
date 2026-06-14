@@ -38,6 +38,16 @@ export struct TabButton {
     .padding({ left: this.selected ? 16 : 0, right: this.selected ? 16 : 0 })
     .borderRadius(24)
     .backgroundColor(this.selected ? COLOR_PRIMARY : 'transparent')
+    .stateStyles({
+      pressed: {
+        .scale({ x: 0.9, y: 0.9 })
+        .opacity(0.8)
+      },
+      normal: {
+        .scale({ x: 1, y: 1 })
+        .opacity(1)
+      }
+    })
     .onClick(() => this.onTap())
     .animation({ duration: 300, curve: Curve.Friction })
   }

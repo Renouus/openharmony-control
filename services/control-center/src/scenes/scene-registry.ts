@@ -88,18 +88,45 @@ export class SceneRegistry {
     return this.list().find((scene) => scene.id === sceneId);
   }
 
-  /** 更新场景的 enabled 状态 */
-  update(sceneId: SceneIdName, patch: { enabled?: boolean }): SceneDescriptor | undefined {
+  /** 创建新场景 */
+  create(sceneData: Omit<SceneDescriptor, "id">): SceneDescriptor {
+    const id = `scene-${Date.now()}`;
+    const newScene: SceneDescriptor = {
+      ...sceneData,
+      id,
+      commands: sceneData.commands ? sceneData.commands.map((c) => ({ ...c })) : [],
+    };
+    this.scenes.push(newScene);
+    return this.find(id)!;
+  }
+
+  /** 更新场景的所有支持字段 */
+  update(sceneId: SceneIdName, patch: Partial<Omit<SceneDescriptor, "id">>): SceneDescriptor | undefined {
     const scene = this.scenes.find((item) => item.id === sceneId);
     if (!scene) {
       return undefined;
     }
-    if (patch.enabled !== undefined) {
-      scene.enabled = patch.enabled;
+    
+    if (patch.name !== undefined) scene.name = patch.name;
+    if (patch.description !== undefined) scene.description = patch.description;
+    if (patch.enabled !== undefined) scene.enabled = patch.enabled;
+    if (patch.trigger !== undefined) scene.trigger = patch.trigger;
+    if (patch.repeat !== undefined) scene.repeat = patch.repeat;
+    if (patch.actionsLabel !== undefined) scene.actionsLabel = patch.actionsLabel;
+    if (patch.commands !== undefined) {
+      scene.commands = patch.commands.map(c => ({ ...c }));
     }
-    return {
-      ...scene,
-      commands: scene.commands.map((command) => ({ ...command })),
-    };
+
+    return this.find(sceneId);
+  }
+
+  /** 删除场景 */
+  delete(sceneId: SceneIdName): boolean {
+    const index = this.scenes.findIndex((item) => item.id === sceneId);
+    if (index === -1) {
+      return false;
+    }
+    this.scenes.splice(index, 1);
+    return true;
   }
 }

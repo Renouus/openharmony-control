@@ -16,7 +16,7 @@ export class AutomationViewModel {
 
   async toggleScene(sceneId: string, enabled: boolean): Promise<string> {
     try {
-      await this.repository.updateScene(sceneId, enabled);
+      await this.repository.updateScene(sceneId, { enabled });
       return enabled ? 'Automation enabled' : 'Automation paused';
     } catch (error) {
       return normalizeRepositoryError(error as Object);

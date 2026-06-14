@@ -15,12 +15,13 @@ import {
 @Component
 export struct NotificationsView {
   @ObjectLink appState: AppStateSnapshot;
+  @ObjectLink notifications: NotificationsViewState;
   @State activeFilter: number = 0;
 
   
 
   private visibleEntries(): HistoryRowState[] {
-    return filterNotificationEntries(this.appState.notifications.entries, this.activeFilter);
+    return filterNotificationEntries(this.notifications.entries, this.activeFilter);
   }
 
   private entriesForDay(dayLabel: string): HistoryRowState[] {

@@ -7,6 +7,7 @@ import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, 
   COLOR_SURFACE_CONTAINER_LOW} from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DevicePropertyConfig, DeviceCommandConfig } from '../model/automation-capabilities';
+import { ScenePayloadDraft, SceneCommandDraft, SceneTriggerDraft, SceneCommandPayload } from '../services/device-api';
 
 @Component
 export struct CreateAutomationView {
@@ -16,7 +17,7 @@ export struct CreateAutomationView {
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
   onCancel: () => void = () => {};
-  onSave: (scene: SceneCardState) => void = () => {};
+  onSave: (payload: ScenePayloadDraft) => void = () => {};
 
   getConditionLabel(cond: ConditionDraft): string {
     if (cond.type === 'time') {
@@ -117,19 +118,41 @@ export struct CreateAutomationView {
               return;
             }
             
-            let scene: SceneCardState = {
-              id: Date.now().toString(),
-              name: this.draft.name,
-              icon: this.draft.icon,
-              description: '自定义自动化规则',
-              enabled: true,
-              triggerLabel: this.getConditionLabel(this.draft.conditions[0]),
-              triggerTypeLabel: this.draft.conditions[0].type === 'time' ? '定时' : '设备状态',
-              actions: this.draft.actions.map(a => this.getActionLabel(a)),
-              repeatLabel: '执行一次'
-            };
+            let payload = new ScenePayloadDraft();
+            payload.name = this.draft.name;
+            payload.icon = this.draft.icon;
+            payload.enabled = true;
+            payload.description = '自定义自动化规则';
+            let trigger = new SceneTriggerDraft();
+            trigger.type = this.draft.conditions[0].type === 'time' ? 'time' : 'device';
+            trigger.label = this.getConditionLabel(this.draft.conditions[0]);
+            payload.trigger = trigger;
+            payload.repeat = [];
+            payload.actionsLabel = this.draft.actions.map(a => this.getActionLabel(a));
+            payload.commands = this.draft.actions.map(a => {
+              let cmdParts = (a.command || '').split(':');
+              let cmdName = cmdParts[0];
+              let cmdValue = cmdParts.length > 1 ? cmdParts[1] : '';
+              
+              let payloadObj = new SceneCommandPayload();
+              if (cmdName === 'switch') {
+                payloadObj.on = cmdValue === 'true';
+              } else if (cmdName === 'lock') {
+                payloadObj.locked = cmdValue === 'true';
+              } else if (cmdName === 'set-target-temperature') {
+                payloadObj.targetTemperature = parseInt(cmdValue, 10);
+              } else if (cmdName === 'set-brightness') {
+                payloadObj.brightness = parseInt(cmdValue, 10);
+              }
+              
+              let cmd = new SceneCommandDraft();
+              cmd.deviceId = a.deviceId || '';
+              cmd.name = cmdName;
+              cmd.payload = payloadObj;
+              return cmd;
+            });
             
-            this.onSave(scene);
+            this.onSave(payload);
           })
       }
       .width('100%')

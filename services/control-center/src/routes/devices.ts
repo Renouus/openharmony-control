@@ -106,4 +106,18 @@ export async function registerDeviceRoutes(
       })),
     };
   });
+
+  /** Update a device's room assignment */
+  app.put("/api/devices/:deviceId/room", async (request, reply) => {
+    const { deviceId } = request.params as { deviceId: string };
+    const body = request.body as { roomId?: string };
+    if (!body.roomId) {
+      return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is required" });
+    }
+    const updated = registry.updateRoom(deviceId, body.roomId);
+    if (!updated) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
+    }
+    return { success: true };
+  });
 }

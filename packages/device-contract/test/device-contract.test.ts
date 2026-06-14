@@ -46,7 +46,8 @@ describe("device contract", () => {
     expect(isSceneId("away")).toBe(true);
     expect(isSceneId("sleep")).toBe(true);
     expect(isSceneId("movie")).toBe(true);
-    expect(isSceneId("party")).toBe(false);
+    expect(isSceneId("party")).toBe(true);
+    expect(isSceneId("")).toBe(false);
   });
 
   it("keeps device health names stable for ArkTS display mapping", () => {

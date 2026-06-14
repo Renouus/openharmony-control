@@ -20,6 +20,7 @@ import {
 @Component
 struct CameraContent {
   @ObjectLink appState: AppStateSnapshot;
+  @ObjectLink camera: CameraViewState;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
@@ -35,7 +36,7 @@ struct CameraContent {
       Column({ space: 16 }) {
         Row() {
           Column({ space: 4 }) {
-            Text(this.appState.camera.headline)
+            Text(this.camera.headline)
               .fontSize(24)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
@@ -48,7 +49,7 @@ struct CameraContent {
 
           Row({ space: 6 }) {
             AppSymbol({ name: 'fiber_manual_record', glyphSize: 10, color: COLOR_ERROR })
-            Text(this.appState.camera.recordingLabel)
+            Text(this.camera.recordingLabel)
               .fontSize(13)
               .fontColor(COLOR_PRIMARY)
               .fontWeight(FontWeight.Medium)
@@ -60,7 +61,7 @@ struct CameraContent {
         .width('100%')
 
         Row({ space: 10 }) {
-          ForEach(this.appState.camera.metrics, (metric: MetricPillState) => {
+          ForEach(this.camera.metrics, (metric: MetricPillState) => {
             Column({ space: 3 }) {
               Text(metric.label)
                 .fontSize(11)
@@ -80,7 +81,7 @@ struct CameraContent {
       }
       .width('100%')
 
-      if (this.appState.camera.featuredCamera !== undefined) {
+      if (this.camera.featuredCamera !== undefined) {
         Column({ space: 18 }) {
           Row() {
             Text('Live Feed')
@@ -91,17 +92,17 @@ struct CameraContent {
               .layoutWeight(1)
 
             Row({ space: 6 }) {
-              if (this.appState.camera.featuredCamera!.recording) {
+              if (this.camera.featuredCamera!.recording) {
                 AppSymbol({ name: 'fiber_manual_record', glyphSize: 10, color: '#FFFFFF' })
               }
-              Text(this.appState.camera.featuredCamera!.statusLabel)
+              Text(this.camera.featuredCamera!.statusLabel)
                 .fontSize(12)
                 .fontColor('#FFFFFF')
                 .fontWeight(FontWeight.Medium)
             }
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
             .borderRadius(999)
-            .backgroundColor(this.appState.camera.featuredCamera!.recording ? COLOR_ERROR : COLOR_PRIMARY)
+            .backgroundColor(this.camera.featuredCamera!.recording ? COLOR_ERROR : COLOR_PRIMARY)
           }
           .width('100%')
 
@@ -110,11 +111,11 @@ struct CameraContent {
               Column({ space: 12 }) {
                 Row() {
                   Column({ space: 3 }) {
-                    Text(this.appState.camera.featuredCamera!.name)
+                    Text(this.camera.featuredCamera!.name)
                       .fontSize(18)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(COLOR_ON_SURFACE)
-                    Text(this.appState.camera.featuredCamera!.location)
+                    Text(this.camera.featuredCamera!.location)
                       .fontSize(12)
                       .fontColor(COLOR_TEXT_MUTED)
                   }
@@ -125,7 +126,7 @@ struct CameraContent {
 
                 Blank()
 
-                Text(this.appState.camera.featuredCamera!.motionLabel)
+                Text(this.camera.featuredCamera!.motionLabel)
                   .fontSize(12)
                   .fontColor(COLOR_TEXT_MUTED)
                   .width('100%')
@@ -196,23 +197,23 @@ struct CameraContent {
                 AppSymbol({
                   name: 'fiber_manual_record',
                   glyphSize: 18,
-                  color: this.appState.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
+                  color: this.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
                 })
               }
               .width(40)
               .height(40)
               .borderRadius(20)
-              .backgroundColor(this.appState.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST)
-              .border({ width: this.appState.camera.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' })
+              .backgroundColor(this.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST)
+              .border({ width: this.camera.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' })
               .justifyContent(FlexAlign.Center)
               .onClick(() => this.controller.handleCameraToggleRecording(
                 this.appState,
-                this.appState.camera.featuredCamera!.id,
-                !this.appState.camera.featuredCamera!.recording,
+                this.camera.featuredCamera!.id,
+                !this.camera.featuredCamera!.recording,
               ))
-              Text(this.appState.camera.featuredCamera!.recording ? 'Recording' : 'Record')
+              Text(this.camera.featuredCamera!.recording ? 'Recording' : 'Record')
                 .fontSize(10)
-                .fontColor(this.appState.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
+                .fontColor(this.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED)
                 .fontWeight(FontWeight.Bold)
             }
             .layoutWeight(1)
@@ -254,7 +255,7 @@ struct CameraContent {
           .fontFamily('serif')
           .width('100%')
 
-        ForEach(this.appState.camera.cameras, (camera: CameraRowState) => {
+        ForEach(this.camera.cameras, (camera: CameraRowState) => {
           CameraRow({
             camera,
             onToggleRecording: (recording: boolean) => this.controller.handleCameraToggleRecording(
@@ -264,8 +265,8 @@ struct CameraContent {
       }
       .width('100%')
 
-      if (this.appState.camera.feedback.length > 0) {
-        Text(this.appState.camera.feedback)
+      if (this.camera.feedback.length > 0) {
+        Text(this.camera.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)
@@ -284,7 +285,7 @@ export struct CameraView {
   @ObjectLink appState: AppStateSnapshot;
 
   build() {
-    CameraContent({ appState: this.appState })
+    CameraContent({ appState: this.appState, camera: this.appState.camera })
       .padding({ left: 20, right: 20, top: 16, bottom: 32 })
   }
 }

@@ -29,6 +29,8 @@ import { registerDeviceRoutes } from "./routes/devices";
 import { registerFamilyRoutes } from "./routes/family";
 import { registerSceneRoutes } from "./routes/scenes";
 import { SceneRegistry } from "./scenes/scene-registry";
+import { RoomRegistry } from "./registry/rooms";
+import { registerRoomRoutes } from "./routes/rooms";
 
 export function buildApp(
   registry = new DeviceRegistry(),
@@ -38,6 +40,7 @@ export function buildApp(
   const history = new CommandHistory();
   const sceneRegistry = new SceneRegistry();
   const faultState = createDemoFaultState();
+  const roomRegistry = new RoomRegistry();
 
   // 9 个设备模拟器：2 门锁 + 5 灯光 + 2 空调
   const simulators = [
@@ -51,7 +54,7 @@ export function buildApp(
     new AirConditionerDevice(),
     new AirConditionerDevice(
       "ac-bedroom",
-      { power: false, targetTemperature: 26, online: true },
+      { power: false, targetTemperature: 26, online: true, updatedAt: Date.now() },
       new SimulatedAirConditionerAdapter("gree"),
     ),
   ];
@@ -80,6 +83,7 @@ export function buildApp(
       simulators,
     });
     await registerDemoRoutes(scope, registry, faultState);
+    await registerRoomRoutes(scope, roomRegistry, registry);
   });
 
   return app;

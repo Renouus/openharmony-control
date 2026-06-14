@@ -93,31 +93,32 @@ struct LightPresetChip {
 @Component
 struct LightingContent {
   @ObjectLink appState: AppStateSnapshot;
+  @ObjectLink lighting: LightingViewState;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
   
 
   private houseEnabled(): boolean {
-    return this.appState.lighting.rooms.some((room: RoomLightCardState) => room.enabled);
+    return this.lighting.rooms.some((room: RoomLightCardState) => room.enabled);
   }
 
   private averageBrightness(): number {
-    if (this.appState.lighting.rooms.length === 0) {
+    if (this.lighting.rooms.length === 0) {
       return 0;
     }
-    const total = this.appState.lighting.rooms.reduce((sum: number, room: RoomLightCardState) => sum + room.brightness, 0);
-    return Math.round(total / this.appState.lighting.rooms.length);
+    const total = this.lighting.rooms.reduce((sum: number, room: RoomLightCardState) => sum + room.brightness, 0);
+    return Math.round(total / this.lighting.rooms.length);
   }
 
   private averageTemperature(): number {
-    if (this.appState.lighting.presets.length === 0) {
+    if (this.lighting.presets.length === 0) {
       return 3200;
     }
-    const total = this.appState.lighting.presets.reduce((sum: number, preset: ScenePresetState) => {
+    const total = this.lighting.presets.reduce((sum: number, preset: ScenePresetState) => {
       return sum + preset.colorTemperature;
     }, 0);
-    return Math.round(total / this.appState.lighting.presets.length);
+    return Math.round(total / this.lighting.presets.length);
   }
 
   build() {
@@ -159,7 +160,7 @@ struct LightingContent {
         }
         .width('100%')
 
-        Text(this.appState.lighting.activeCountLabel)
+        Text(this.lighting.activeCountLabel)
           .fontSize(14)
           .fontColor(COLOR_TEXT_MUTED)
 
@@ -230,7 +231,7 @@ struct LightingContent {
       .width('100%')
 
       Row({ space: 14 }) {
-        ForEach(this.appState.lighting.presets, (preset: ScenePresetState) => {
+        ForEach(this.lighting.presets, (preset: ScenePresetState) => {
           LightPresetChip({
             preset,
             onTap: () => this.controller.handleLightingPreset(this.appState, preset.label),
@@ -247,7 +248,7 @@ struct LightingContent {
           .fontFamily('serif')
           .width('100%')
 
-        ForEach(this.appState.lighting.rooms, (room: RoomLightCardState) => {
+        ForEach(this.lighting.rooms, (room: RoomLightCardState) => {
           RoomLightCard({
             card: room,
             onToggle: (value: boolean) => this.controller.handleLightingToggleRoom(
@@ -267,7 +268,7 @@ struct LightingContent {
           .fontFamily('serif')
           .width('100%')
 
-        ForEach(this.appState.lighting.devices, (device: LightDeviceCardState) => {
+        ForEach(this.lighting.devices, (device: LightDeviceCardState) => {
           LightDeviceCard({
             device,
             onToggle: (value: boolean) => this.controller.handleLightingToggleLight(
@@ -281,8 +282,8 @@ struct LightingContent {
       }
       .width('100%')
 
-      if (this.appState.lighting.feedback.length > 0) {
-        Text(this.appState.lighting.feedback)
+      if (this.lighting.feedback.length > 0) {
+        Text(this.lighting.feedback)
           .fontSize(13)
           .fontColor(COLOR_PRIMARY)
           .padding(12)
@@ -301,7 +302,7 @@ export struct LightingView {
   @ObjectLink appState: AppStateSnapshot;
 
   build() {
-    LightingContent({ appState: this.appState })
+    LightingContent({ appState: this.appState, lighting: this.appState.lighting })
       .padding({ left: 20, right: 20, top: 16, bottom: 32 })
   }
 }

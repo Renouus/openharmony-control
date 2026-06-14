@@ -8,6 +8,7 @@ import {
   SceneSnapshot,
   SwitchPayload,
   TemperaturePayload,
+  RoomItem,
 } from '../services/device-api';
 import { DeviceSnapshot } from '../model/device-view-model';
 import { HomeViewStateData } from '../model/page-view-state';
@@ -31,6 +32,7 @@ export class HomeViewModel {
       accessPoints: [],
     };
     let cameras: CameraSnapshot[] = [];
+    let rooms: RoomItem[] = [];
 
     try {
       devices = await this.repository.listDevices();
@@ -44,6 +46,9 @@ export class HomeViewModel {
     try {
       cameras = await this.repository.getCameraOverview();
     } catch {}
+    try {
+      rooms = await this.repository.listRooms();
+    } catch {}
 
     return mapHomeViewState(
       summary,
@@ -53,6 +58,7 @@ export class HomeViewModel {
       cameras,
       feedback,
       activeSceneId,
+      rooms
     );
   }
 

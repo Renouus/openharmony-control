@@ -134,5 +134,14 @@ export struct LightDeviceCard {
     .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '99' })
     .shadow({ radius: 14, color: '#3A302A08', offsetX: 0, offsetY: 4 })
     .width('100%')
+    .stateStyles({
+      pressed: {
+        .scale({ x: 0.98, y: 0.98 })
+      },
+      normal: {
+        .scale({ x: 1, y: 1 })
+      }
+    })
+    .animation({ duration: 250, curve: Curve.EaseOut })
   }
 }

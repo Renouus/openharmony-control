@@ -8,6 +8,9 @@ import {
   FamilyOverview,
   HomeSummary,
   SceneSnapshot,
+  ScenePayloadDraft,
+  SceneEnablePayload,
+  RoomItem,
 } from './device-api';
 import { DeviceSnapshot } from '../model/device-view-model';
 import { commandFeedbackLabel } from '../model/command-feedback';
@@ -25,6 +28,10 @@ export interface SmartHomeRepositoryPort {
   getSummary(): Promise<HomeSummary>;
   getDashboardData(historyLimit: number): Promise<DashboardData>;
   listDevices(): Promise<DeviceSnapshot[]>;
+  listRooms(): Promise<RoomItem[]>;
+  createRoom(name: string, icon: string): Promise<RoomItem>;
+  deleteRoom(roomId: string): Promise<void>;
+  updateDeviceRoom(deviceId: string, roomId: string): Promise<void>;
   listScenes(): Promise<SceneSnapshot[]>;
   listHistory(limit: number): Promise<CommandHistoryEntry[]>;
   getAccessOverview(): Promise<AccessOverview>;
@@ -36,7 +43,9 @@ export interface SmartHomeRepositoryPort {
   shareGuestKey(holder: string, hours: number): Promise<void>;
   toggleCameraRecording(cameraId: string, recording: boolean): Promise<void>;
   runScene(sceneId: string): Promise<void>;
-  updateScene(sceneId: string, enabled: boolean): Promise<void>;
+  createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot>;
+  updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot>;
+  deleteScene(sceneId: string): Promise<void>;
   sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void>;
 }
 
@@ -71,6 +80,26 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async listDevices(): Promise<DeviceSnapshot[]> {
     return await this.api.listDevices();
+  }
+
+  async listRooms(): Promise<RoomItem[]> {
+    return await this.api.listRooms();
+  }
+
+  async createRoom(name: string, icon: string): Promise<RoomItem> {
+    return await this.api.createRoom(name, icon);
+  }
+
+  async updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem> {
+    return await this.api.updateRoom(roomId, name, icon);
+  }
+
+  async deleteRoom(roomId: string): Promise<void> {
+    await this.api.deleteRoom(roomId);
+  }
+
+  async updateDeviceRoom(deviceId: string, roomId: string): Promise<void> {
+    await this.api.updateDeviceRoom(deviceId, roomId);
   }
 
   async listScenes(): Promise<SceneSnapshot[]> {
@@ -117,8 +146,16 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.api.runScene(sceneId);
   }
 
-  async updateScene(sceneId: string, enabled: boolean): Promise<void> {
-    await this.api.updateScene(sceneId, enabled);
+  async createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot> {
+    return await this.api.createScene(payload);
+  }
+
+  async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot> {
+    return await this.api.updateScene(sceneId, payload);
+  }
+
+  async deleteScene(sceneId: string): Promise<void> {
+    await this.api.deleteScene(sceneId);
   }
 
   async sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void> {

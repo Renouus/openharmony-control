@@ -100,6 +100,12 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.house');
     case 'self_care':
       return $r('sys.symbol.star');
+    case 'meeting_room':
+      return $r('sys.symbol.house');
+    case 'weekend':
+      return $r('sys.symbol.house');
+    case 'desk':
+      return $r('sys.symbol.house');
     default:
       return $r('sys.symbol.house');
   }

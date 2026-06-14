@@ -145,16 +145,8 @@ struct HomeContent {
   private handleRoomTap(roomId: string): void {
     if (roomId === 'entry') {
       this.navStack.pushPathByName('access', null);
-    } else if (roomId === 'bathroom') {
-      this.navStack.pushPathByName('bathroom', null);
-    } else if (roomId === 'kitchen') {
-      this.navStack.pushPathByName('kitchen', null);
-    } else if (roomId === 'living-room') {
-      this.navStack.pushPathByName('livingRoom', null);
-    } else if (roomId === 'bedroom') {
-      this.navStack.pushPathByName('masterBedroom', null);
     } else {
-      this.navStack.pushPathByName('lighting', null);
+      this.navStack.pushPathByName('room', roomId);
     }
   }
 

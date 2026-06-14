@@ -6,6 +6,7 @@ import { COLOR_PRIMARY, COLOR_TEXT_MUTED, COLOR_SURFACE_CONTAINER, COLOR_ON_PRIM
 @Component
 export struct ActionPickerSheet {
   @Prop appState: AppStateSnapshot;
+  allowScenes: boolean = true;
   onSelect: (action: ActionDraft) => void = () => {};
 
   @State level: number = 1;
@@ -37,18 +38,20 @@ export struct ActionPickerSheet {
       .fontWeight(FontWeight.Bold)
     
     List({ space: 10 }) {
-      ListItem() {
-        Text('执行场景')
-          .fontSize(16)
-          .padding(16)
-          .width('100%')
+      if (this.allowScenes) {
+        ListItem() {
+          Text('执行场景')
+            .fontSize(16)
+            .padding(16)
+            .width('100%')
+        }
+        .backgroundColor(COLOR_SURFACE_CONTAINER)
+        .borderRadius(8)
+        .onClick(() => {
+          this.selectedType = 'scene';
+          this.level = 2;
+        })
       }
-      .backgroundColor(COLOR_SURFACE_CONTAINER)
-      .borderRadius(8)
-      .onClick(() => {
-        this.selectedType = 'scene';
-        this.level = 2;
-      })
       
       ListItem() {
         Text('控制设备')
@@ -93,7 +96,11 @@ export struct ActionPickerSheet {
           .backgroundColor(COLOR_SURFACE_CONTAINER)
           .borderRadius(8)
           .onClick(() => {
-            this.onSelect({ id: Date.now().toString(), type: 'scene', sceneId: scene.id });
+            let act = new ActionDraft();
+            act.id = Date.now().toString();
+            act.type = 'scene';
+            act.sceneId = scene.id;
+            this.onSelect(act);
           })
         }, (s: SceneChipState) => s.id)
       }
@@ -172,14 +179,24 @@ export struct ActionPickerSheet {
                       .backgroundColor(COLOR_PRIMARY)
                       .fontColor(COLOR_ON_PRIMARY)
                       .onClick(() => {
-                      this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, command: `${config.command}:true` });
-                    })
+                        let act = new ActionDraft();
+                        act.id = Date.now().toString();
+                        act.type = 'device';
+                        act.deviceId = device.id;
+                        act.command = `${config.command}:true`;
+                        this.onSelect(act);
+                      })
                     Button('关闭')
                       .backgroundColor(COLOR_SURFACE_CONTAINER)
                       .fontColor(COLOR_PRIMARY)
                       .onClick(() => {
-                      this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, command: `${config.command}:false` });
-                    })
+                        let act = new ActionDraft();
+                        act.id = Date.now().toString();
+                        act.type = 'device';
+                        act.deviceId = device.id;
+                        act.command = `${config.command}:false`;
+                        this.onSelect(act);
+                      })
                   }
                 }
                 .alignItems(HorizontalAlign.Start)
@@ -206,8 +223,13 @@ export struct ActionPickerSheet {
                     .fontColor(COLOR_ON_PRIMARY)
                     .borderRadius(24)
                     .onClick(() => {
-                    this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, command: `${config.command}:${this.commandValue}` });
-                  })
+                      let act = new ActionDraft();
+                      act.id = Date.now().toString();
+                      act.type = 'device';
+                      act.deviceId = device.id;
+                      act.command = `${config.command}:${this.commandValue}`;
+                      this.onSelect(act);
+                    })
                 }
                 .alignItems(HorizontalAlign.Start)
                 .width('100%')

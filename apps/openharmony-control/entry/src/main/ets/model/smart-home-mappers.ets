@@ -8,6 +8,7 @@ import {
   CommandHistoryEntry,
   FamilyOverview,
   HomeSummary,
+  RoomItem,
   SceneSnapshot,
 } from '../services/device-api';
 import {
@@ -34,6 +35,7 @@ import {
   LightingViewStateData,
   MetricPillState,
   NotificationsViewStateData,
+  RoomItemState,
   RoomLightCardState,
   SceneCardState,
   SceneChipState,
@@ -272,8 +274,19 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   return card;
 }
 
-
-
+export function mapRoomList(rooms: RoomItem[], devices: DeviceSnapshot[]): RoomItemState[] {
+  return rooms.map(r => {
+    const deviceCount = devices.filter(d => d.room === r.id).length;
+    const state: RoomItemState = {
+      id: r.id,
+      name: r.name,
+      icon: r.icon,
+      builtIn: r.builtIn,
+      deviceCount
+    };
+    return state;
+  });
+}
 function roomDisplayName(roomId: string): string {
   if (roomId === 'entry') { return '入户'; }
   if (roomId === 'living-room') { return '客厅'; }
@@ -283,9 +296,15 @@ function roomDisplayName(roomId: string): string {
   return roomId;
 }
 
-export function mapHomeRooms(devices: DeviceSnapshot[]): HomeRoomSectionState[] {
+export function mapHomeRooms(devices: DeviceSnapshot[], allRooms: RoomItem[] = []): HomeRoomSectionState[] {
   // Group devices by room
   const roomMap: Map<string, DeviceSnapshot[]> = new Map();
+  
+  // Initialize with all known rooms
+  for (const r of allRooms) {
+    roomMap.set(r.id, []);
+  }
+  
   for (const device of devices) {
     const r = device.room ?? 'living-room';
     if (!roomMap.has(r)) {
@@ -300,21 +319,23 @@ export function mapHomeRooms(devices: DeviceSnapshot[]): HomeRoomSectionState[] 
 
   for (const roomId of order) {
     const roomDevices = roomMap.get(roomId);
-    if (roomDevices === undefined || roomDevices.length === 0) { continue; }
-    const cards: HomeDeviceCardState[] = roomDevices.map((d: DeviceSnapshot, idx: number) =>
+    if (roomDevices === undefined && allRooms.findIndex(r => r.id === roomId) === -1) { continue; }
+    const cards: HomeDeviceCardState[] = (roomDevices || []).map((d: DeviceSnapshot, idx: number) =>
       mapHomeDeviceCard(d, idx === 0)
     );
-    const section: HomeRoomSectionState = { roomId, roomName: roomDisplayName(roomId), devices: cards };
+    const roomInfo = allRooms.find(r => r.id === roomId);
+    const section: HomeRoomSectionState = { roomId, roomName: roomInfo ? roomInfo.name : roomDisplayName(roomId), devices: cards };
     result.push(section);
   }
 
   // Add any rooms not in the fixed order
   roomMap.forEach((roomDevices: DeviceSnapshot[], roomId: string) => {
-    if (!order.includes(roomId) && roomDevices.length > 0) {
+    if (!order.includes(roomId)) {
       const cards: HomeDeviceCardState[] = roomDevices.map((d: DeviceSnapshot, idx: number) =>
         mapHomeDeviceCard(d, idx === 0)
       );
-      const section: HomeRoomSectionState = { roomId, roomName: roomDisplayName(roomId), devices: cards };
+      const roomInfo = allRooms.find(r => r.id === roomId);
+      const section: HomeRoomSectionState = { roomId, roomName: roomInfo ? roomInfo.name : roomDisplayName(roomId), devices: cards };
       result.push(section);
     }
   });
@@ -330,6 +351,7 @@ export function mapHomeViewState(
   cameras: CameraSnapshot[],
   feedback: string,
   activeSceneId?: string,
+  rooms: RoomItem[] = [],
 ): HomeViewStateData {
   const accessCard: SummaryCardState = {
     title: '门禁控制',
@@ -392,7 +414,7 @@ export function mapHomeViewState(
     cameraCard,
     quickScenes,
     statusChips,
-    rooms: mapHomeRooms(devices),
+    rooms: mapHomeRooms(devices, rooms),
     devices: devices.map(mapDevicePanel),
     feedback,
   };

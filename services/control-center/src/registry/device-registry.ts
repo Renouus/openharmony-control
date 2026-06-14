@@ -314,12 +314,6 @@ export class DeviceRegistry {
     };
   }
 
-  /**
-   * 根据设备在线状态和传感器读数计算健康等级：
-   * - offline → Offline
-   * - 温度 > 30°C → Warning
-   * - 其余 → Online
-   */
   private toHealth(device: DeviceDescriptor): DeviceHealthName {
     if (!device.state.online) {
       return DeviceHealth.Offline;
@@ -332,5 +326,22 @@ export class DeviceRegistry {
       return DeviceHealth.Warning;
     }
     return DeviceHealth.Online;
+  }
+
+  /** Update a device's room assignment */
+  updateRoom(deviceId: string, roomId: string): boolean {
+    const meta = this.metadata.get(deviceId);
+    if (!meta) return false;
+    this.metadata.set(deviceId, { ...meta, room: roomId });
+    return true;
+  }
+
+  /** Reset all devices in fromRoomId to toRoomId (used when a room is deleted) */
+  resetDevicesRoom(fromRoomId: string, toRoomId = "living-room"): void {
+    for (const [deviceId, meta] of this.metadata.entries()) {
+      if (meta.room === fromRoomId) {
+        this.metadata.set(deviceId, { ...meta, room: toRoomId });
+      }
+    }
   }
 }
