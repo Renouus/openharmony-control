@@ -9,12 +9,17 @@
  */
 import { readFileSync } from "node:fs";
 import { buildApp } from "./app";
+import { initDatabase } from "./db/database";
 
 const port = Number(process.env.CONTROL_CENTER_PORT ?? 3443);
 const host = process.env.CONTROL_CENTER_HOST ?? "0.0.0.0";
 const app = buildApp();
 
 async function main(): Promise<void> {
+  const dbPath = process.env.DATABASE_PATH || 'smarthome.db';
+  initDatabase(dbPath);
+  app.log.info(`Database initialized at ${dbPath}`);
+
   const tlsCertPath = process.env.TLS_CERT_PATH;
   const tlsKeyPath = process.env.TLS_KEY_PATH;
   // 如果配置了 TLS 证书则启用 HTTPS
