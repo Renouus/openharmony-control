@@ -17,6 +17,7 @@ import { commandFeedbackLabel } from '../model/command-feedback';
 import { DatabaseHelper } from './db/DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './db/DeviceDao';
 import { SyncDao } from './db/SyncDao';
+import { WebSocketClient } from './WebSocketClient';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -56,12 +57,29 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly api: DeviceApi;
   private readonly deviceDao: DeviceDao;
   private readonly syncDao: SyncDao;
+  private readonly wsClient: WebSocketClient;
   private isSyncing: boolean = false; // Sync Mutex
 
   constructor(api: DeviceApi) {
     this.api = api;
     this.deviceDao = new DeviceDao();
     this.syncDao = new SyncDao();
+    
+    // Configure WebSocket URL as appropriate
+    this.wsClient = new WebSocketClient('ws://127.0.0.1:3443/ws/events');
+    this.wsClient.onMessageCallback = (event, payload) => {
+      this.handleWebSocketEvent(event, payload);
+    };
+    this.wsClient.connect();
+  }
+
+  private handleWebSocketEvent(event: string, payload: any) {
+    if (event === 'DeviceStateUpdated') {
+      const store = DatabaseHelper.getInstance().getStore();
+      this.deviceDao.insertOrUpdate(store, payload as DeviceSyncItem).then(() => {
+        AppStorage.setOrCreate('sync_completed', Date.now());
+      }).catch(console.error);
+    }
   }
 
   async performBackgroundSync(): Promise<void> {
