@@ -93,7 +93,8 @@ export class DatabaseEventProcessor {
     this.processQueue().catch(console.error);
   }
 
-  private async processQueue() {
+  // To avoid TOCTOU and ArkTS async transaction leaks, we process synchronously inside the transaction.
+  private processQueue() {
     if (this.isProcessing || this.queue.length === 0) return;
     this.isProcessing = true;
     
@@ -106,12 +107,14 @@ export class DatabaseEventProcessor {
         if (!batch) continue;
         
         for (const event of batch.events) {
-          await this.processDomainEvent(store, event);
+          if (event.entityType === 'device') {
+            this.deviceDao.processEventSync(store, event);
+          }
+          // handle rooms, etc.
         }
 
-        // Update the Sync Version immediately in the same transaction, if provided
         if (batch.finalVersion !== undefined) {
-          await this.syncDao.setLastSyncVersion(store, batch.finalVersion);
+          this.syncDao.setLastSyncVersionSync(store, batch.finalVersion);
         }
       }
       store.commit();
@@ -123,39 +126,6 @@ export class DatabaseEventProcessor {
       this.isProcessing = false;
     }
   }
-
-  private async processDomainEvent(store: relationalStore.RdbStore, event: DomainEvent) {
-    // Determine target table and fetch current version
-    let tableName = '';
-    if (event.entityType === 'device') tableName = 'devices';
-    // Extend for others like rooms, scenes later
-    
-    if (tableName) {
-      const predicates = new relationalStore.RdbPredicates(tableName);
-      predicates.equalTo('id', event.entityId);
-      const resultSet = await store.query(predicates);
-      
-      let currentVersion = -1;
-      if (resultSet.goToNextRow()) {
-        currentVersion = resultSet.getLong(resultSet.getColumnIndex('version'));
-      }
-      resultSet.close();
-
-      if (currentVersion >= event.version) {
-        console.info(`Drop stale event for ${event.entityId}: current ${currentVersion} >= incoming ${event.version}`);
-        return;
-      }
-      
-      // Route to DAO
-      if (event.entityType === 'device') {
-        const payload = event.payload as DeviceSyncItem;
-        if (payload) {
-          payload.isDeleted = event.type === DomainEventType.ENTITY_DELETED;
-          await this.deviceDao.insertOrUpdate(store, payload);
-        }
-      }
-    }
-  }
 }
 ```
 
@@ -163,12 +133,98 @@ export class DatabaseEventProcessor {
 
 ```bash
 git add apps/openharmony-control/entry/src/main/ets/services/db/DatabaseEventProcessor.ets
-git commit -m "feat(app): implement DatabaseEventProcessor single-writer queue with explicit version safety"
+git commit -m "feat(app): implement DatabaseEventProcessor with synchronous transaction execution"
 ```
 
 ---
 
-### Task 3: Build DomainEventAdapter
+### Task 3: Refactor DAOs for Synchronous Version-Safe Upserts
+
+**Files:**
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/db/DeviceDao.ets`
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/db/SyncDao.ets`
+
+- [ ] **Step 1: Write the minimal implementation**
+
+Modify `DeviceDao.ets` to add `processEventSync`:
+```typescript
+import { DomainEvent, DomainEventType } from '../../model/domain-event';
+
+// ... inside DeviceDao class:
+  public processEventSync(store: relationalStore.RdbStore, event: DomainEvent): void {
+    const payload = event.payload as DeviceSyncItem;
+    if (!payload) return;
+
+    const predicates = new relationalStore.RdbPredicates('devices');
+    predicates.equalTo('id', event.entityId);
+    
+    // Single query to get both existence and version
+    const resultSet = store.querySync(predicates, ['version']);
+    let exists = false;
+    let currentVersion = -1;
+    if (resultSet.goToNextRow()) {
+      exists = true;
+      currentVersion = resultSet.getLong(resultSet.getColumnIndex('version'));
+    }
+    resultSet.close();
+
+    if (currentVersion >= event.version) {
+      console.info(`Drop stale event for ${event.entityId}: current ${currentVersion} >= incoming ${event.version}`);
+      return;
+    }
+
+    const valueBucket: relationalStore.ValuesBucket = {
+      id: payload.id,
+      name: payload.name,
+      type: payload.type,
+      room_id: payload.roomId || '',
+      state_json: JSON.stringify(payload.payload || {}),
+      updated_at: payload.updatedAt || Date.now(),
+      version: payload.version,
+      is_deleted: event.type === DomainEventType.ENTITY_DELETED ? 1 : 0
+    };
+
+    if (exists) {
+      store.updateSync(valueBucket, predicates);
+    } else {
+      store.insertSync('devices', valueBucket);
+    }
+  }
+```
+
+Modify `SyncDao.ets` to add `setLastSyncVersionSync`:
+```typescript
+// ... inside SyncDao class:
+  public setLastSyncVersionSync(store: relationalStore.RdbStore, version: number): void {
+    const valueBucket: relationalStore.ValuesBucket = {
+      key: KEY_LAST_SYNC_VERSION,
+      value: version.toString()
+    };
+    const predicates = new relationalStore.RdbPredicates('sync_metadata');
+    predicates.equalTo('key', KEY_LAST_SYNC_VERSION);
+    
+    const resultSet = store.querySync(predicates, ['key']);
+    const exists = resultSet.rowCount > 0;
+    resultSet.close();
+
+    if (exists) {
+      store.updateSync(valueBucket, predicates);
+    } else {
+      store.insertSync('sync_metadata', valueBucket);
+    }
+  }
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add apps/openharmony-control/entry/src/main/ets/services/db/DeviceDao.ets apps/openharmony-control/entry/src/main/ets/services/db/SyncDao.ets
+git commit -m "refactor(app): add synchronous transaction-safe methods to DAOs with built-in version checking"
+```
+
+---
+
+### Task 4: Build DomainEventAdapter
 
 **Files:**
 - Create: `apps/openharmony-control/entry/src/main/ets/services/domain-event-adapter.ets`
@@ -181,9 +237,6 @@ import { DomainEvent, DomainEventType } from '../model/domain-event';
 import { SyncResponse } from './device-api';
 import util from '@ohos.util';
 import { DeviceSyncItem } from './db/DeviceDao';
-import relationalStore from '@ohos.data.relationalStore';
-import { DatabaseHelper } from './db/DatabaseHelper';
-import { DeviceDao } from './db/DeviceDao';
 
 export class DomainEventAdapter {
   
@@ -203,24 +256,16 @@ export class DomainEventAdapter {
     return null;
   }
 
-  // Performs State Diff Projection against local SQLite to generate actual diff events
-  public static async fromSyncResponse(response: SyncResponse): Promise<DomainEvent[]> {
+  // Pure function diff projection: local map is provided by caller
+  public static fromSyncResponse(response: SyncResponse, localDeviceMap: Map<string, DeviceSyncItem>): DomainEvent[] {
     const events: DomainEvent[] = [];
-    const store = DatabaseHelper.getInstance().getStore();
-    const deviceDao = new DeviceDao();
     
     if (response.devices) {
-      // For future-proof diff, we fetch current local items (could optimize via hash or targeted query)
-      const localDevices = await deviceDao.getAllDevices(store);
-      const localDeviceMap = new Map<string, DeviceSyncItem>();
-      localDevices.forEach(d => localDeviceMap.set(d.id, d as DeviceSyncItem));
-
       response.devices.forEach((d: any) => {
         const incoming = d as DeviceSyncItem;
         const local = localDeviceMap.get(incoming.id);
         
         // State Diff Logic: Only generate an event if version is strictly newer 
-        // (Even more granular diffs on payload could be added here later)
         if (!local || incoming.version > local.version) {
           events.push({
             eventId: util.generateRandomUUID(true),
@@ -235,8 +280,6 @@ export class DomainEventAdapter {
       });
     }
 
-    // Process rooms, scenes, automations similarly here when implemented
-    
     return events;
   }
 }
@@ -246,12 +289,12 @@ export class DomainEventAdapter {
 
 ```bash
 git add apps/openharmony-control/entry/src/main/ets/services/domain-event-adapter.ets
-git commit -m "feat(app): implement DomainEventAdapter anti-corruption layer"
+git commit -m "feat(app): implement DomainEventAdapter anti-corruption layer without external coupling"
 ```
 
 ---
 
-### Task 4: Refactor SmartHomeRepository
+### Task 5: Refactor SmartHomeRepository
 
 **Files:**
 - Modify: `apps/openharmony-control/entry/src/main/ets/services/smart-home-repository.ets`
@@ -324,7 +367,12 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
         return; 
       }
 
-      const events = await DomainEventAdapter.fromSyncResponse(updates);
+      // Fetch local items to feed into the stateless DomainEventAdapter
+      const localDevices = await this.deviceDao.getAllDevices(store);
+      const localDeviceMap = new Map<string, DeviceSyncItem>();
+      localDevices.forEach(d => localDeviceMap.set(d.id, d as DeviceSyncItem));
+
+      const events = DomainEventAdapter.fromSyncResponse(updates, localDeviceMap);
       
       // Push events and finalVersion together in a single batch
       DatabaseEventProcessor.getInstance().pushBatch(events, updates.currentVersion);
