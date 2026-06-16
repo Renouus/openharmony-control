@@ -32,6 +32,8 @@ import { SceneRegistry } from "./scenes/scene-registry";
 import { RoomRegistry } from "./registry/rooms";
 import { registerRoomRoutes } from "./routes/rooms";
 import syncRoutes from "./routes/sync";
+import websocketPlugin from "@fastify/websocket";
+import websocketRoutes from "./routes/websocket";
 
 export function buildApp(
   registry = new DeviceRegistry(),
@@ -63,6 +65,9 @@ export function buildApp(
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问）
   void app.register(cors, { origin: true });
 
+  // 注册 WebSocket 插件
+  void app.register(websocketPlugin);
+
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
     await registerDeviceRoutes(scope, registry);
@@ -86,6 +91,7 @@ export function buildApp(
     await registerDemoRoutes(scope, registry, faultState);
     await registerRoomRoutes(scope, roomRegistry, registry);
     await syncRoutes(scope);
+    await websocketRoutes(scope);
   });
 
   return app;
