@@ -10,16 +10,16 @@ The architecture employs a "Backend as Source of Truth" approach with the ArkTS 
 The backend manages the definitive state of the smart home system.
 
 - **Storage**: We will introduce `better-sqlite3` to persist all entities. It was chosen for its high performance and zero-configuration setup.
-- **Data Model Updates**: Core entities (`devices`, `rooms`, `scenes`, `history`) will be mapped to SQLite tables. All tables will include `updated_at` timestamps to facilitate incremental syncs.
+- **Data Model Updates**: Core entities (`devices`, `rooms`, `scenes`, `automations`, `history`) will be mapped to SQLite tables. To avoid clock drift and concurrency issues, all tables will use a `version` field (along with `updated_at` for display) to facilitate robust incremental syncs.
 - **API Updates**:
-  - A new `/api/sync` endpoint will be introduced to fetch incremental updates. It accepts a `lastSyncAt` parameter and returns all records modified (or soft-deleted) after that timestamp.
+  - A new `/api/sync` endpoint will fetch incremental updates. It accepts a `lastVersion` parameter and returns the current backend version alongside all records modified (or soft-deleted) since the provided version.
   - Integration of `@fastify/websocket` to push real-time state changes (e.g., a light turned on by another user) to connected clients immediately.
 
 ### Frontend (ArkTS App)
 The client application adopts a strict layered architecture:
 `UI -> ViewModel -> Repository -> LocalDataSource (SQLite) -> RemoteDataSource (API/WebSocket)`
 
-- **Storage**: We will use `@ohos.data.relationalStore` to mirror the backend schema locally. A special `sync_metadata` table will persist the `last_sync_timestamp`.
+- **Storage**: We will use `@ohos.data.relationalStore` to mirror the backend schema locally. A special `sync_metadata` key-value table will persist the `last_sync_version`.
 - **Layered Data Access**:
   - **LocalDataSource**: Direct encapsulation of SQLite queries.
   - **RemoteDataSource**: Encapsulation of HTTP API calls (`device-api.ets`) and WebSocket subscriptions.
@@ -34,9 +34,10 @@ The client application adopts a strict layered architecture:
 ## Implementation Details
 
 ### Database Schemas (Shared Conceptually)
-- `devices`: `id`, `name`, `type`, `room_id`, `state_json`, `updated_at`, `is_deleted`
-- `rooms`: `id`, `name`, `icon`, `built_in`, `updated_at`, `is_deleted`
-- `scenes`: `id`, `name`, `description`, `trigger_json`, `enabled`, `updated_at`, `is_deleted`
+- `devices`: `id`, `name`, `type`, `room_id`, `state_json`, `updated_at`, `version`, `is_deleted`
+- `rooms`: `id`, `name`, `icon`, `built_in`, `updated_at`, `version`, `is_deleted`
+- `scenes`: `id`, `name`, `description`, `enabled`, `updated_at`, `version`, `is_deleted` (Scenes are strictly manual triggers)
+- `automations`: `id`, `name`, `trigger_type`, `trigger_json`, `action_json`, `enabled`, `updated_at`, `version`, `is_deleted` (Automations are conditional triggers)
 - `history`: `id`, `device_id`, `command_name`, `status`, `message`, `created_at`
 
 ### Error Handling & Edge Cases
