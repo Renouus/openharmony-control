@@ -188,6 +188,9 @@ Add this interface and method to `DeviceApi` class:
 export interface SyncResponse {
   currentVersion: number;
   devices: any[]; // Using any here since it's raw JSON from API, but mapped in Repo
+  rooms: any[];
+  scenes: any[];
+  automations: any[];
 }
 
   async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
@@ -278,6 +281,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
             await this.deviceDao.insertOrUpdate(store, deviceItem);
           }
         }
+        // TODO: Apply updates for rooms, scenes, and automations similarly
         
         // Update last sync version in the same transaction
         await this.syncDao.setLastSyncVersion(store, updates.currentVersion);
@@ -307,4 +311,99 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 ```bash
 git add apps/openharmony-control/entry/src/main/ets/services/smart-home-repository.ets
 git commit -m "feat(app): implement robust background sync logic with transactions and mutex"
+```
+
+---
+
+### Task 4: Setup WebSocketClient and Repository Event Sync
+
+**Files:**
+- Create: `apps/openharmony-control/entry/src/main/ets/services/WebSocketClient.ets`
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/smart-home-repository.ets`
+
+- [ ] **Step 1: Write WebSocketClient implementation**
+Create `apps/openharmony-control/entry/src/main/ets/services/WebSocketClient.ets`:
+```typescript
+import webSocket from '@ohos.net.webSocket';
+
+export class WebSocketClient {
+  private ws = webSocket.createWebSocket();
+  private readonly url: string;
+  public onMessageCallback?: (event: string, payload: any) => void;
+
+  constructor(url: string) {
+    this.url = url;
+  }
+
+  public connect(): void {
+    this.ws.on('open', (err, value) => {
+      console.info("WebSocket connection opened");
+    });
+
+    this.ws.on('message', (err, value) => {
+      if (typeof value === 'string' && this.onMessageCallback) {
+        try {
+          const data = JSON.parse(value);
+          this.onMessageCallback(data.event, data.payload);
+        } catch (e) {
+          console.error("Invalid WebSocket message format");
+        }
+      }
+    });
+
+    this.ws.on('close', (err, value) => {
+      console.info("WebSocket connection closed, reconnecting...");
+      setTimeout(() => this.connect(), 5000);
+    });
+
+    this.ws.on('error', (err) => {
+      console.error("WebSocket error", err);
+    });
+
+    this.ws.connect(this.url, (err, value) => {
+      if (!err) {
+        console.info("Connected successfully");
+      }
+    });
+  }
+}
+```
+
+- [ ] **Step 2: Integrate WebSocket into Repository**
+Modify `smart-home-repository.ets` to instantiate `WebSocketClient` and listen for events:
+```typescript
+import { WebSocketClient } from './WebSocketClient';
+// ... inside SmartHomeRepository class, add:
+  private readonly wsClient: WebSocketClient;
+
+  // Update constructor:
+  constructor(api: DeviceApi) {
+    this.api = api;
+    this.deviceDao = new DeviceDao();
+    this.syncDao = new SyncDao();
+    
+    // Configure WebSocket URL as appropriate
+    this.wsClient = new WebSocketClient('ws://127.0.0.1:3443/ws/events');
+    this.wsClient.onMessageCallback = (event, payload) => {
+      this.handleWebSocketEvent(event, payload);
+    };
+    this.wsClient.connect();
+  }
+
+  private handleWebSocketEvent(event: string, payload: any) {
+    // 1. Write the payload to the local database via DAO
+    // 2. Trigger UI refresh via AppStorage
+    if (event === 'DeviceStateUpdated') {
+      const store = DatabaseHelper.getInstance().getStore();
+      this.deviceDao.insertOrUpdate(store, payload as DeviceSyncItem).then(() => {
+        // AppStorage.setOrCreate('sync_completed', Date.now());
+      }).catch(console.error);
+    }
+  }
+```
+
+- [ ] **Step 3: Commit**
+```bash
+git add apps/openharmony-control/entry/src/main/ets/services/WebSocketClient.ets apps/openharmony-control/entry/src/main/ets/services/smart-home-repository.ets
+git commit -m "feat(app): add WebSocketClient and integrate event sync into repository"
 ```
