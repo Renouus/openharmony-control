@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement SQLite persistence in the Node.js backend using `better-sqlite3`, refactor existing in-memory registries to use it, and introduce version-based sync and WebSocket endpoints.
+**Goal:** Implement SQLite persistence in the Node.js backend using `better-sqlite3`, refactor existing in-memory registries to use it, and introduce version-based sync and WebSocket endpoints. Addresses robust versioning, soft-delete semantics, dependency injection, and WebSocket isolation.
 
-**Architecture:** We will initialize a `better-sqlite3` database on startup with the required tables (`devices`, `rooms`, `scenes`, `automations`, `history`). We will build a unified `DatabaseService` for all operations, replace the in-memory maps in our registries, add `@fastify/websocket` to broadcast changes, and add the `/api/sync` endpoint to fetch version-based diffs.
+**Architecture:** We will initialize a `better-sqlite3` database on startup with the required tables (`devices`, `rooms`, `scenes`, `automations`, `history`, `metadata`). We will build a `DatabaseService` (via DI) for all operations, replace the in-memory maps in our registries, add `@fastify/websocket` with connection isolation, and add the `/api/sync` endpoint for robust version-based diffs.
 
 **Tech Stack:** Node.js, Fastify, `better-sqlite3`, `@fastify/websocket`, Vitest.
 
@@ -39,7 +39,7 @@ describe('Database Initialization', () => {
     closeDatabase();
   });
 
-  it('should initialize tables with version column', () => {
+  it('should initialize tables with version column and metadata table', () => {
     const db = getDb();
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
     const tableNames = tables.map(t => t.name);
@@ -49,9 +49,13 @@ describe('Database Initialization', () => {
     expect(tableNames).toContain('scenes');
     expect(tableNames).toContain('automations');
     expect(tableNames).toContain('history');
+    expect(tableNames).toContain('metadata');
 
     const columns = db.prepare("PRAGMA table_info(devices)").all() as { name: string }[];
     expect(columns.map(c => c.name)).toContain('version');
+
+    const versionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+    expect(versionRow.value).toBe('0');
   });
 });
 ```
@@ -71,6 +75,13 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
   dbInstance = new Database(dbPath);
   
   dbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    INSERT OR IGNORE INTO metadata (key, value) VALUES ('global_version', '0');
+
     CREATE TABLE IF NOT EXISTS devices (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -149,7 +160,7 @@ Expected: PASS
 - [ ] **Step 6: Commit**
 ```bash
 git add package.json package-lock.json services/control-center/src/db/database.ts services/control-center/test/db/database.test.ts
-git commit -m "feat(backend): setup better-sqlite3 and init database tables"
+git commit -m "feat(backend): setup better-sqlite3 with metadata versioning"
 ```
 
 ---
@@ -164,7 +175,7 @@ git commit -m "feat(backend): setup better-sqlite3 and init database tables"
 Create `services/control-center/test/db/database-service.test.ts`:
 ```typescript
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initDatabase, closeDatabase } from '../../src/db/database';
+import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
 import { DatabaseService } from '../../src/db/database-service';
 
 describe('DatabaseService', () => {
@@ -176,19 +187,21 @@ describe('DatabaseService', () => {
     closeDatabase();
   });
 
-  it('should return changes since a given version', () => {
-    const service = new DatabaseService();
-    // Simulate inserting a device with version 10
-    service.getDb().prepare(
-      "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run('dev-1', 'Light 1', 'light', 'room-1', '{}', Date.now(), 10);
+  it('should return changes since a given version and correctly read global_version', () => {
+    const db = getDb();
+    const service = new DatabaseService(db);
+    
+    // Simulate updating global version and inserting a deleted device
+    db.prepare("UPDATE metadata SET value = '10' WHERE key = 'global_version'").run();
+    db.prepare(
+      "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run('dev-1', 'Light 1', 'light', 'room-1', '{}', Date.now(), 10, 1);
 
     const syncResult = service.getSyncData(5);
     
-    expect(syncResult.currentVersion).toBeGreaterThanOrEqual(10);
+    expect(syncResult.currentVersion).toBe(10);
     expect(syncResult.devices).toHaveLength(1);
-    expect(syncResult.devices[0].id).toBe('dev-1');
-    expect(syncResult.rooms).toHaveLength(0);
+    expect(syncResult.devices[0].is_deleted).toBe(1); // Validates deletion sync semantics
   });
 });
 ```
@@ -200,7 +213,6 @@ Expected: FAIL with "DatabaseService is not defined"
 - [ ] **Step 3: Write minimal implementation**
 Create `services/control-center/src/db/database-service.ts`:
 ```typescript
-import { getDb } from './database';
 import Database from 'better-sqlite3';
 
 export interface SyncResponse {
@@ -212,26 +224,23 @@ export interface SyncResponse {
 }
 
 export class DatabaseService {
-  public getDb(): Database.Database {
-    return getDb();
+  private db: Database.Database;
+
+  // DI: Dependency Injection over Singleton binding
+  constructor(db: Database.Database) {
+    this.db = db;
   }
 
   public getSyncData(lastVersion: number): SyncResponse {
-    const db = getDb();
-    
-    const devices = db.prepare('SELECT * FROM devices WHERE version > ?').all(lastVersion);
-    const rooms = db.prepare('SELECT * FROM rooms WHERE version > ?').all(lastVersion);
-    const scenes = db.prepare('SELECT * FROM scenes WHERE version > ?').all(lastVersion);
-    const automations = db.prepare('SELECT * FROM automations WHERE version > ?').all(lastVersion);
+    // Queries will natively return records where is_deleted = 1 if they were updated
+    const devices = this.db.prepare('SELECT * FROM devices WHERE version > ?').all(lastVersion);
+    const rooms = this.db.prepare('SELECT * FROM rooms WHERE version > ?').all(lastVersion);
+    const scenes = this.db.prepare('SELECT * FROM scenes WHERE version > ?').all(lastVersion);
+    const automations = this.db.prepare('SELECT * FROM automations WHERE version > ?').all(lastVersion);
 
-    // Calculate current version as max of all retrieved versions, or lastVersion if none
-    let currentVersion = lastVersion;
-    const allRecords = [...devices, ...rooms, ...scenes, ...automations] as any[];
-    for (const record of allRecords) {
-      if (record.version > currentVersion) {
-        currentVersion = record.version;
-      }
-    }
+    // Reliable currentVersion calculation from unified metadata
+    const versionRow = this.db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+    const currentVersion = parseInt(versionRow.value, 10);
 
     return {
       currentVersion,
@@ -242,8 +251,11 @@ export class DatabaseService {
     };
   }
 
-  public generateNextVersion(): number {
-    return Date.now(); // Using timestamp as monotonic version for simplicity
+  // Helper for transactions: increments global version and returns it
+  public incrementAndGetVersion(): number {
+    this.db.prepare("UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'global_version'").run();
+    const versionRow = this.db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+    return parseInt(versionRow.value, 10);
   }
 }
 ```
@@ -255,7 +267,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 ```bash
 git add services/control-center/src/db/database-service.ts services/control-center/test/db/database-service.test.ts
-git commit -m "feat(backend): implement DatabaseService and sync logic"
+git commit -m "feat(backend): implement DatabaseService with DI and robust version sync"
 ```
 
 ---
@@ -309,11 +321,11 @@ Create `services/control-center/src/routes/sync.ts`:
 ```typescript
 import { FastifyInstance } from 'fastify';
 import { DatabaseService } from '../db/database-service';
+import { getDb } from '../db/database';
 
 export default async function syncRoutes(fastify: FastifyInstance) {
-  const dbService = new DatabaseService();
-
   fastify.get('/api/sync', async (request, reply) => {
+    const dbService = new DatabaseService(getDb());
     const query = request.query as { lastVersion?: string };
     const lastVersion = query.lastVersion ? parseInt(query.lastVersion, 10) : 0;
     
@@ -344,7 +356,7 @@ git commit -m "feat(backend): add /api/sync endpoint"
 
 ---
 
-### Task 4: Setup Fastify WebSocket for Real-time Events
+### Task 4: Setup Fastify WebSocket with Isolation
 
 **Files:**
 - Modify: `services/control-center/package.json`
@@ -360,25 +372,40 @@ npm install @fastify/websocket
 - [ ] **Step 2: Write minimal implementation**
 Create `services/control-center/src/routes/websocket.ts`:
 ```typescript
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 
-export const connections = new Set<any>();
+// Isolation mapping: clientId -> connection
+export const clientConnections = new Map<string, any>();
 
-export function broadcastEvent(event: string, payload: any) {
+export function broadcastEvent(event: string, payload: any, targetClientId?: string) {
   const message = JSON.stringify({ event, payload });
-  for (const connection of connections) {
-    if (connection.readyState === 1) { // OPEN
+  
+  if (targetClientId) {
+    // Targeted push
+    const connection = clientConnections.get(targetClientId);
+    if (connection && connection.readyState === 1) {
       connection.send(message);
+    }
+  } else {
+    // Broadcast to all authorized clients
+    for (const [_, connection] of clientConnections.entries()) {
+      if (connection.readyState === 1) { // OPEN
+        connection.send(message);
+      }
     }
   }
 }
 
 export default async function websocketRoutes(fastify: FastifyInstance) {
-  fastify.get('/ws/events', { websocket: true }, (connection, req) => {
-    connections.add(connection.socket);
+  fastify.get('/ws/events', { websocket: true }, (connection, req: FastifyRequest) => {
+    // Basic isolation via query param (can be upgraded to JWT auth later)
+    const query = req.query as { clientId?: string };
+    const clientId = query.clientId || `anon-${Date.now()}`;
+    
+    clientConnections.set(clientId, connection.socket);
     
     connection.socket.on('close', () => {
-      connections.delete(connection.socket);
+      clientConnections.delete(clientId);
     });
   });
 }
@@ -400,7 +427,7 @@ app.register(websocketRoutes);
 - [ ] **Step 3: Commit**
 ```bash
 git add package.json package-lock.json services/control-center/src/app.ts services/control-center/src/routes/websocket.ts
-git commit -m "feat(backend): setup fastify websocket for real-time events"
+git commit -m "feat(backend): setup fastify websocket with basic isolation"
 ```
 
 ---
