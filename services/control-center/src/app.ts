@@ -31,6 +31,7 @@ import { registerSceneRoutes } from "./routes/scenes";
 import { SceneRegistry } from "./scenes/scene-registry";
 import { RoomRegistry } from "./registry/rooms";
 import { registerRoomRoutes } from "./routes/rooms";
+import syncRoutes from "./routes/sync";
 
 export function buildApp(
   registry = new DeviceRegistry(),
@@ -84,6 +85,7 @@ export function buildApp(
     });
     await registerDemoRoutes(scope, registry, faultState);
     await registerRoomRoutes(scope, roomRegistry, registry);
+    await syncRoutes(scope);
   });
 
   return app;
