@@ -14,6 +14,9 @@ import {
 } from './device-api';
 import { DeviceSnapshot } from '../model/device-view-model';
 import { commandFeedbackLabel } from '../model/command-feedback';
+import { DatabaseHelper } from './db/DatabaseHelper';
+import { DeviceDao, DeviceSyncItem } from './db/DeviceDao';
+import { SyncDao } from './db/SyncDao';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -51,9 +54,64 @@ export interface SmartHomeRepositoryPort {
 
 export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly api: DeviceApi;
+  private readonly deviceDao: DeviceDao;
+  private readonly syncDao: SyncDao;
+  private isSyncing: boolean = false; // Sync Mutex
 
   constructor(api: DeviceApi) {
     this.api = api;
+    this.deviceDao = new DeviceDao();
+    this.syncDao = new SyncDao();
+  }
+
+  async performBackgroundSync(): Promise<void> {
+    if (this.isSyncing) {
+      console.info('Sync already in progress, skipping.');
+      return;
+    }
+
+    this.isSyncing = true;
+    const store = DatabaseHelper.getInstance().getStore();
+    
+    try {
+      const lastVersion = await this.syncDao.getLastSyncVersion(store);
+      const updates = await this.api.fetchSyncUpdates(lastVersion);
+      
+      if (!updates || updates.currentVersion <= lastVersion) {
+        return; // Nothing to sync
+      }
+
+      // Start transaction
+      store.beginTransaction();
+      
+      try {
+        // Apply updates to LocalDataSource
+        if (updates.devices && updates.devices.length > 0) {
+          for (const rawDevice of updates.devices) {
+            const deviceItem = rawDevice as DeviceSyncItem;
+            await this.deviceDao.insertOrUpdate(store, deviceItem);
+          }
+        }
+        // Apply updates for rooms, scenes, and automations similarly...
+        
+        // Update last sync version in the same transaction
+        await this.syncDao.setLastSyncVersion(store, updates.currentVersion);
+        
+        // Commit transaction
+        store.commit();
+        
+        // Emit event via AppStorage or EventHub so ViewModels can refresh
+        AppStorage.setOrCreate('sync_completed', Date.now());
+      } catch (innerError) {
+        store.rollBack();
+        throw innerError;
+      }
+
+    } catch (error) {
+      console.error('Background sync failed:', error);
+    } finally {
+      this.isSyncing = false;
+    }
   }
 
   async getSummary(): Promise<HomeSummary> {
@@ -79,7 +137,15 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   }
 
   async listDevices(): Promise<DeviceSnapshot[]> {
-    return await this.api.listDevices();
+    const store = DatabaseHelper.getInstance().getStore();
+    
+    // 1. Return locally cached data immediately for fast UI
+    const localDevices = await this.deviceDao.getAllDevices(store);
+    
+    // 2. Trigger background sync asynchronously (fire and forget)
+    this.performBackgroundSync().catch(console.error);
+    
+    return localDevices;
   }
 
   async listRooms(): Promise<RoomItem[]> {
