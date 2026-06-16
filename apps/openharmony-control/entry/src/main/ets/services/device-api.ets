@@ -5,6 +5,14 @@ export interface DeviceListResponse {
   devices: DeviceSnapshot[];
 }
 
+export interface SyncResponse {
+  currentVersion: number;
+  devices: any[]; // Map to DeviceSyncItem later
+  rooms: any[];
+  scenes: any[];
+  automations: any[];
+}
+
 export interface RoomItem {
   id: string;
   name: string;
@@ -291,6 +299,19 @@ export class DeviceApi {
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+  }
+
+  async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/sync?lastVersion=${lastVersion}`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as SyncResponse;
+    } finally {
+      client.destroy();
+    }
   }
 
   async listDevices(): Promise<DeviceSnapshot[]> {
