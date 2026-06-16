@@ -35,13 +35,6 @@ export interface DomainEvent<T = any> {
   payload?: T;
   timestamp: number;
 }
-
-export interface ControlSignal {
-  type: 'SYNC_COMPLETED';
-  version: number;
-}
-
-export type QueueItem = DomainEvent | ControlSignal;
 ```
 
 - [ ] **Step 2: Commit**
@@ -62,15 +55,20 @@ git commit -m "feat(app): define domain event and control signal protocols"
 
 Create `apps/openharmony-control/entry/src/main/ets/services/db/DatabaseEventProcessor.ets`:
 ```typescript
-import { DomainEvent, ControlSignal, QueueItem, DomainEventType } from '../../model/domain-event';
+import { DomainEvent, DomainEventType } from '../../model/domain-event';
 import { DatabaseHelper } from './DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './DeviceDao';
 import { SyncDao } from './SyncDao';
 import relationalStore from '@ohos.data.relationalStore';
 
+export interface BatchRequest {
+  events: DomainEvent[];
+  finalVersion?: number;
+}
+
 export class DatabaseEventProcessor {
   private static instance: DatabaseEventProcessor;
-  private queue: QueueItem[] = [];
+  private queue: BatchRequest[] = [];
   private isProcessing = false;
   
   private deviceDao = new DeviceDao();
@@ -85,8 +83,13 @@ export class DatabaseEventProcessor {
     return DatabaseEventProcessor.instance;
   }
 
-  public pushEvent(item: QueueItem) {
-    this.queue.push(item);
+  public pushEvent(event: DomainEvent) {
+    this.queue.push({ events: [event] });
+    this.processQueue().catch(console.error);
+  }
+
+  public pushBatch(events: DomainEvent[], finalVersion?: number) {
+    this.queue.push({ events, finalVersion });
     this.processQueue().catch(console.error);
   }
 
@@ -96,19 +99,19 @@ export class DatabaseEventProcessor {
     
     const store = DatabaseHelper.getInstance().getStore();
     
-    // SQLite transaction in ArkTS requires special handling, but beginTransaction exists
     store.beginTransaction();
     try {
       while (this.queue.length > 0) {
-        const item = this.queue.shift();
-        if (!item) continue;
+        const batch = this.queue.shift();
+        if (!batch) continue;
         
-        if (item.type === 'SYNC_COMPLETED') {
-          const signal = item as ControlSignal;
-          await this.syncDao.setLastSyncVersion(store, signal.version);
-        } else {
-          const event = item as DomainEvent;
+        for (const event of batch.events) {
           await this.processDomainEvent(store, event);
+        }
+
+        // Update the Sync Version immediately in the same transaction, if provided
+        if (batch.finalVersion !== undefined) {
+          await this.syncDao.setLastSyncVersion(store, batch.finalVersion);
         }
       }
       store.commit();
@@ -174,10 +177,13 @@ git commit -m "feat(app): implement DatabaseEventProcessor single-writer queue w
 
 Create `apps/openharmony-control/entry/src/main/ets/services/domain-event-adapter.ets`:
 ```typescript
-import { DomainEvent, DomainEventType, ControlSignal } from '../model/domain-event';
+import { DomainEvent, DomainEventType } from '../model/domain-event';
 import { SyncResponse } from './device-api';
 import util from '@ohos.util';
 import { DeviceSyncItem } from './db/DeviceDao';
+import relationalStore from '@ohos.data.relationalStore';
+import { DatabaseHelper } from './db/DatabaseHelper';
+import { DeviceDao } from './db/DeviceDao';
 
 export class DomainEventAdapter {
   
@@ -194,39 +200,44 @@ export class DomainEventAdapter {
         timestamp: Date.now()
       };
     }
-    // Unknown event
     return null;
   }
 
-  // Uses state diff projection conceptually. For now, translates raw DTO arrays into events.
-  // The actual diff (version checking) is safely handled by the EventProcessor.
-  public static fromSyncResponse(response: SyncResponse): { events: DomainEvent[], signal: ControlSignal } {
+  // Performs State Diff Projection against local SQLite to generate actual diff events
+  public static async fromSyncResponse(response: SyncResponse): Promise<DomainEvent[]> {
     const events: DomainEvent[] = [];
+    const store = DatabaseHelper.getInstance().getStore();
+    const deviceDao = new DeviceDao();
     
     if (response.devices) {
+      // For future-proof diff, we fetch current local items (could optimize via hash or targeted query)
+      const localDevices = await deviceDao.getAllDevices(store);
+      const localDeviceMap = new Map<string, DeviceSyncItem>();
+      localDevices.forEach(d => localDeviceMap.set(d.id, d as DeviceSyncItem));
+
       response.devices.forEach((d: any) => {
-        const payload = d as DeviceSyncItem;
-        events.push({
-          eventId: util.generateRandomUUID(true),
-          type: payload.isDeleted ? DomainEventType.ENTITY_DELETED : DomainEventType.ENTITY_UPDATED,
-          entityType: 'device',
-          entityId: payload.id,
-          version: payload.version,
-          payload: payload,
-          timestamp: Date.now()
-        });
+        const incoming = d as DeviceSyncItem;
+        const local = localDeviceMap.get(incoming.id);
+        
+        // State Diff Logic: Only generate an event if version is strictly newer 
+        // (Even more granular diffs on payload could be added here later)
+        if (!local || incoming.version > local.version) {
+          events.push({
+            eventId: util.generateRandomUUID(true),
+            type: incoming.isDeleted ? DomainEventType.ENTITY_DELETED : DomainEventType.ENTITY_UPDATED,
+            entityType: 'device',
+            entityId: incoming.id,
+            version: incoming.version,
+            payload: incoming,
+            timestamp: Date.now()
+          });
+        }
       });
     }
 
     // Process rooms, scenes, automations similarly here when implemented
     
-    return {
-      events,
-      signal: {
-        type: 'SYNC_COMPLETED',
-        version: response.currentVersion
-      }
-    };
+    return events;
   }
 }
 ```
@@ -313,10 +324,10 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
         return; 
       }
 
-      const { events, signal } = DomainEventAdapter.fromSyncResponse(updates);
+      const events = await DomainEventAdapter.fromSyncResponse(updates);
       
-      events.forEach(e => DatabaseEventProcessor.getInstance().pushEvent(e));
-      DatabaseEventProcessor.getInstance().pushEvent(signal);
+      // Push events and finalVersion together in a single batch
+      DatabaseEventProcessor.getInstance().pushBatch(events, updates.currentVersion);
       
     } catch (error) {
       console.error('Background sync failed:', error);
