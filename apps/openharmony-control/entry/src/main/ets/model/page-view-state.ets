@@ -274,9 +274,23 @@ export class CameraViewState {
 }
 
 @Observed
-export class AutomationViewState {
-  scenes: SceneCardState[] = [];
+export class ScenesViewState {
+  items: SceneCardState[] = [];
   feedback: string = '';
+}
+
+@Observed
+export class AutomationViewState {
+  items: SceneCardState[] = [];
+  feedback: string = '';
+
+  get scenes(): SceneCardState[] {
+    return this.items;
+  }
+
+  set scenes(value: SceneCardState[]) {
+    this.items = value;
+  }
 }
 
 @Observed
@@ -358,8 +372,14 @@ export interface CameraViewStateData {
   feedback: string;
 }
 
+export interface ScenesViewStateData {
+  items: SceneCardState[];
+  feedback: string;
+}
+
 export interface AutomationViewStateData {
-  scenes: SceneCardState[];
+  items?: SceneCardState[];
+  scenes?: SceneCardState[];
   feedback: string;
 }
 
@@ -458,8 +478,16 @@ export function createEmptyCameraViewStateData(): CameraViewStateData {
   };
 }
 
+export function createEmptyScenesViewStateData(): ScenesViewStateData {
+  return {
+    items: [],
+    feedback: '',
+  };
+}
+
 export function createEmptyAutomationViewStateData(): AutomationViewStateData {
   return {
+    items: [],
     scenes: [],
     feedback: '',
   };
@@ -507,6 +535,7 @@ export function createEmptyRoomListState(): RoomListState {
 // ViewModels return *Data types; callers that previously used the old names
 // still compile cleanly via these aliases.
 
+export { createEmptyScenesViewStateData as createEmptyScenesViewState };
 export { createEmptyHomeViewStateData as createEmptyHomeViewState };
 export { createEmptyLightingViewStateData as createEmptyLightingViewState };
 export { createEmptyAccessViewStateData as createEmptyAccessViewState };

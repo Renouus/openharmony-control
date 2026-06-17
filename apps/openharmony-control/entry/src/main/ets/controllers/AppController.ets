@@ -7,14 +7,17 @@ import {
   HomeViewStateData,
   LightingViewStateData,
   NotificationsViewStateData,
+  ScenesViewStateData,
   createEmptyHomeViewStateData,
   createEmptyLightingViewStateData,
   createEmptyAccessViewStateData,
   createEmptyCameraViewStateData,
   createEmptyClimateViewStateData,
+  createEmptyScenesViewStateData,
   createEmptyAutomationViewStateData,
   createEmptyFamilyViewStateData,
   createEmptyNotificationsViewStateData,
+  SceneCardState,
   RoomItemState,
 } from '../model/page-view-state';
 import { mapRoomList } from '../model/smart-home-mappers';
@@ -67,6 +70,7 @@ export class AppController {
     snapshot.assignAccess(await this.fetchAccess(feedback));
     snapshot.assignCamera(await this.fetchCamera(feedback));
     snapshot.assignClimate(await this.fetchClimate(feedback));
+    snapshot.assignScenes(await this.fetchScenes(feedback));
     snapshot.assignAutomation(await this.fetchAutomation(feedback));
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
@@ -94,6 +98,9 @@ export class AppController {
           break;
         case 'climate':
           snapshot.assignClimate(await this.fetchClimate(feedback));
+          break;
+        case 'scenesList':
+          snapshot.assignScenes(await this.fetchScenes(feedback));
           break;
         case 'automation':
           snapshot.assignAutomation(await this.fetchAutomation(feedback));
@@ -180,9 +187,25 @@ export class AppController {
     }
   }
 
+  private async fetchScenes(feedback: string = ''): Promise<ScenesViewStateData> {
+    try {
+      return {
+        items: this.sceneItems(await this.automationViewModel.load(feedback)),
+        feedback,
+      };
+    } catch {
+      const next = createEmptyScenesViewStateData();
+      next.feedback = 'Scenes unavailable';
+      return next;
+    }
+  }
+
   private async fetchAutomation(feedback: string = ''): Promise<AutomationViewStateData> {
     try {
-      return await this.automationViewModel.load(feedback);
+      return {
+        items: this.automationItems(await this.automationViewModel.load(feedback)),
+        feedback,
+      };
     } catch {
       const next = createEmptyAutomationViewStateData();
       next.feedback = 'Automation unavailable';
@@ -346,10 +369,10 @@ export class AppController {
   async handleCreateScene(snapshot: AppStateSnapshot, payload: ScenePayloadDraft): Promise<void> {
     try {
       await this.repository.createScene(payload);
-      snapshot.assignAutomation(await this.fetchAutomation('场景已创建'));
+      snapshot.assignScenes(await this.fetchScenes('场景已创建'));
       snapshot.assignHome(await this.fetchHome('场景已创建'));
     } catch {
-      snapshot.assignAutomation(await this.fetchAutomation('创建场景失败'));
+      snapshot.assignScenes(await this.fetchScenes('创建场景失败'));
       snapshot.assignHome(await this.fetchHome('创建场景失败'));
     }
   }
@@ -357,10 +380,10 @@ export class AppController {
   async handleUpdateScene(snapshot: AppStateSnapshot, sceneId: string, payload: ScenePayloadDraft): Promise<void> {
     try {
       await this.repository.updateScene(sceneId, payload);
-      snapshot.assignAutomation(await this.fetchAutomation('场景已更新'));
+      snapshot.assignScenes(await this.fetchScenes('场景已更新'));
       snapshot.assignHome(await this.fetchHome('场景已更新'));
     } catch {
-      snapshot.assignAutomation(await this.fetchAutomation('更新场景失败'));
+      snapshot.assignScenes(await this.fetchScenes('更新场景失败'));
       snapshot.assignHome(await this.fetchHome('更新场景失败'));
     }
   }
@@ -368,10 +391,10 @@ export class AppController {
   async handleDeleteScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
     try {
       await this.repository.deleteScene(sceneId);
-      snapshot.assignAutomation(await this.fetchAutomation('场景已删除'));
+      snapshot.assignScenes(await this.fetchScenes('场景已删除'));
       snapshot.assignHome(await this.fetchHome('场景已删除'));
     } catch {
-      snapshot.assignAutomation(await this.fetchAutomation('删除场景失败'));
+      snapshot.assignScenes(await this.fetchScenes('删除场景失败'));
       snapshot.assignHome(await this.fetchHome('删除场景失败'));
     }
   }
@@ -425,6 +448,18 @@ export class AppController {
     } catch {
       snapshot.assignHome(await this.fetchHome('分配设备失败'));
     }
+  }
+
+  private sceneItems(data: AutomationViewStateData): SceneCardState[] {
+    return this.allSceneItems(data).filter((scene: SceneCardState) => scene.triggerTypeLabel === 'manual');
+  }
+
+  private automationItems(data: AutomationViewStateData): SceneCardState[] {
+    return this.allSceneItems(data).filter((scene: SceneCardState) => scene.triggerTypeLabel !== 'manual');
+  }
+
+  private allSceneItems(data: AutomationViewStateData): SceneCardState[] {
+    return data.items ?? data.scenes ?? [];
   }
 }
 

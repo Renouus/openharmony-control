@@ -3,6 +3,7 @@ import {
   LightingViewStateData,
   AccessViewStateData,
   CameraViewStateData,
+  ScenesViewStateData,
   AutomationViewStateData,
   NotificationsViewStateData,
   FamilyViewStateData,
@@ -12,6 +13,7 @@ import {
   AccessViewState,
   CameraViewState,
   ClimateViewState,
+  ScenesViewState,
   AutomationViewState,
   NotificationsViewState,
   FamilyViewState,
@@ -26,6 +28,7 @@ export class AppStateSnapshot {
   access: AccessViewState = new AccessViewState();
   camera: CameraViewState = new CameraViewState();
   climate: ClimateViewState = new ClimateViewState();
+  scenes: ScenesViewState = new ScenesViewState();
   automation: AutomationViewState = new AutomationViewState();
   notifications: NotificationsViewState = new NotificationsViewState();
   family: FamilyViewState = new FamilyViewState();
@@ -90,8 +93,13 @@ export class AppStateSnapshot {
     this.climate.feedback = data.feedback;
   }
 
+  assignScenes(data: ScenesViewStateData): void {
+    this.scenes.items = data.items;
+    this.scenes.feedback = data.feedback;
+  }
+
   assignAutomation(data: AutomationViewStateData): void {
-    this.automation.scenes = data.scenes;
+    this.automation.items = data.items ?? data.scenes ?? [];
     this.automation.feedback = data.feedback;
   }
 

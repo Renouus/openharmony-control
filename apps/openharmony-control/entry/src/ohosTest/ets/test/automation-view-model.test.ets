@@ -1,9 +1,10 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { AutomationViewModel } from '../../../main/ets/viewmodel/automation-view-model';
 import { SmartHomeRepositoryPort } from '../../../main/ets/services/smart-home-repository';
-import { DevicePayload, SceneSnapshot } from '../../../main/ets/services/device-api';
-import { filterNotificationEntries } from '../../../main/ets/model/smart-home-mappers';
+import { DevicePayload, SceneEnablePayload, ScenePayloadDraft, SceneSnapshot } from '../../../main/ets/services/device-api';
+import { automationSceneCards, filterNotificationEntries, manualSceneCards } from '../../../main/ets/model/smart-home-mappers';
 import { HistoryRowState } from '../../../main/ets/model/page-view-state';
+import { AppStateSnapshot } from '../../../main/ets/model/app-state-snapshot';
 
 class AutomationRepositoryStub implements SmartHomeRepositoryPort {
   async getSummary() {
@@ -33,7 +34,18 @@ class AutomationRepositoryStub implements SmartHomeRepositoryPort {
   async shareGuestKey(_holder: string, _hours: number) {}
   async toggleCameraRecording(_cameraId: string, _recording: boolean) {}
   async runScene(_sceneId: string) {}
-  async updateScene(_sceneId: string, _enabled: boolean) {}
+  async listRooms() { return []; }
+  async createRoom(_name: string, _icon: string) { throw new Error('not used'); }
+  async updateRoom(_roomId: string, _name?: string, _icon?: string) { throw new Error('not used'); }
+  async deleteRoom(_roomId: string) {}
+  async updateDeviceRoom(_deviceId: string, _roomId: string) {}
+  async getFamilyOverview() { throw new Error('not used'); }
+  async sendBroadcast(_message: string) {}
+  async getClimateOverview() { throw new Error('not used'); }
+  async updateClimateMode(_mode: string) {}
+  async createScene(_payload: ScenePayloadDraft) { throw new Error('not used'); }
+  async deleteScene(_sceneId: string) {}
+  async updateScene(_sceneId: string, _payload: ScenePayloadDraft | SceneEnablePayload) { throw new Error('not used'); }
   async sendDeviceCommand(_deviceId: string, _name: string, _payload: DevicePayload) {}
 }
 
@@ -61,6 +73,73 @@ export default function automationViewModelTest() {
       expect(filterNotificationEntries(entries, 1)[0].id).assertEqual('1');
       expect(filterNotificationEntries(entries, 2).length).assertEqual(1);
       expect(filterNotificationEntries(entries, 2)[0].id).assertEqual('3');
+    });
+  });
+
+  describe('scene partitioning', () => {
+    it('splits manual scenes from automation rules without dropping either side', () => {
+      const scenes = [
+        {
+          id: 'movie',
+          name: 'Movie',
+          description: 'Dim the lights',
+          enabled: true,
+          triggerLabel: 'Run now',
+          triggerTypeLabel: 'manual',
+          actions: ['Dim living room'],
+          repeatLabel: 'Never',
+        },
+        {
+          id: 'night-routine',
+          name: 'Night Routine',
+          description: 'Lock and cool the house',
+          enabled: true,
+          triggerLabel: '22:00 every day',
+          triggerTypeLabel: 'time',
+          actions: ['Lock front door', 'Set AC to 24C'],
+          repeatLabel: 'Every day',
+        },
+      ];
+
+      expect(manualSceneCards(scenes).map((scene) => scene.id).join(',')).assertEqual('movie');
+      expect(automationSceneCards(scenes).map((scene) => scene.id).join(',')).assertEqual('night-routine');
+    });
+
+    it('stores scene pages and automation pages in different state buckets', () => {
+      const snapshot = new AppStateSnapshot();
+
+      snapshot.assignScenes({
+        items: [{
+          id: 'movie',
+          name: 'Movie',
+          description: 'Dim the lights',
+          enabled: true,
+          triggerLabel: 'Run now',
+          triggerTypeLabel: 'manual',
+          actions: ['Dim living room'],
+          repeatLabel: 'Never',
+        }],
+        feedback: 'Scene ready',
+      });
+
+      snapshot.assignAutomation({
+        items: [{
+          id: 'night-routine',
+          name: 'Night Routine',
+          description: 'Lock and cool the house',
+          enabled: true,
+          triggerLabel: '22:00 every day',
+          triggerTypeLabel: 'time',
+          actions: ['Lock front door', 'Set AC to 24C'],
+          repeatLabel: 'Every day',
+        }],
+        feedback: 'Automation ready',
+      });
+
+      expect(snapshot.scenes.items.map((scene) => scene.id).join(',')).assertEqual('movie');
+      expect(snapshot.scenes.feedback).assertEqual('Scene ready');
+      expect(snapshot.automation.items.map((scene) => scene.id).join(',')).assertEqual('night-routine');
+      expect(snapshot.automation.feedback).assertEqual('Automation ready');
     });
   });
 }
