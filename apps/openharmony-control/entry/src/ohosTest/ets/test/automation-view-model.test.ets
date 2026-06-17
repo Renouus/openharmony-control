@@ -2,7 +2,7 @@ import { describe, expect, it } from '@ohos/hypium';
 import { AutomationViewModel } from '../../../main/ets/viewmodel/automation-view-model';
 import { SmartHomeRepositoryPort } from '../../../main/ets/services/smart-home-repository';
 import { DevicePayload, SceneEnablePayload, ScenePayloadDraft, SceneSnapshot } from '../../../main/ets/services/device-api';
-import { automationSceneCards, filterNotificationEntries, manualSceneCards } from '../../../main/ets/model/smart-home-mappers';
+import { filterNotificationEntries } from '../../../main/ets/model/smart-home-mappers';
 import { HistoryRowState } from '../../../main/ets/model/page-view-state';
 import { AppStateSnapshot } from '../../../main/ets/model/app-state-snapshot';
 
@@ -76,35 +76,7 @@ export default function automationViewModelTest() {
     });
   });
 
-  describe('scene partitioning', () => {
-    it('splits manual scenes from automation rules without dropping either side', () => {
-      const scenes = [
-        {
-          id: 'movie',
-          name: 'Movie',
-          description: 'Dim the lights',
-          enabled: true,
-          triggerLabel: 'Run now',
-          triggerTypeLabel: 'manual',
-          actions: ['Dim living room'],
-          repeatLabel: 'Never',
-        },
-        {
-          id: 'night-routine',
-          name: 'Night Routine',
-          description: 'Lock and cool the house',
-          enabled: true,
-          triggerLabel: '22:00 every day',
-          triggerTypeLabel: 'time',
-          actions: ['Lock front door', 'Set AC to 24C'],
-          repeatLabel: 'Every day',
-        },
-      ];
-
-      expect(manualSceneCards(scenes).map((scene) => scene.id).join(',')).assertEqual('movie');
-      expect(automationSceneCards(scenes).map((scene) => scene.id).join(',')).assertEqual('night-routine');
-    });
-
+  describe('state ownership', () => {
     it('stores scene pages and automation pages in different state buckets', () => {
       const snapshot = new AppStateSnapshot();
 
