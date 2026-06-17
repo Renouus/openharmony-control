@@ -37,6 +37,35 @@ import { FamilyViewModel } from '../viewmodel/family-view-model';
 
 const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
 
+export interface SceneDomainRefreshState {
+  scenes: ScenesViewStateData;
+  automation: AutomationViewStateData;
+}
+
+function mixedSceneItems(data: AutomationViewStateData): SceneCardState[] {
+  return data.scenes ?? data.items ?? [];
+}
+
+export function createSceneDomainRefreshState(data: AutomationViewStateData, feedback: string = data.feedback): SceneDomainRefreshState {
+  const scenes = mixedSceneItems(data);
+  return {
+    scenes: {
+      items: scenes.filter((scene: SceneCardState) => scene.triggerTypeLabel === 'manual'),
+      feedback,
+    },
+    automation: {
+      scenes,
+      items: scenes.filter((scene: SceneCardState) => scene.triggerTypeLabel !== 'manual'),
+      feedback,
+    },
+  };
+}
+
+export function applySceneDomainRefresh(snapshot: AppStateSnapshot, state: SceneDomainRefreshState): void {
+  snapshot.assignScenes(state.scenes);
+  snapshot.assignAutomation(state.automation);
+}
+
 export class AppController {
   readonly repository: SmartHomeRepository;
   readonly homeViewModel: HomeViewModel;
@@ -70,8 +99,7 @@ export class AppController {
     snapshot.assignAccess(await this.fetchAccess(feedback));
     snapshot.assignCamera(await this.fetchCamera(feedback));
     snapshot.assignClimate(await this.fetchClimate(feedback));
-    snapshot.assignScenes(await this.fetchScenes(feedback));
-    snapshot.assignAutomation(await this.fetchAutomation(feedback));
+    applySceneDomainRefresh(snapshot, await this.fetchSceneDomains(feedback));
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
     snapshot.assignRoomList(await this.fetchRoomList());
@@ -100,10 +128,10 @@ export class AppController {
           snapshot.assignClimate(await this.fetchClimate(feedback));
           break;
         case 'scenesList':
-          snapshot.assignScenes(await this.fetchScenes(feedback));
+          applySceneDomainRefresh(snapshot, await this.fetchSceneDomains(feedback));
           break;
         case 'automation':
-          snapshot.assignAutomation(await this.fetchAutomation(feedback));
+          applySceneDomainRefresh(snapshot, await this.fetchSceneDomains(feedback));
           break;
         case 'notifications':
           snapshot.assignNotifications(await this.fetchNotifications());
@@ -187,29 +215,15 @@ export class AppController {
     }
   }
 
-  private async fetchScenes(feedback: string = ''): Promise<ScenesViewStateData> {
+  private async fetchSceneDomains(feedback: string = ''): Promise<SceneDomainRefreshState> {
     try {
-      return {
-        items: this.sceneItems(await this.automationViewModel.load(feedback)),
-        feedback,
-      };
+      return createSceneDomainRefreshState(await this.automationViewModel.load(feedback), feedback);
     } catch {
-      const next = createEmptyScenesViewStateData();
-      next.feedback = 'Scenes unavailable';
-      return next;
-    }
-  }
-
-  private async fetchAutomation(feedback: string = ''): Promise<AutomationViewStateData> {
-    try {
-      return {
-        items: this.automationItems(await this.automationViewModel.load(feedback)),
-        feedback,
-      };
-    } catch {
-      const next = createEmptyAutomationViewStateData();
-      next.feedback = 'Automation unavailable';
-      return next;
+      const scenes = createEmptyScenesViewStateData();
+      scenes.feedback = 'Scenes unavailable';
+      const automation = createEmptyAutomationViewStateData();
+      automation.feedback = 'Automation unavailable';
+      return { scenes, automation };
     }
   }
 
@@ -369,10 +383,10 @@ export class AppController {
   async handleCreateScene(snapshot: AppStateSnapshot, payload: ScenePayloadDraft): Promise<void> {
     try {
       await this.repository.createScene(payload);
-      snapshot.assignScenes(await this.fetchScenes('场景已创建'));
+      applySceneDomainRefresh(snapshot, await this.fetchSceneDomains('场景已创建'));
       snapshot.assignHome(await this.fetchHome('场景已创建'));
     } catch {
-      snapshot.assignScenes(await this.fetchScenes('创建场景失败'));
+      applySceneDomainRefresh(snapshot, await this.fetchSceneDomains('创建场景失败'));
       snapshot.assignHome(await this.fetchHome('创建场景失败'));
     }
   }
@@ -380,10 +394,10 @@ export class AppController {
   async handleUpdateScene(snapshot: AppStateSnapshot, sceneId: string, payload: ScenePayloadDraft): Promise<void> {
     try {
       await this.repository.updateScene(sceneId, payload);
-      snapshot.assignScenes(await this.fetchScenes('场景已更新'));
+      applySceneDomainRefresh(snapshot, await this.fetchSceneDomains('场景已更新'));
       snapshot.assignHome(await this.fetchHome('场景已更新'));
     } catch {
-      snapshot.assignScenes(await this.fetchScenes('更新场景失败'));
+      applySceneDomainRefresh(snapshot, await this.fetchSceneDomains('更新场景失败'));
       snapshot.assignHome(await this.fetchHome('更新场景失败'));
     }
   }
@@ -391,10 +405,10 @@ export class AppController {
   async handleDeleteScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
     try {
       await this.repository.deleteScene(sceneId);
-      snapshot.assignScenes(await this.fetchScenes('场景已删除'));
+      applySceneDomainRefresh(snapshot, await this.fetchSceneDomains('场景已删除'));
       snapshot.assignHome(await this.fetchHome('场景已删除'));
     } catch {
-      snapshot.assignScenes(await this.fetchScenes('删除场景失败'));
+      applySceneDomainRefresh(snapshot, await this.fetchSceneDomains('删除场景失败'));
       snapshot.assignHome(await this.fetchHome('删除场景失败'));
     }
   }
@@ -448,18 +462,6 @@ export class AppController {
     } catch {
       snapshot.assignHome(await this.fetchHome('分配设备失败'));
     }
-  }
-
-  private sceneItems(data: AutomationViewStateData): SceneCardState[] {
-    return this.allSceneItems(data).filter((scene: SceneCardState) => scene.triggerTypeLabel === 'manual');
-  }
-
-  private automationItems(data: AutomationViewStateData): SceneCardState[] {
-    return this.allSceneItems(data).filter((scene: SceneCardState) => scene.triggerTypeLabel !== 'manual');
-  }
-
-  private allSceneItems(data: AutomationViewStateData): SceneCardState[] {
-    return data.items ?? data.scenes ?? [];
   }
 }
 

@@ -5,6 +5,7 @@ import { DevicePayload, SceneEnablePayload, ScenePayloadDraft, SceneSnapshot } f
 import { filterNotificationEntries } from '../../../main/ets/model/smart-home-mappers';
 import { HistoryRowState } from '../../../main/ets/model/page-view-state';
 import { AppStateSnapshot } from '../../../main/ets/model/app-state-snapshot';
+import { applySceneDomainRefresh, createSceneDomainRefreshState } from '../../../main/ets/controllers/AppController';
 
 class AutomationRepositoryStub implements SmartHomeRepositoryPort {
   async getSummary() {
@@ -77,11 +78,10 @@ export default function automationViewModelTest() {
   });
 
   describe('state ownership', () => {
-    it('stores scene pages and automation pages in different state buckets', () => {
+    it('keeps the compatibility list mixed while splitting manual and automation state', () => {
       const snapshot = new AppStateSnapshot();
-
-      snapshot.assignScenes({
-        items: [{
+      const refreshState = createSceneDomainRefreshState({
+        scenes: [{
           id: 'movie',
           name: 'Movie',
           description: 'Dim the lights',
@@ -90,12 +90,7 @@ export default function automationViewModelTest() {
           triggerTypeLabel: 'manual',
           actions: ['Dim living room'],
           repeatLabel: 'Never',
-        }],
-        feedback: 'Scene ready',
-      });
-
-      snapshot.assignAutomation({
-        items: [{
+        }, {
           id: 'night-routine',
           name: 'Night Routine',
           description: 'Lock and cool the house',
@@ -105,13 +100,49 @@ export default function automationViewModelTest() {
           actions: ['Lock front door', 'Set AC to 24C'],
           repeatLabel: 'Every day',
         }],
-        feedback: 'Automation ready',
+        feedback: 'Scene sync',
       });
 
+      applySceneDomainRefresh(snapshot, refreshState);
+
       expect(snapshot.scenes.items.map((scene) => scene.id).join(',')).assertEqual('movie');
-      expect(snapshot.scenes.feedback).assertEqual('Scene ready');
+      expect(snapshot.scenes.feedback).assertEqual('Scene sync');
       expect(snapshot.automation.items.map((scene) => scene.id).join(',')).assertEqual('night-routine');
-      expect(snapshot.automation.feedback).assertEqual('Automation ready');
+      expect(snapshot.automation.scenes.map((scene) => scene.id).join(',')).assertEqual('movie,night-routine');
+      expect(snapshot.automation.feedback).assertEqual('Scene sync');
+    });
+
+    it('repopulates both scene buckets from one mixed refresh source', () => {
+      const snapshot = new AppStateSnapshot();
+
+      applySceneDomainRefresh(snapshot, createSceneDomainRefreshState({
+        scenes: [{
+          id: 'welcome-home',
+          name: 'Welcome Home',
+          description: 'Turn on entry lights',
+          enabled: true,
+          triggerLabel: 'Run now',
+          triggerTypeLabel: 'manual',
+          actions: ['Turn on entry light'],
+          repeatLabel: 'Never',
+        }, {
+          id: 'quiet-hours',
+          name: 'Quiet Hours',
+          description: 'Dim lights every night',
+          enabled: true,
+          triggerLabel: '23:00 every day',
+          triggerTypeLabel: 'time',
+          actions: ['Dim hallway lights'],
+          repeatLabel: 'Every day',
+        }],
+        feedback: 'Refresh complete',
+      }));
+
+      expect(snapshot.scenes.items.length).assertEqual(1);
+      expect(snapshot.automation.items.length).assertEqual(1);
+      expect(snapshot.automation.scenes.length).assertEqual(2);
+      expect(snapshot.scenes.feedback).assertEqual('Refresh complete');
+      expect(snapshot.automation.feedback).assertEqual('Refresh complete');
     });
   });
 }

@@ -99,7 +99,8 @@ export class AppStateSnapshot {
   }
 
   assignAutomation(data: AutomationViewStateData): void {
-    this.automation.items = data.items ?? data.scenes ?? [];
+    this.automation.scenes = data.scenes ?? data.items ?? [];
+    this.automation.items = data.items ?? this.automation.scenes;
     this.automation.feedback = data.feedback;
   }
 

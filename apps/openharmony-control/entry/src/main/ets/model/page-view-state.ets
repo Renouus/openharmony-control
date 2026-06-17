@@ -281,16 +281,9 @@ export class ScenesViewState {
 
 @Observed
 export class AutomationViewState {
+  scenes: SceneCardState[] = [];
   items: SceneCardState[] = [];
   feedback: string = '';
-
-  get scenes(): SceneCardState[] {
-    return this.items;
-  }
-
-  set scenes(value: SceneCardState[]) {
-    this.items = value;
-  }
 }
 
 @Observed
