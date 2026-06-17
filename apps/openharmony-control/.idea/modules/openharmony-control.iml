@@ -24,10 +24,10 @@
         <CLASSES />
         <JAVADOC />
         <SOURCES>
-          <root url="file://$USER_HOME$/AppData/Local/OpenHarmony/Sdk/23/ets/api" />
-          <root url="file://$USER_HOME$/AppData/Local/OpenHarmony/Sdk/23/ets/component" />
-          <root url="file://$USER_HOME$/AppData/Local/OpenHarmony/Sdk/23/ets/kits" />
-          <root url="file://$USER_HOME$/AppData/Local/OpenHarmony/Sdk/23/ets/arkts" />
+          <root url="file://E:/SDK/23/ets/api" />
+          <root url="file://E:/SDK/23/ets/component" />
+          <root url="file://E:/SDK/23/ets/kits" />
+          <root url="file://E:/SDK/23/ets/arkts" />
         </SOURCES>
       </library>
     </orderEntry>

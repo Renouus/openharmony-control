@@ -16,6 +16,8 @@ import { DeviceSnapshot } from '../model/device-view-model';
 import { commandFeedbackLabel } from '../model/command-feedback';
 import { DatabaseHelper } from './db/DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './db/DeviceDao';
+import { RoomDao, RoomSyncItem } from './db/RoomDao';
+import { SceneDao, SceneSyncItem } from './db/SceneDao';
 import { SyncDao } from './db/SyncDao';
 import { WebSocketClient } from './WebSocketClient';
 import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
@@ -36,6 +38,7 @@ export interface SmartHomeRepositoryPort {
   listDevices(): Promise<DeviceSnapshot[]>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
+  updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
   deleteRoom(roomId: string): Promise<void>;
   updateDeviceRoom(deviceId: string, roomId: string): Promise<void>;
   listScenes(): Promise<SceneSnapshot[]>;
@@ -58,13 +61,17 @@ export interface SmartHomeRepositoryPort {
 export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly api: DeviceApi;
   private readonly deviceDao: DeviceDao;
+  private readonly roomDao: RoomDao;
+  private readonly sceneDao: SceneDao;
   private readonly syncDao: SyncDao;
   private readonly wsClient: WebSocketClient;
 
   constructor(api: DeviceApi) {
     this.api = api;
-    this.deviceDao = new DeviceDao(); // Still needed for querying (listDevices)
-    this.syncDao = new SyncDao();     // Still needed for performBackgroundSync query
+    this.deviceDao = new DeviceDao();
+    this.roomDao = new RoomDao();
+    this.sceneDao = new SceneDao();
+    this.syncDao = new SyncDao();
 
     this.wsClient = new WebSocketClient('ws://10.0.2.2:3443/ws/events');
     this.wsClient.onMessageCallback = (event, payload) => {
@@ -90,24 +97,37 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
         return;
       }
 
-      // Fetch local items to feed into the stateless DomainEventAdapter
-      const localDevices = await this.deviceDao.getAllDevices(store);
+      // Fetch local items with stored versions to feed into the adapter.
+      const localDevices = await this.deviceDao.getAllSyncItems(store);
       const localDeviceMap = new Map<string, DeviceSyncItem>();
-      localDevices.forEach(d => {
-        localDeviceMap.set(d.id, {
-          id: d.id,
-          name: d.name,
-          type: d.kind,
-          roomId: d.room,
-          payload: d.state,
-          version: 0, // Fallback if local device doesn't expose version
-        } as DeviceSyncItem);
+      localDevices.forEach((device: DeviceSyncItem) => {
+        localDeviceMap.set(device.id, device);
       });
 
-      const events = DomainEventAdapter.fromSyncResponse(updates, localDeviceMap);
+      const localRooms = await this.roomDao.getAllSyncItems(store);
+      const localRoomMap = new Map<string, RoomSyncItem>();
+      localRooms.forEach((room: RoomSyncItem) => {
+        localRoomMap.set(room.id, room);
+      });
 
-      // Push events and finalVersion together in a single batch
-      DatabaseEventProcessor.getInstance().pushBatch(events, updates.currentVersion);
+      const localScenes = await this.sceneDao.getAllSyncItems(store);
+      const localSceneMap = new Map<string, SceneSyncItem>();
+      localScenes.forEach((scene: SceneSyncItem) => {
+        localSceneMap.set(scene.id, scene);
+      });
+
+      const events = DomainEventAdapter.fromSyncResponse(updates, {
+        devices: localDeviceMap,
+        rooms: localRoomMap,
+        scenes: localSceneMap
+      });
+
+      // Must await the write: callers such as listDevices() re-read the local
+      // store immediately after performBackgroundSync() resolves. The previous
+      // fire-and-forget pushBatch() returned before any row was persisted, so a
+      // fresh install showed no devices (and races against listRooms/listScenes
+      // writing the same store could deadlock or wipe data).
+      await DatabaseEventProcessor.getInstance().pushBatchAndWait(events, updates.currentVersion);
 
     } catch (error) {
       console.error('Background sync failed:', error);
@@ -154,19 +174,37 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   }
 
   async listRooms(): Promise<RoomItem[]> {
-    return await this.api.listRooms();
+    const store = DatabaseHelper.getInstance().getStore();
+    const localRooms = await this.roomDao.getAllRooms(store);
+
+    if (localRooms.length === 0) {
+      const remoteRooms = await this.api.listRooms();
+      await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
+      return await this.roomDao.getAllRooms(store);
+    }
+
+    this.refreshRooms().catch(console.error);
+    return localRooms;
   }
 
   async createRoom(name: string, icon: string): Promise<RoomItem> {
-    return await this.api.createRoom(name, icon);
+    const room = await this.api.createRoom(name, icon);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.roomDao.insertOrUpdate(store, this.toRoomSyncItem(room));
+    return room;
   }
 
   async updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem> {
-    return await this.api.updateRoom(roomId, name, icon);
+    const room = await this.api.updateRoom(roomId, name, icon);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.roomDao.insertOrUpdate(store, this.toRoomSyncItem(room));
+    return room;
   }
 
   async deleteRoom(roomId: string): Promise<void> {
     await this.api.deleteRoom(roomId);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.roomDao.markDeleted(store, roomId);
   }
 
   async updateDeviceRoom(deviceId: string, roomId: string): Promise<void> {
@@ -174,7 +212,17 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   }
 
   async listScenes(): Promise<SceneSnapshot[]> {
-    return await this.api.listScenes();
+    const store = DatabaseHelper.getInstance().getStore();
+    const localScenes = await this.sceneDao.getAllScenes(store);
+
+    if (localScenes.length === 0) {
+      const remoteScenes = await this.api.listScenes();
+      await this.sceneDao.replaceAll(store, remoteScenes.map((scene: SceneSnapshot) => this.toSceneSyncItem(scene)));
+      return await this.sceneDao.getAllScenes(store);
+    }
+
+    this.refreshScenes().catch(console.error);
+    return localScenes;
   }
 
   async listHistory(limit: number): Promise<CommandHistoryEntry[]> {
@@ -218,15 +266,23 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   }
 
   async createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot> {
-    return await this.api.createScene(payload);
+    const scene = await this.api.createScene(payload);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.sceneDao.insertOrUpdate(store, this.toSceneSyncItem(scene));
+    return scene;
   }
 
   async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot> {
-    return await this.api.updateScene(sceneId, payload);
+    const scene = await this.api.updateScene(sceneId, payload);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.sceneDao.insertOrUpdate(store, this.toSceneSyncItem(scene));
+    return scene;
   }
 
   async deleteScene(sceneId: string): Promise<void> {
     await this.api.deleteScene(sceneId);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.sceneDao.markDeleted(store, sceneId);
   }
 
   async sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void> {
@@ -237,6 +293,47 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       name,
       payload,
     });
+  }
+
+  private async refreshRooms(): Promise<void> {
+    const store = DatabaseHelper.getInstance().getStore();
+    const remoteRooms = await this.api.listRooms();
+    await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
+  }
+
+  private async refreshScenes(): Promise<void> {
+    const store = DatabaseHelper.getInstance().getStore();
+    const remoteScenes = await this.api.listScenes();
+    await this.sceneDao.replaceAll(store, remoteScenes.map((scene: SceneSnapshot) => this.toSceneSyncItem(scene)));
+  }
+
+  private toRoomSyncItem(room: RoomItem): RoomSyncItem {
+    return {
+      id: room.id,
+      name: room.name,
+      icon: room.icon,
+      builtIn: room.builtIn,
+      createdAt: room.createdAt,
+      updatedAt: room.createdAt,
+      version: room.createdAt,
+      isDeleted: false
+    };
+  }
+
+  private toSceneSyncItem(scene: SceneSnapshot): SceneSyncItem {
+    return {
+      id: scene.id,
+      name: scene.name,
+      description: scene.description,
+      enabled: scene.enabled,
+      trigger: scene.trigger,
+      repeat: scene.repeat,
+      actionsLabel: scene.actionsLabel,
+      commands: scene.commands,
+      updatedAt: Date.now(),
+      version: Date.now(),
+      isDeleted: false
+    };
   }
 }
 

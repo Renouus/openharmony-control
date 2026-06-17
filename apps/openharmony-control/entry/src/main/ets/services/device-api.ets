@@ -5,12 +5,61 @@ export interface DeviceListResponse {
   devices: DeviceSnapshot[];
 }
 
+export interface SyncDevicePayload {
+  id: string;
+  name: string;
+  type: string;
+  roomId?: string | null;
+  payload: Object;
+  updatedAt: number;
+  version: number;
+  isDeleted?: boolean;
+}
+
+export interface SyncRoomPayload {
+  id: string;
+  name: string;
+  icon: string;
+  builtIn: boolean;
+  updatedAt: number;
+  version: number;
+  isDeleted?: boolean;
+}
+
+export interface SyncScenePayload {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  trigger: SceneTrigger;
+  repeat: string[];
+  actionsLabel: string[];
+  commands: SceneCommand[];
+  updatedAt: number;
+  version: number;
+  isDeleted?: boolean;
+}
+
+// Transport placeholder only for this iteration.
+// Automation entities are not yet projected into a dedicated local DAO/repository flow.
+export interface SyncAutomationPayload {
+  id: string;
+  name: string;
+  triggerType: string;
+  triggerJson: string;
+  actionJson: string;
+  enabled: boolean;
+  updatedAt: number;
+  version: number;
+  isDeleted?: boolean;
+}
+
 export interface SyncResponse {
   currentVersion: number;
-  devices: Object[]; // Map to DeviceSyncItem later
-  rooms: Object[];
-  scenes: Object[];
-  automations: Object[];
+  devices: SyncDevicePayload[];
+  rooms: SyncRoomPayload[];
+  scenes: SyncScenePayload[];
+  automations: SyncAutomationPayload[];
 }
 
 export interface RoomItem {
@@ -404,7 +453,7 @@ export class DeviceApi {
       await client.request(`${this.baseUrl}/api/devices/${deviceId}/room`, {
         method: http.RequestMethod.PUT,
         header: { 'Content-Type': 'application/json' },
-        extraData: JSON.stringify({ room: roomId }),
+        extraData: JSON.stringify({ roomId }),
       });
     } finally {
       client.destroy();

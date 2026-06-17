@@ -7,6 +7,12 @@ The purpose of this refactoring is to solve three core architectural issues iden
 2. **Missing Version Reorder Safety:** While a global `lastVersion` sync tracker was implemented, there was no explicit, record-level protection ensuring that an older packet (arriving late over WS or API) wouldn't overwrite a newer record.
 3. **Event Domain Mismatch:** The backend pushes raw data objects, and the frontend consumes them natively. The lack of a translation boundary caused API Data Transfer Objects (DTOs) and `SyncResponse` snapshots to blur into frontend internal event streams un-safely.
 
+## 1.1 Current Implementation Status
+- Landed already: `DatabaseEventProcessor` is the single local write queue, stale device events are rejected at the processor boundary, and `DomainEventAdapter` now accepts the shared camelCase DTO contract from `/api/sync` and device WebSocket pushes.
+- Landed already: rooms and scenes now pass through the same processor and DAO projection flow as devices.
+- Still incomplete: automation is still implied in the protocol types but not yet implemented as a real local event-queue/DAO/repository pipeline. In this iteration, automation parity must be treated as explicitly out of scope instead of assumed.
+- Still incomplete: backend demo/fault simulation routes can mutate in-memory registry state directly, so not every runtime mutation is guaranteed to originate from SQLite yet.
+
 ## 2. Architecture: Single Writer Queue with Anti-Corruption Layer
 
 To solve this, we are transitioning to an **Event Bus + Single Writer** model, supplemented with an **Anti-Corruption Layer** that enforces state diff projection.
@@ -44,6 +50,11 @@ export interface ControlSignal {
 }
 ```
 
+Canonical contract rule:
+- `/api/sync` and WebSocket entity pushes must use the same camelCase DTO field names (`roomId`, `payload`, `updatedAt`, `version`, `isDeleted`).
+- `DomainEventAdapter` is the only layer allowed to translate transport DTOs into frontend `DomainEvent`s.
+- DAOs are persistence-only and must not decide event ordering or transport semantics.
+
 ### 2.2 Anti-Corruption Layer (State Diff Projection)
 
 Since `/api/sync` returns a "snapshot" of data (e.g. an array of `devices`, `rooms`), these are NOT true events. We introduce a `DomainEventAdapter` to serve as a translation boundary based on **state diff projection**.
@@ -79,6 +90,10 @@ await this.routeEventToDao(store, event);
 ```
 This guarantees that out-of-order network responses can never corrupt newer local states, and keeps the DAO focused purely on CRUD operations without bleeding business logic.
 
+Current scope note:
+- Version safety is implemented for device, room, and scene events.
+- Automation event ordering is not yet implemented because automation is not yet flowing through a dedicated DAO/process path.
+
 ## 3. Data Flow Example: Background Sync
 
 1. `SmartHomeRepository` periodically triggers `performBackgroundSync()`.
@@ -93,3 +108,8 @@ This guarantees that out-of-order network responses can never corrupt newer loca
 10. `EventProcessor` commits the SQLite transaction.
 11. `EventProcessor` sets `AppStorage('sync_completed')`.
 12. UI bindings refresh reactively.
+
+## 4. Scope Honesty for This Iteration
+- Covered by the event queue today: `device`, `room`, `scene`.
+- Not fully covered yet: `automation`.
+- Remote-confirmed write paths such as command execution remain valid, but they should feed local cache refresh through the processor instead of bypassing it with ad-hoc local writes.

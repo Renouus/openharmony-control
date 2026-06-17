@@ -1,7 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
+import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 
 describe("device snapshot routes", () => {
+  beforeEach(() => {
+    initDatabase(":memory:");
+  });
+
+  afterEach(() => {
+    closeDatabase();
+  });
+
   it("returns the registered competition demo devices", async () => {
     const app = buildApp();
     const response = await app.inject({ method: "GET", url: "/api/devices" });
@@ -89,6 +98,84 @@ describe("device snapshot routes", () => {
           bedroom: { total: 1, active: 1, averageBrightness: 55 },
           bathroom: { total: 1, active: 0, averageBrightness: 0 },
         },
+      },
+    });
+  });
+
+  it("prefers devices persisted in sqlite over the in-memory registry", async () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      "db-light",
+      "Database Light",
+      "light",
+      "study",
+      JSON.stringify({
+        power: true,
+        brightness: 61,
+        colorTemperature: 3300,
+        updatedAt: 1718600000000,
+        online: true,
+      }),
+      1718600000000,
+      3,
+    );
+
+    const app = buildApp();
+    const response = await app.inject({ method: "GET", url: "/api/devices" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      devices: [
+        {
+          id: "db-light",
+          name: "Database Light",
+          kind: "light",
+          room: "study",
+        },
+      ],
+    });
+    expect(response.json().devices).toHaveLength(1);
+  });
+
+  it("accepts both roomId and room when updating a device room assignment", async () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      "movable-light",
+      "Movable Light",
+      "light",
+      "entry",
+      JSON.stringify({
+        power: false,
+        brightness: 0,
+        colorTemperature: 3000,
+        updatedAt: 1718600000000,
+        online: true,
+      }),
+      1718600000000,
+      2,
+    );
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/devices/movable-light/room",
+      payload: { room: "study" },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const updated = await app.inject({ method: "GET", url: "/api/devices/movable-light" });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({
+      device: {
+        id: "movable-light",
+        room: "study",
       },
     });
   });

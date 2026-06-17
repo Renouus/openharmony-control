@@ -14,6 +14,20 @@ export interface DeviceSyncItem {
 }
 
 export class DeviceDao {
+  public async getVersion(store: relationalStore.RdbStore, deviceId: string): Promise<number> {
+    const predicates = new relationalStore.RdbPredicates('devices');
+    predicates.equalTo('id', deviceId);
+
+    const resultSet = await store.query(predicates, ['version']);
+    let currentVersion = -1;
+    if (resultSet.goToNextRow()) {
+      currentVersion = resultSet.getLong(resultSet.getColumnIndex('version'));
+    }
+    resultSet.close();
+
+    return currentVersion;
+  }
+
   public async insertOrUpdate(store: relationalStore.RdbStore, device: DeviceSyncItem): Promise<void> {
     const valueBucket: relationalStore.ValuesBucket = {
       id: device.id,
@@ -38,27 +52,9 @@ export class DeviceDao {
     resultSet.close();
   }
 
-  public async processEvent(store: relationalStore.RdbStore, event: DomainEvent<DeviceSyncItem>): Promise<void> {
+  public async applyEvent(store: relationalStore.RdbStore, event: DomainEvent<DeviceSyncItem>): Promise<void> {
     const payload = event.payload;
     if (!payload) return;
-
-    const predicates = new relationalStore.RdbPredicates('devices');
-    predicates.equalTo('id', event.entityId);
-
-    // Single query to get both existence and version
-    const resultSet = await store.query(predicates, ['version']);
-    let exists = false;
-    let currentVersion = -1;
-    if (resultSet.goToNextRow()) {
-      exists = true;
-      currentVersion = resultSet.getLong(resultSet.getColumnIndex('version'));
-    }
-    resultSet.close();
-
-    if (currentVersion >= event.version) {
-      console.info(`Drop stale event for ${event.entityId}: current ${currentVersion} >= incoming ${event.version}`);
-      return;
-    }
 
     const valueBucket: relationalStore.ValuesBucket = {
       id: payload.id,
@@ -71,6 +67,12 @@ export class DeviceDao {
       is_deleted: event.type === DomainEventType.ENTITY_DELETED ? 1 : 0
     };
 
+    const predicates = new relationalStore.RdbPredicates('devices');
+    predicates.equalTo('id', payload.id);
+    const resultSet = await store.query(predicates, ['id']);
+    const exists = resultSet.rowCount > 0;
+    resultSet.close();
+
     if (exists) {
       await store.update(valueBucket, predicates);
     } else {
@@ -79,20 +81,41 @@ export class DeviceDao {
   }
 
   public async getAllDevices(store: relationalStore.RdbStore): Promise<DeviceSnapshot[]> {
+    const syncItems = await this.getAllSyncItems(store);
+
+    const devices: DeviceSnapshot[] = [];
+    syncItems.forEach((item: DeviceSyncItem) => {
+      const snapshot: DeviceSnapshot = {
+        id: item.id,
+        name: item.name,
+        kind: item.type,
+        room: item.roomId || '',
+        state: (item.payload || new Object()) as DeviceState,
+        capabilities: []
+      };
+      devices.push(snapshot);
+    });
+
+    return devices;
+  }
+
+  public async getAllSyncItems(store: relationalStore.RdbStore): Promise<DeviceSyncItem[]> {
     const predicates = new relationalStore.RdbPredicates('devices');
     predicates.equalTo('is_deleted', 0);
     const resultSet = await store.query(predicates);
-    
-    const devices: DeviceSnapshot[] = [];
+
+    const devices: DeviceSyncItem[] = [];
     while (resultSet.goToNextRow()) {
       const stateObj = JSON.parse(resultSet.getString(resultSet.getColumnIndex('state_json'))) as Record<string, Object>;
-      const snapshot: DeviceSnapshot = {
+      const snapshot: DeviceSyncItem = {
         id: resultSet.getString(resultSet.getColumnIndex('id')),
         name: resultSet.getString(resultSet.getColumnIndex('name')),
-        kind: resultSet.getString(resultSet.getColumnIndex('type')), // Map type to kind
-        room: resultSet.getString(resultSet.getColumnIndex('room_id')), // Map roomId to room
-        state: stateObj as Object as DeviceState,
-        capabilities: [] // Populate if available in DB
+        type: resultSet.getString(resultSet.getColumnIndex('type')),
+        roomId: resultSet.getString(resultSet.getColumnIndex('room_id')),
+        payload: stateObj,
+        updatedAt: resultSet.getLong(resultSet.getColumnIndex('updated_at')),
+        version: resultSet.getLong(resultSet.getColumnIndex('version')),
+        isDeleted: false
       };
       devices.push(snapshot);
     }

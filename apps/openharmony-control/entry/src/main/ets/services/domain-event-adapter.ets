@@ -1,66 +1,126 @@
 import { DomainEvent, DomainEventType } from '../model/domain-event';
-import { SyncResponse } from './device-api';
+import {
+  SyncDevicePayload,
+  SyncResponse,
+  SyncRoomPayload,
+  SyncScenePayload
+} from './device-api';
 import util from '@ohos.util';
 import { DeviceSyncItem } from './db/DeviceDao';
+import { RoomSyncItem } from './db/RoomDao';
+import { SceneSyncItem } from './db/SceneDao';
+
+export interface SyncEntityMaps {
+  devices: Map<string, DeviceSyncItem>;
+  rooms: Map<string, RoomSyncItem>;
+  scenes: Map<string, SceneSyncItem>;
+}
 
 export class DomainEventAdapter {
-
   public static fromWebSocketEvent(rawEventName: string, rawPayload: Object): DomainEvent<DeviceSyncItem> | null {
-    if (rawEventName === "DeviceStateUpdated") {
-      // Note: WebSocket pushes raw DB record (snake_case), map it to camelCase just like getSyncData does!
-      const raw = rawPayload as Record<string, Object>;
-      const payload: DeviceSyncItem = {
-        id: raw.id as string,
-        name: raw.name as string,
-        type: raw.type as string,
-        roomId: raw.room_id as string,
-        payload: JSON.parse(raw.state_json as string),
-        updatedAt: raw.updated_at as number,
-        version: raw.version as number,
-        isDeleted: raw.is_deleted === 1
-      };
-      return {
-        eventId: util.generateRandomUUID(true),
-        type: payload.isDeleted ? DomainEventType.ENTITY_DELETED : DomainEventType.ENTITY_UPDATED,
-        entityType: 'device',
-        entityId: payload.id,
-        version: payload.version,
-        payload: payload,
-        timestamp: Date.now()
-      };
+    if (rawEventName !== 'DeviceStateUpdated') {
+      return null;
     }
-    return null;
+
+    const payload = DomainEventAdapter.toDeviceSyncItem(rawPayload as SyncDevicePayload);
+    return {
+      eventId: util.generateRandomUUID(true),
+      type: payload.isDeleted ? DomainEventType.ENTITY_DELETED : DomainEventType.ENTITY_UPDATED,
+      entityType: 'device',
+      entityId: payload.id,
+      version: payload.version,
+      payload,
+      timestamp: Date.now()
+    };
   }
 
-  // Pure function diff projection: local map is provided by caller
-  public static fromSyncResponse(response: SyncResponse, localDeviceMap: Map<string, DeviceSyncItem>): DomainEvent<DeviceSyncItem>[] {
-    const events: DomainEvent<DeviceSyncItem>[] = [];
+  public static fromSyncResponse(response: SyncResponse, localMaps: SyncEntityMaps): DomainEvent[] {
+    const events: DomainEvent[] = [];
 
-    if (response.devices) {
-      response.devices.forEach((d: Object) => {
-        // 由于后端传来的是 camelCase 数据，可以直接强制转换为 DeviceSyncItem，
-        // 但如果有嵌套 payload 是 string，需确保正确解析。我们之前在后端 database-service 改过，
-        // 后端已经解析好 JSON.parse 并输出了正确的 camelCase，所以这里直接 as 即可
-        const incoming = d as DeviceSyncItem;
-        const local = localDeviceMap.get(incoming.id);
+    response.devices.forEach((devicePayload: SyncDevicePayload) => {
+      const incoming = DomainEventAdapter.toDeviceSyncItem(devicePayload);
+      const local = localMaps.devices.get(incoming.id);
+      if (!local || incoming.version > local.version) {
+        events.push(DomainEventAdapter.createEvent('device', incoming.id, incoming.version, incoming, incoming.isDeleted));
+      }
+    });
 
-        // 这里极其关键：由于首次运行时本地没有，或者服务端重置导致 version 可能从头开始，
-        // 为了防止脏数据，如果版本发生变更，都生成事件并入库！
-        if (!local || incoming.version !== local.version) {
-          events.push({
-            eventId: util.generateRandomUUID(true),
-            type: incoming.isDeleted ? DomainEventType.ENTITY_DELETED : DomainEventType.ENTITY_UPDATED,
-            entityType: 'device',
-            entityId: incoming.id,
-            version: incoming.version,
-            payload: incoming,
-            timestamp: Date.now()
-          });
-        }
-      });
-    }
+    response.rooms.forEach((roomPayload: SyncRoomPayload) => {
+      const incoming = DomainEventAdapter.toRoomSyncItem(roomPayload);
+      const local = localMaps.rooms.get(incoming.id);
+      if (!local || incoming.version > local.version) {
+        events.push(DomainEventAdapter.createEvent('room', incoming.id, incoming.version, incoming, incoming.isDeleted));
+      }
+    });
+
+    response.scenes.forEach((scenePayload: SyncScenePayload) => {
+      const incoming = DomainEventAdapter.toSceneSyncItem(scenePayload);
+      const local = localMaps.scenes.get(incoming.id);
+      if (!local || incoming.version > local.version) {
+        events.push(DomainEventAdapter.createEvent('scene', incoming.id, incoming.version, incoming, incoming.isDeleted));
+      }
+    });
 
     return events;
   }
-}
 
+  private static createEvent(
+    entityType: 'device' | 'room' | 'scene',
+    entityId: string,
+    version: number,
+    payload: Object,
+    isDeleted?: boolean
+  ): DomainEvent {
+    return {
+      eventId: util.generateRandomUUID(true),
+      type: isDeleted ? DomainEventType.ENTITY_DELETED : DomainEventType.ENTITY_UPDATED,
+      entityType,
+      entityId,
+      version,
+      payload,
+      timestamp: Date.now()
+    };
+  }
+
+  private static toDeviceSyncItem(payload: SyncDevicePayload): DeviceSyncItem {
+    return {
+      id: payload.id,
+      name: payload.name,
+      type: payload.type,
+      roomId: payload.roomId ?? '',
+      payload: payload.payload,
+      updatedAt: payload.updatedAt,
+      version: payload.version,
+      isDeleted: payload.isDeleted ?? false
+    };
+  }
+
+  private static toRoomSyncItem(payload: SyncRoomPayload): RoomSyncItem {
+    return {
+      id: payload.id,
+      name: payload.name,
+      icon: payload.icon,
+      builtIn: payload.builtIn,
+      createdAt: payload.updatedAt,
+      updatedAt: payload.updatedAt,
+      version: payload.version,
+      isDeleted: payload.isDeleted ?? false
+    };
+  }
+
+  private static toSceneSyncItem(payload: SyncScenePayload): SceneSyncItem {
+    return {
+      id: payload.id,
+      name: payload.name,
+      description: payload.description,
+      enabled: payload.enabled,
+      trigger: payload.trigger,
+      repeat: payload.repeat,
+      actionsLabel: payload.actionsLabel,
+      commands: payload.commands,
+      updatedAt: payload.updatedAt,
+      version: payload.version,
+      isDeleted: payload.isDeleted ?? false
+    };
+  }
+}

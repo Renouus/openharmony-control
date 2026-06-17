@@ -1,12 +1,12 @@
 /**
- * 命令路由 —�?设备命令的签名、验证、分发与执行入口�?
+ * 命令路由 —�?设备命令的签名、验证、分发与执行入口�?
  *
- * 处理流程�?
- * 1. POST /api/demo/sign-command   �?演示�?HMAC-SHA256 签名
- * 2. POST /api/commands            �?签名信封验证 �?重放检�?�?设备查找 �?执行
- * 3. GET  /api/commands/history    �?分页查询命令历史
+ * 处理流程�?
+ * 1. POST /api/demo/sign-command   �?演示�?HMAC-SHA256 签名
+ * 2. POST /api/commands            �?签名信封验证 �?重放检�?�?设备查找 �?执行
+ * 3. GET  /api/commands/history    �?分页查询命令历史
  *
- * 安全层：故障注入模式下可强制返回 COMMAND_UNAUTHORIZED（安全演示）�?
+ * 安全层：故障注入模式下可强制返回 COMMAND_UNAUTHORIZED（安全演示）�?
  */
 import type { FastifyInstance } from "fastify";
 import {
@@ -19,11 +19,13 @@ import type { CommandHistory } from "../history/command-history";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { DemoFaultState } from "./demo-fault-state";
 import { getDb } from "../db/database";
+import { mapDeviceRowToSyncDto, type DeviceSyncRow } from "../db/device-sync-mapper";
 import {
   ReplayGuard,
   signCommand,
   verifyEnvelope,
 } from "../security/envelope";
+import { broadcastEvent } from "./websocket";
 
 export type CommandRouteOptions = {
   registry: DeviceRegistry;
@@ -34,12 +36,7 @@ export type CommandRouteOptions = {
   replayGuard?: ReplayGuard;
 };
 
-type WebSocketClientLike = {
-  readyState: number;
-  send(data: string): void;
-};
-
-/** 注册所有命令相关路�?*/
+/** 注册所有命令相关路�?*/
 export async function registerCommandRoutes(
   app: FastifyInstance,
   options: CommandRouteOptions,
@@ -49,7 +46,7 @@ export async function registerCommandRoutes(
     options.simulators.map((simulator) => [simulator.deviceId, simulator]),
   );
 
-  // ── 演示用：对原始命令进�?HMAC 签名 ──
+  // ── 演示用：对原始命令进�?HMAC 签名 ──
   app.post("/api/demo/sign-command", async (request) => {
     return signCommand(request.body as DeviceCommand, options.secret);
   });
@@ -58,7 +55,7 @@ export async function registerCommandRoutes(
   app.post("/api/commands", async (request, reply) => {
     const unsignedCommand = request.body as Partial<DeviceCommand>;
 
-    // 安全演示模式：强制拒绝所有命�?
+    // 安全演示模式：强制拒绝所有命�?
     if (options.faultState.forceUnauthorizedCommands) {
       const historyEntry = options.history.add({
         requestId: unsignedCommand.requestId ?? "cmd-unauthorized",
@@ -94,13 +91,13 @@ export async function registerCommandRoutes(
 
     const command = request.body.command;
 
-    // 设备是否存在�?
+    // 设备是否存在�?
     const device = options.registry.find(command.deviceId);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
-    // 设备是否在线�?
+    // 设备是否在线�?
     if (!device.state.online) {
       const historyEntry = options.history.add({
         requestId: command.requestId,
@@ -133,33 +130,35 @@ export async function registerCommandRoutes(
       });
     }
 
-    // 执行命令并更新设备状�?
+    // 执行命令并更新设备状�?
     try {
       const result = simulator.execute(command);
       const updated = options.registry.update(command.deviceId, result.state);
+      let syncedDevice: ReturnType<typeof mapDeviceRowToSyncDto> | undefined;
 
       if (updated) {
         try {
           const db = getDb();
-          db.prepare(`
-              UPDATE devices
-              SET state_json = ?, updated_at = ?, version = version + 1
-              WHERE id = ?
-          `).run(JSON.stringify(updated.state), Date.now(), command.deviceId);
+          db.transaction(() => {
+            db.prepare(`
+              UPDATE metadata
+              SET value = CAST(value AS INTEGER) + 1
+              WHERE key = 'global_version'
+            `).run();
 
-          const syncedDeviceRaw = db.prepare(`SELECT * FROM devices WHERE id = ?`).get(command.deviceId) as any;
-          const syncedDevice = { id: syncedDeviceRaw.id, name: syncedDeviceRaw.name, type: syncedDeviceRaw.type, roomId: syncedDeviceRaw.room_id, payload: JSON.parse(syncedDeviceRaw.state_json), updatedAt: syncedDeviceRaw.updated_at, version: syncedDeviceRaw.version, isDeleted: syncedDeviceRaw.is_deleted === 1 };
-          if (app.websocketServer && app.websocketServer.clients) {
-            const clients = app.websocketServer.clients as Set<WebSocketClientLike>;
-            clients.forEach((client: WebSocketClientLike) => {
-              if (client.readyState === 1) {
-                client.send(JSON.stringify({
-                  event: 'DeviceStateUpdated',
-                  payload: syncedDevice
-                }));
-              }
-            });
-          }
+            const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+            const newVersion = parseInt(newVersionRow.value, 10);
+
+            db.prepare(`
+                UPDATE devices
+                SET state_json = ?, updated_at = ?, version = ?
+                WHERE id = ?
+            `).run(JSON.stringify(updated.state), Date.now(), newVersion, command.deviceId);
+          })();
+
+          const syncedDeviceRaw = db.prepare(`SELECT * FROM devices WHERE id = ?`).get(command.deviceId) as DeviceSyncRow;
+          syncedDevice = mapDeviceRowToSyncDto(syncedDeviceRaw);
+          broadcastEvent('DeviceStateUpdated', syncedDevice);
         } catch (dbErr) {
           app.log.error("Failed to update database or broadcast after command:" + dbErr);
         }
@@ -176,6 +175,7 @@ export async function registerCommandRoutes(
         status: CommandStatus.Success,
         deviceId: command.deviceId,
         state: updated?.state ?? result.state,
+        syncedDevice,
         historyEntry,
       };
     } catch {
@@ -194,7 +194,7 @@ export async function registerCommandRoutes(
     }
   });
 
-  // ── 命令历史查询（支�?limit 参数，默�?20 条） ──
+  // ── 命令历史查询（支�?limit 参数，默�?20 条） ──
   app.get("/api/commands/history", async (request) => {
     const query = request.query as { limit?: string };
     const limit = Number(query.limit ?? 20);

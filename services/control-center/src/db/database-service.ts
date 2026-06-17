@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { mapDeviceRowToSyncDto, type DeviceSyncRow } from './device-sync-mapper';
 
 export interface SyncResponse {
   currentVersion: number;
@@ -17,8 +18,8 @@ export class DatabaseService {
   }
 
   public getSyncData(lastVersion: number): SyncResponse {
-    const devicesRaw = this.db.prepare("SELECT * FROM devices WHERE version > ?").all(lastVersion) as any[];
-    const devices = devicesRaw.map(r => ({ id: r.id, name: r.name, type: r.type, roomId: r.room_id, payload: JSON.parse(r.state_json), updatedAt: r.updated_at, version: r.version, isDeleted: r.is_deleted === 1 }));
+    const devicesRaw = this.db.prepare("SELECT * FROM devices WHERE version > ?").all(lastVersion) as DeviceSyncRow[];
+    const devices = devicesRaw.map(mapDeviceRowToSyncDto);
 
     const roomsRaw = this.db.prepare("SELECT * FROM rooms WHERE version > ?").all(lastVersion) as any[];
     const rooms = roomsRaw.map(r => ({ id: r.id, name: r.name, icon: r.icon, builtIn: r.built_in === 1, updatedAt: r.updated_at, version: r.version, isDeleted: r.is_deleted === 1 }));

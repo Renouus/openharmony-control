@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
+import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
@@ -16,6 +20,32 @@ async function sign(
 }
 
 describe("secure device commands", () => {
+  beforeEach(() => {
+    initDatabase(":memory:");
+    getDb().prepare(`
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      "light-living-room",
+      "Living Room Light",
+      "light",
+      "living-room",
+      JSON.stringify({
+        power: false,
+        brightness: 0,
+        colorTemperature: 3000,
+        updatedAt: Date.now(),
+        online: true,
+      }),
+      Date.now(),
+      1,
+    );
+  });
+
+  afterEach(() => {
+    closeDatabase();
+  });
+
   it("switches the living room light through a signed command", async () => {
     const app = buildApp();
     const envelope = await sign(app, {
@@ -37,6 +67,14 @@ describe("secure device commands", () => {
       status: "SUCCESS",
       deviceId: "light-living-room",
       state: { power: true },
+      syncedDevice: {
+        id: "light-living-room",
+        roomId: expect.any(String),
+        payload: expect.objectContaining({ power: true }),
+        updatedAt: expect.any(Number),
+        version: expect.any(Number),
+        isDeleted: false,
+      },
       historyEntry: {
         requestId: "cmd-light-1",
         status: "SUCCESS",
@@ -168,6 +206,47 @@ describe("secure device commands", () => {
       { requestId: "cmd-history-door", status: "SUCCESS" },
       { requestId: "cmd-history-light", status: "SUCCESS" },
     ]);
+  });
+
+  it("persists command history across app instances when sqlite is reused", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "control-center-history-"));
+    const dbPath = join(tempDir, "history.db");
+
+    try {
+      initDatabase(dbPath);
+      const firstApp = buildApp();
+      const envelope = await sign(firstApp, {
+        requestId: "cmd-history-persisted",
+        timestamp: Date.now(),
+        deviceId: "light-living-room",
+        name: "switch",
+        payload: { on: true },
+      });
+
+      const commandResponse = await firstApp.inject({
+        method: "POST",
+        url: "/api/commands",
+        payload: envelope,
+      });
+      expect(commandResponse.statusCode).toBe(200);
+
+      closeDatabase();
+
+      initDatabase(dbPath);
+      const secondApp = buildApp();
+      const history = await secondApp.inject({
+        method: "GET",
+        url: "/api/commands/history?limit=5",
+      });
+
+      expect(history.statusCode).toBe(200);
+      expect(history.json().entries).toMatchObject([
+        { requestId: "cmd-history-persisted", status: "SUCCESS" },
+      ]);
+    } finally {
+      closeDatabase();
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("returns offline command status when the target is unavailable", async () => {

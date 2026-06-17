@@ -9,6 +9,9 @@ import type { FastifyInstance } from "fastify";
 import type { DeviceState } from "@smart-home/device-contract";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { DemoFaultState } from "./demo-fault-state";
+import { getDb } from "../db/database";
+import { mapDeviceRowToSyncDto, type DeviceSyncRow } from "../db/device-sync-mapper";
+import { broadcastEvent } from "./websocket";
 
 type OfflineFaultRequest = {
   deviceId?: string;
@@ -47,6 +50,24 @@ export async function registerDemoRoutes(
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
+    // 同步更新 SQLite 并广播
+    try {
+      const db = getDb();
+      db.transaction(() => {
+        db.prepare("UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'global_version'").run();
+        const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+        const newVersion = parseInt(newVersionRow.value, 10);
+        db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
+          .run(JSON.stringify(updated.state), Date.now(), newVersion, body.deviceId);
+      })();
+      const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get(body.deviceId) as DeviceSyncRow;
+      if (syncedRaw) {
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+      }
+    } catch (dbErr) {
+      app.log.error("Failed to update DB for demo/offline: " + dbErr);
+    }
+
     return {
       deviceId: body.deviceId,
       state: updated.state,
@@ -74,6 +95,25 @@ export async function registerDemoRoutes(
       nextState.purifierActive = body.purifierActive;
     }
     const updated = registry.update("sensor-living-room", nextState);
+
+    // 同步更新 SQLite 并广播
+    try {
+      const db = getDb();
+      db.transaction(() => {
+        db.prepare("UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'global_version'").run();
+        const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+        const newVersion = parseInt(newVersionRow.value, 10);
+        db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
+          .run(JSON.stringify(updated?.state ?? nextState), Date.now(), newVersion, "sensor-living-room");
+      })();
+      const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get("sensor-living-room") as DeviceSyncRow;
+      if (syncedRaw) {
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+      }
+    } catch (dbErr) {
+      app.log.error("Failed to update DB for demo/environment: " + dbErr);
+    }
+
     return {
       deviceId: "sensor-living-room",
       state: updated?.state,
@@ -96,6 +136,24 @@ export async function registerDemoRoutes(
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
+    // 同步更新 SQLite 并广播传感器状态
+    try {
+      const db = getDb();
+      db.transaction(() => {
+        db.prepare("UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'global_version'").run();
+        const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+        const newVersion = parseInt(newVersionRow.value, 10);
+        db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
+          .run(JSON.stringify(updated.state), Date.now(), newVersion, body.deviceId);
+      })();
+      const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get(body.deviceId) as DeviceSyncRow;
+      if (syncedRaw) {
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+      }
+    } catch (dbErr) {
+      app.log.error("Failed to update DB for demo/motion sensor: " + dbErr);
+    }
+
     // 简易自动化规则：客厅感应器触发时开灯，无人时关灯
     if (body.deviceId === "sensor-motion-living-room") {
       const light = registry.find("light-living-room");
@@ -103,6 +161,27 @@ export async function registerDemoRoutes(
         registry.update("light-living-room", {
           power: body.motionDetected === true,
         });
+
+        // 同步更新 SQLite 并广播灯光状态变化
+        try {
+          const db = getDb();
+          const lightUpdated = registry.find("light-living-room");
+          if (lightUpdated) {
+            db.transaction(() => {
+              db.prepare("UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'global_version'").run();
+              const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
+              const newVersion = parseInt(newVersionRow.value, 10);
+              db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
+                .run(JSON.stringify(lightUpdated.state), Date.now(), newVersion, "light-living-room");
+            })();
+            const lightRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get("light-living-room") as DeviceSyncRow;
+            if (lightRaw) {
+              broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(lightRaw));
+            }
+          }
+        } catch (dbErr) {
+          app.log.error("Failed to update DB for demo/motion light: " + dbErr);
+        }
       }
     }
 

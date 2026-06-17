@@ -24,21 +24,31 @@ async function main(): Promise<void> {
 
   // Seed initial devices from registry into SQLite for /api/sync
   try {
+    // 先清理旧数据，确保每次启动都是干净的状态
+    db.exec(`
+      DELETE FROM devices;
+      DELETE FROM rooms;
+      DELETE FROM scenes;
+      DELETE FROM automations;
+    `);
+
     const insertDevice = db.prepare(`
-      INSERT OR IGNORE INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `);
 
     const initialDevices = registry.list();
     const now = Date.now();
+    let version = 1;
     for (const d of initialDevices) {
       insertDevice.run(
-        d.id, d.name, d.kind, d.room || 'living-room', JSON.stringify(d.state), now, 1
+        d.id, d.name, d.kind, d.room || 'living-room', JSON.stringify(d.state), now, version++
       );
     }
 
-    // 极其关键：必须将 global_version 提升，否则 sync 接口不会下发新设备
-    db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
+    // 将 global_version 设置为当前设备的最大版本号，确保 sync 接口能正确下发
+    db.prepare("UPDATE metadata SET value = ? WHERE key = 'global_version'").run(String(version - 1));
+    app.log.info(`Seeded ${initialDevices.length} devices into database at version ${version - 1}`);
 
   } catch (err) {
     app.log.error("Failed to seed initial devices to DB: " + err);
