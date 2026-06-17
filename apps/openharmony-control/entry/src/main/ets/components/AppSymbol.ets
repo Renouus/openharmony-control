@@ -26,6 +26,12 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.trash');
     case 'menu':
       return $r('sys.symbol.more');
+    case 'more_horiz':
+      return $r('sys.symbol.more');
+    case 'brightness_low':
+      return $r('sys.symbol.sun_min');
+    case 'brightness_high':
+      return $r('sys.symbol.sun_max_fill');
     case 'lock':
       return $r('sys.symbol.lock');
     case 'lock_open':

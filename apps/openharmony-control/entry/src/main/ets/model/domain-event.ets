@@ -5,7 +5,7 @@ export enum DomainEventType {
 
 export type EntityType = 'device' | 'room' | 'scene' | 'automation';
 
-export interface DomainEvent<T = any> {
+export interface DomainEvent<T = Object> {
   eventId: string;
   type: DomainEventType;
   entityType: EntityType;

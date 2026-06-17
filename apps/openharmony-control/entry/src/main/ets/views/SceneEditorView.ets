@@ -40,7 +40,7 @@ export struct SceneEditorView {
       if (response.responseCode === 200) {
         const data = JSON.parse(response.result as string) as Record<string, Object>;
         const scenes = data.scenes as Record<string, Object>[];
-        const scene = scenes.find(s => s.id === this.editingSceneId);
+        const scene = scenes.find((s: Record<string, Object>) => s.id === this.editingSceneId);
         if (scene) {
           this.draft.name = scene.name as string;
           this.draft.icon = (scene.icon as string) || 'movie';
@@ -158,8 +158,8 @@ export struct SceneEditorView {
             trigger.label = '手动触发';
             payload.trigger = trigger;
             payload.repeat = [];
-            payload.actionsLabel = this.draft.actions.map(a => this.getActionLabel(a));
-            payload.commands = this.draft.actions.map(a => {
+            payload.actionsLabel = this.draft.actions.map((a: ActionDraft) => this.getActionLabel(a));
+            payload.commands = this.draft.actions.map((a: ActionDraft) => {
               let cmdParts = (a.command || '').split(':');
               let cmdName = cmdParts[0];
               let cmdValue = cmdParts.length > 1 ? cmdParts[1] : '';

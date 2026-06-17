@@ -223,7 +223,7 @@ export struct DeviceGridLayout {
       }
 
       const stateHash = [...smalls, ...(large ? [large] : [])]
-        .map(d => `${d.id}_${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`)
+        .map((d: HomeDeviceCardState) => `${d.id}_${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`)
         .join('-');
 
       chunks.push({

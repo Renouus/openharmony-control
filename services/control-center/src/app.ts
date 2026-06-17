@@ -34,6 +34,7 @@ import { registerRoomRoutes } from "./routes/rooms";
 import syncRoutes from "./routes/sync";
 import websocketPlugin from "@fastify/websocket";
 import websocketRoutes from "./routes/websocket";
+import { getDb } from "./db/database";
 
 export function buildApp(
   registry = new DeviceRegistry(),
@@ -45,7 +46,7 @@ export function buildApp(
   const faultState = createDemoFaultState();
   const roomRegistry = new RoomRegistry();
 
-  // 9 个设备模拟器：2 门锁 + 5 灯光 + 2 空调
+  // 9 个设备模拟器? 门锁 + 5 灯光 + 2 空调
   const simulators = [
     new DoorLockDevice(),
     new DoorLockDevice("door-back", { locked: true, online: true }),
@@ -62,7 +63,7 @@ export function buildApp(
     ),
   ];
 
-  // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问）
+  // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问?
   void app.register(cors, { origin: true });
 
   // 注册 WebSocket 插件

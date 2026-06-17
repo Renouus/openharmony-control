@@ -58,6 +58,13 @@ struct Index {
   @State isAddRoomSheetOpen: boolean = false;
   @State isEditRoomSheetOpen: boolean = false;
 
+  @StorageLink('sync_completed') @Watch('onSyncCompleted') syncTime: number = 0;
+
+  onSyncCompleted() {
+    console.info('Database sync completed, refreshing App UI...');
+    this.controller.refreshAll(this.appState);
+  }
+
   async aboutToAppear(): Promise<void> {
     // 注入导航回调 — 所有视图中的 navStack.push/pop 都会转发到这里
     this.navStack.setCallbacks(

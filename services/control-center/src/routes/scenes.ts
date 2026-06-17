@@ -11,6 +11,7 @@ import {
   CommandStatus,
   isSceneId,
   type CommandHistoryEntry,
+  type SceneDescriptor,
 } from "@smart-home/device-contract";
 import type { FastifyInstance } from "fastify";
 import type { DeviceSimulator } from "../devices/device-simulator";

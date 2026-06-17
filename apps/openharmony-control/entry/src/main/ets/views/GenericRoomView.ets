@@ -47,7 +47,7 @@ export struct GenericRoomView {
         .padding({ bottom: 16 })
       })
 
-      ForEach(this.appState.home.rooms.filter(r => r.roomId === this.roomId), (roomSection: HomeRoomSectionState) => {
+      ForEach(this.appState.home.rooms.filter((r: HomeRoomSectionState) => r.roomId === this.roomId), (roomSection: HomeRoomSectionState) => {
         if (roomSection.devices.length > 0) {
           DeviceGridLayout({
             devices: roomSection.devices,

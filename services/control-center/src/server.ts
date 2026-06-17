@@ -9,16 +9,40 @@
  */
 import { readFileSync } from "node:fs";
 import { buildApp } from "./app";
-import { initDatabase } from "./db/database";
+import { initDatabase, getDb } from "./db/database";
+import { DeviceRegistry } from "./registry/device-registry";
 
 const port = Number(process.env.CONTROL_CENTER_PORT ?? 3443);
 const host = process.env.CONTROL_CENTER_HOST ?? "0.0.0.0";
-const app = buildApp();
+const registry = new DeviceRegistry();
+const app = buildApp(registry);
 
 async function main(): Promise<void> {
   const dbPath = process.env.DATABASE_PATH || 'smarthome.db';
-  initDatabase(dbPath);
+  const db = initDatabase(dbPath);
   app.log.info(`Database initialized at ${dbPath}`);
+
+  // Seed initial devices from registry into SQLite for /api/sync
+  try {
+    const insertDevice = db.prepare(`
+      INSERT OR IGNORE INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    `);
+
+    const initialDevices = registry.list();
+    const now = Date.now();
+    for (const d of initialDevices) {
+      insertDevice.run(
+        d.id, d.name, d.kind, d.room || 'living-room', JSON.stringify(d.state), now, 1
+      );
+    }
+
+    // 极其关键：必须将 global_version 提升，否则 sync 接口不会下发新设备
+    db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
+
+  } catch (err) {
+    app.log.error("Failed to seed initial devices to DB: " + err);
+  }
 
   const tlsCertPath = process.env.TLS_CERT_PATH;
   const tlsKeyPath = process.env.TLS_KEY_PATH;

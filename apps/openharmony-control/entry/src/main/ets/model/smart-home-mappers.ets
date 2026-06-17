@@ -275,8 +275,8 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
 }
 
 export function mapRoomList(rooms: RoomItem[], devices: DeviceSnapshot[]): RoomItemState[] {
-  return rooms.map(r => {
-    const deviceCount = devices.filter(d => d.room === r.id).length;
+  return rooms.map((r: RoomItem) => {
+    const deviceCount = devices.filter((d: DeviceSnapshot) => d.room === r.id).length;
     const state: RoomItemState = {
       id: r.id,
       name: r.name,
@@ -310,7 +310,10 @@ export function mapHomeRooms(devices: DeviceSnapshot[], allRooms: RoomItem[] = [
     if (!roomMap.has(r)) {
       roomMap.set(r, []);
     }
-    (roomMap.get(r) as DeviceSnapshot[]).push(device);
+    const currentList = roomMap.get(r);
+    if (currentList) {
+      currentList.push(device);
+    }
   }
 
   // Desired room order (entry first, then living-room, etc.)
@@ -319,26 +322,32 @@ export function mapHomeRooms(devices: DeviceSnapshot[], allRooms: RoomItem[] = [
 
   for (const roomId of order) {
     const roomDevices = roomMap.get(roomId);
-    if (roomDevices === undefined && allRooms.findIndex(r => r.id === roomId) === -1) { continue; }
+    if ((!roomDevices || roomDevices.length === 0) && allRooms.findIndex((r: RoomItem) => r.id === roomId) === -1) { continue; }
     const cards: HomeDeviceCardState[] = (roomDevices || []).map((d: DeviceSnapshot, idx: number) =>
       mapHomeDeviceCard(d, idx === 0)
     );
-    const roomInfo = allRooms.find(r => r.id === roomId);
+    const roomInfo = allRooms.find((r: RoomItem) => r.id === roomId);
     const section: HomeRoomSectionState = { roomId, roomName: roomInfo ? roomInfo.name : roomDisplayName(roomId), devices: cards };
     result.push(section);
   }
 
   // Add any rooms not in the fixed order
   roomMap.forEach((roomDevices: DeviceSnapshot[], roomId: string) => {
-    if (!order.includes(roomId)) {
+    if (!order.includes(roomId) && roomDevices && roomDevices.length > 0) {
       const cards: HomeDeviceCardState[] = roomDevices.map((d: DeviceSnapshot, idx: number) =>
         mapHomeDeviceCard(d, idx === 0)
       );
-      const roomInfo = allRooms.find(r => r.id === roomId);
+      const roomInfo = allRooms.find((r: RoomItem) => r.id === roomId);
       const section: HomeRoomSectionState = { roomId, roomName: roomInfo ? roomInfo.name : roomDisplayName(roomId), devices: cards };
       result.push(section);
     }
   });
+
+  // FINAL FALLBACK: If absolutely NO rooms were created, but we HAVE devices, force them into a default room so they don't vanish!
+  if (result.length === 0 && devices.length > 0) {
+     const cards: HomeDeviceCardState[] = devices.map((d: DeviceSnapshot, idx: number) => mapHomeDeviceCard(d, idx === 0));
+     result.push({ roomId: 'fallback', roomName: '所有设备', devices: cards });
+  }
 
   return result;
 }

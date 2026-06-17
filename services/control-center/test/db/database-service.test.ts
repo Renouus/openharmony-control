@@ -25,6 +25,22 @@ describe('DatabaseService', () => {
     
     expect(syncResult.currentVersion).toBe(10);
     expect(syncResult.devices).toHaveLength(1);
-    expect(syncResult.devices[0].is_deleted).toBe(1); // Validates deletion sync semantics
+    expect(syncResult.devices[0].isDeleted).toBe(true); // Validates deletion sync semantics
+  });
+
+  it('should derive currentVersion from changed rows when metadata is stale', () => {
+    const db = getDb();
+    const service = new DatabaseService(db);
+
+    db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
+    db.prepare(
+      "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run('dev-2', 'Light 2', 'light', 'room-1', '{}', Date.now(), 12, 0);
+
+    const syncResult = service.getSyncData(1);
+
+    expect(syncResult.currentVersion).toBe(12);
+    expect(syncResult.devices).toHaveLength(1);
+    expect(syncResult.devices[0].id).toBe('dev-2');
   });
 });

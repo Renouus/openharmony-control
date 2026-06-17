@@ -233,7 +233,7 @@ struct HomeContent {
             onRoomTap: (roomId: string) => this.handleRoomTap(roomId),
             onDeviceTap: (deviceId: string, kind: string) => this.handleDeviceTap(deviceId, kind),
           })
-        }, (room: HomeRoomSectionState) => `${room.roomId}_${room.devices.map(d => `${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`).join('-')}`)
+        }, (room: HomeRoomSectionState) => `${room.roomId}_${room.devices.map((d: HomeDeviceCardState) => `${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`).join('-')}`)
       }
       .width('100%')
 

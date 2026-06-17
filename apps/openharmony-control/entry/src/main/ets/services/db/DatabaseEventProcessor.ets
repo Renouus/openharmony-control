@@ -1,6 +1,6 @@
 import { DomainEvent } from '../../model/domain-event';
 import { DatabaseHelper } from './DatabaseHelper';
-import { DeviceDao } from './DeviceDao';
+import { DeviceDao, DeviceSyncItem } from './DeviceDao';
 import { SyncDao } from './SyncDao';
 
 export interface BatchRequest {
@@ -27,16 +27,16 @@ export class DatabaseEventProcessor {
 
   public pushEvent(event: DomainEvent): void {
     this.queue.push({ events: [event] });
-    this.processQueue();
+    this.processQueue().catch((e: Object) => console.error(JSON.stringify(e)));
   }
 
   public pushBatch(events: DomainEvent[], finalVersion?: number): void {
     this.queue.push({ events, finalVersion });
-    this.processQueue();
+    this.processQueue().catch((e: Object) => console.error(JSON.stringify(e)));
   }
 
-  // To avoid TOCTOU and ArkTS async transaction leaks, we process synchronously inside the transaction.
-  private processQueue(): void {
+  // Changed to async to fully support OpenHarmony's native async transactions
+  private async processQueue(): Promise<void> {
     if (this.isProcessing || this.queue.length === 0) return;
     this.isProcessing = true;
 
@@ -50,22 +50,25 @@ export class DatabaseEventProcessor {
 
         for (const event of batch.events) {
           if (event.entityType === 'device') {
-            this.deviceDao.processEventSync(store, event);
+            await this.deviceDao.processEvent(store, event as DomainEvent<DeviceSyncItem>);
           }
           // handle rooms, scenes, automations when implemented
         }
 
         if (batch.finalVersion !== undefined) {
-          this.syncDao.setLastSyncVersionSync(store, batch.finalVersion);
+          await this.syncDao.setLastSyncVersion(store, batch.finalVersion);
         }
       }
       store.commit();
       AppStorage.setOrCreate('sync_completed', Date.now());
     } catch (e) {
       store.rollBack();
-      console.error('Queue processing failed', e);
+      console.error('Queue processing failed', JSON.stringify(e));
     } finally {
       this.isProcessing = false;
+      if (this.queue.length > 0) {
+        this.processQueue().catch((e: Object) => console.error(JSON.stringify(e)));
+      }
     }
   }
 }

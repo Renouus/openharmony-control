@@ -7,10 +7,10 @@ export interface DeviceListResponse {
 
 export interface SyncResponse {
   currentVersion: number;
-  devices: any[]; // Map to DeviceSyncItem later
-  rooms: any[];
-  scenes: any[];
-  automations: any[];
+  devices: Object[]; // Map to DeviceSyncItem later
+  rooms: Object[];
+  scenes: Object[];
+  automations: Object[];
 }
 
 export interface RoomItem {
@@ -304,11 +304,17 @@ export class DeviceApi {
   async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
     const client = http.createHttp();
     try {
+      console.info('OmniHomeLog', `fetchSyncUpdates starting from version: ${lastVersion}`);
       const response = await client.request(`${this.baseUrl}/api/sync?lastVersion=${lastVersion}`, {
         method: http.RequestMethod.GET,
         expectDataType: http.HttpDataType.STRING,
       });
+      console.info('OmniHomeLog', `fetchSyncUpdates HTTP Code: ${response.responseCode}`);
+      console.info('OmniHomeLog', `fetchSyncUpdates raw result: ${response.result.toString().substring(0, 100)}...`);
       return JSON.parse(response.result as string) as SyncResponse;
+    } catch (e) {
+      console.error('OmniHomeLog', `fetchSyncUpdates failed heavily: ${e}`);
+      return { currentVersion: 0, devices: [], rooms: [], scenes: [], automations: [] };
     } finally {
       client.destroy();
     }
@@ -317,12 +323,17 @@ export class DeviceApi {
   async listDevices(): Promise<DeviceSnapshot[]> {
     const client = http.createHttp();
     try {
+      console.info('OmniHomeLog', `Fetching devices from API: ${this.baseUrl}/api/devices`);
       const response = await client.request(`${this.baseUrl}/api/devices`, {
         method: http.RequestMethod.GET,
         expectDataType: http.HttpDataType.STRING,
       });
+      console.info('OmniHomeLog', `Device API response code: ${response.responseCode}`);
       const body = JSON.parse(response.result as string) as DeviceListResponse;
       return body.devices;
+    } catch (e) {
+      console.error('OmniHomeLog', `Device API failed: ${e}`);
+      return [];
     } finally {
       client.destroy();
     }

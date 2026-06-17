@@ -128,8 +128,8 @@ export struct CreateAutomationView {
             trigger.label = this.getConditionLabel(this.draft.conditions[0]);
             payload.trigger = trigger;
             payload.repeat = [];
-            payload.actionsLabel = this.draft.actions.map(a => this.getActionLabel(a));
-            payload.commands = this.draft.actions.map(a => {
+            payload.actionsLabel = this.draft.actions.map((a: ActionDraft) => this.getActionLabel(a));
+            payload.commands = this.draft.actions.map((a: ActionDraft) => {
               let cmdParts = (a.command || '').split(':');
               let cmdName = cmdParts[0];
               let cmdValue = cmdParts.length > 1 ? cmdParts[1] : '';

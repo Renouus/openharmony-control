@@ -18,6 +18,8 @@ import { DatabaseHelper } from './db/DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './db/DeviceDao';
 import { SyncDao } from './db/SyncDao';
 import { WebSocketClient } from './WebSocketClient';
+import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
+import { DomainEventAdapter } from './domain-event-adapter';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -58,77 +60,57 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly deviceDao: DeviceDao;
   private readonly syncDao: SyncDao;
   private readonly wsClient: WebSocketClient;
-  private isSyncing: boolean = false; // Sync Mutex
 
   constructor(api: DeviceApi) {
     this.api = api;
-    this.deviceDao = new DeviceDao();
-    this.syncDao = new SyncDao();
-    
-    // Configure WebSocket URL as appropriate
-    this.wsClient = new WebSocketClient('ws://127.0.0.1:3443/ws/events');
+    this.deviceDao = new DeviceDao(); // Still needed for querying (listDevices)
+    this.syncDao = new SyncDao();     // Still needed for performBackgroundSync query
+
+    this.wsClient = new WebSocketClient('ws://10.0.2.2:3443/ws/events');
     this.wsClient.onMessageCallback = (event, payload) => {
-      this.handleWebSocketEvent(event, payload);
+      this.handleWebSocketEvent(event, payload as Object);
     };
     this.wsClient.connect();
   }
 
-  private handleWebSocketEvent(event: string, payload: any) {
-    if (event === 'DeviceStateUpdated') {
-      const store = DatabaseHelper.getInstance().getStore();
-      this.deviceDao.insertOrUpdate(store, payload as DeviceSyncItem).then(() => {
-        AppStorage.setOrCreate('sync_completed', Date.now());
-      }).catch(console.error);
+  private handleWebSocketEvent(event: string, payload: Object): void {
+    const domainEvent = DomainEventAdapter.fromWebSocketEvent(event, payload);
+    if (domainEvent) {
+      DatabaseEventProcessor.getInstance().pushEvent(domainEvent);
     }
   }
 
-  async performBackgroundSync(): Promise<void> {
-    if (this.isSyncing) {
-      console.info('Sync already in progress, skipping.');
-      return;
-    }
-
-    this.isSyncing = true;
+  async performBackgroundSync(forceFullSync: boolean = false): Promise<void> {
     const store = DatabaseHelper.getInstance().getStore();
-    
     try {
-      const lastVersion = await this.syncDao.getLastSyncVersion(store);
+      const lastVersion = forceFullSync ? 0 : await this.syncDao.getLastSyncVersion(store);
       const updates = await this.api.fetchSyncUpdates(lastVersion);
-      
+
       if (!updates || updates.currentVersion <= lastVersion) {
-        return; // Nothing to sync
+        return;
       }
 
-      // Start transaction
-      store.beginTransaction();
-      
-      try {
-        // Apply updates to LocalDataSource
-        if (updates.devices && updates.devices.length > 0) {
-          for (const rawDevice of updates.devices) {
-            const deviceItem = rawDevice as DeviceSyncItem;
-            await this.deviceDao.insertOrUpdate(store, deviceItem);
-          }
-        }
-        // Apply updates for rooms, scenes, and automations similarly...
-        
-        // Update last sync version in the same transaction
-        await this.syncDao.setLastSyncVersion(store, updates.currentVersion);
-        
-        // Commit transaction
-        store.commit();
-        
-        // Emit event via AppStorage or EventHub so ViewModels can refresh
-        AppStorage.setOrCreate('sync_completed', Date.now());
-      } catch (innerError) {
-        store.rollBack();
-        throw innerError;
-      }
+      // Fetch local items to feed into the stateless DomainEventAdapter
+      const localDevices = await this.deviceDao.getAllDevices(store);
+      const localDeviceMap = new Map<string, DeviceSyncItem>();
+      localDevices.forEach(d => {
+        localDeviceMap.set(d.id, {
+          id: d.id,
+          name: d.name,
+          type: d.kind,
+          roomId: d.room,
+          payload: d.state,
+          version: 0, // Fallback if local device doesn't expose version
+        } as DeviceSyncItem);
+      });
+
+      const events = DomainEventAdapter.fromSyncResponse(updates, localDeviceMap);
+
+      // Push events and finalVersion together in a single batch
+      DatabaseEventProcessor.getInstance().pushBatch(events, updates.currentVersion);
 
     } catch (error) {
       console.error('Background sync failed:', error);
-    } finally {
-      this.isSyncing = false;
     }
   }
 
@@ -159,7 +141,12 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     
     // 1. Return locally cached data immediately for fast UI
     const localDevices = await this.deviceDao.getAllDevices(store);
-    
+
+    if (localDevices.length === 0) {
+      await this.performBackgroundSync(true);
+      return await this.deviceDao.getAllDevices(store);
+    }
+
     // 2. Trigger background sync asynchronously (fire and forget)
     this.performBackgroundSync().catch(console.error);
     
