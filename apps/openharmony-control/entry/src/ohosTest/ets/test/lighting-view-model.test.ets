@@ -2,7 +2,7 @@ import { describe, expect, it } from '@ohos/hypium';
 import { LightingViewModel } from '../../../main/ets/viewmodel/lighting-view-model';
 import { SmartHomeRepositoryPort } from '../../../main/ets/services/smart-home-repository';
 import { DeviceSnapshot } from '../../../main/ets/model/device-view-model';
-import { DevicePayload } from '../../../main/ets/services/device-api';
+import { AutomationEnablePayload, AutomationPayloadDraft, DevicePayload, SceneEnablePayload, ScenePayloadDraft } from '../../../main/ets/services/device-api';
 
 class LightingRepositoryStub implements SmartHomeRepositoryPort {
   async getSummary() {
@@ -43,13 +43,28 @@ class LightingRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listScenes() { return []; }
+  async listAutomations() { return []; }
+  async listRooms() { return []; }
   async listHistory(_limit: number) { return []; }
   async getAccessOverview() { throw new Error('not used'); }
   async getCameraOverview() { return []; }
+  async getFamilyOverview() { throw new Error('not used'); }
+  async sendBroadcast(_message: string) {}
+  async getClimateOverview() { throw new Error('not used'); }
+  async updateClimateMode(_mode: string) {}
+  async createRoom(_name: string, _icon: string) { throw new Error('not used'); }
+  async updateRoom(_roomId: string, _name?: string, _icon?: string) { throw new Error('not used'); }
+  async deleteRoom(_roomId: string) {}
+  async updateDeviceRoom(_deviceId: string, _roomId: string) {}
   async shareGuestKey(_holder: string, _hours: number) {}
   async toggleCameraRecording(_cameraId: string, _recording: boolean) {}
   async runScene(_sceneId: string) {}
-  async updateScene(_sceneId: string, _enabled: boolean) {}
+  async createScene(_payload: ScenePayloadDraft) { throw new Error('not used'); }
+  async updateScene(_sceneId: string, _payload: ScenePayloadDraft | SceneEnablePayload) { throw new Error('not used'); }
+  async deleteScene(_sceneId: string) {}
+  async createAutomation(_payload: AutomationPayloadDraft) { throw new Error('not used'); }
+  async updateAutomation(_automationId: string, _payload: AutomationPayloadDraft | AutomationEnablePayload) { throw new Error('not used'); }
+  async deleteAutomation(_automationId: string) {}
   async sendDeviceCommand(_deviceId: string, _name: string, _payload: DevicePayload) {}
 }
 

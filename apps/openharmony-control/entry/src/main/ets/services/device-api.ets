@@ -44,6 +44,7 @@ export interface SyncScenePayload {
 // Automation entities are not yet projected into a dedicated local DAO/repository flow.
 export interface SyncAutomationPayload {
   id: string;
+  icon?: string;
   name: string;
   triggerType: string;
   triggerJson: string;
@@ -198,6 +199,33 @@ export interface SceneTrigger {
 
 export interface SceneListResponse {
   scenes: SceneSnapshot[];
+}
+
+export interface AutomationSnapshot {
+  id: string;
+  icon?: string;
+  name: string;
+  triggerType: string;
+  triggerJson: string;
+  actionJson: string;
+  enabled: boolean;
+}
+
+export class AutomationPayloadDraft {
+  name: string = '';
+  icon?: string;
+  enabled: boolean = true;
+  triggerType: string = '';
+  triggerJson: string = '[]';
+  actionJson: string = '[]';
+}
+
+export class AutomationEnablePayload {
+  enabled: boolean = false;
+}
+
+export interface AutomationListResponse {
+  automations: AutomationSnapshot[];
 }
 
 export interface CommandHistoryEntry {
@@ -487,6 +515,20 @@ export class DeviceApi {
     }
   }
 
+  async listAutomations(): Promise<AutomationSnapshot[]> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/automations`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      const body = JSON.parse(response.result as string) as AutomationListResponse;
+      return body.automations;
+    } finally {
+      client.destroy();
+    }
+  }
+
   async runScene(sceneId: string): Promise<void> {
     const client = http.createHttp();
     try {
@@ -544,6 +586,59 @@ export class DeviceApi {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
+        method: http.RequestMethod.DELETE,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/automations`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const data = JSON.parse(response.result as string) as Record<string, Object>;
+      return data.automation as AutomationSnapshot;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/automations/${automationId}`, {
+        method: http.RequestMethod.PUT,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const data = JSON.parse(response.result as string) as Record<string, Object>;
+      return data.automation as AutomationSnapshot;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async deleteAutomation(automationId: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/automations/${automationId}`, {
         method: http.RequestMethod.DELETE,
         expectDataType: http.HttpDataType.STRING,
       });

@@ -20,31 +20,27 @@ export struct AutomationView {
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
-  
-
   build() {
     Column({ space: 28 }) {
       Column({ space: 12 }) {
-        Text('自动化')
+        Text('鑷姩鍖?)
           .fontSize(38)
           .fontWeight(FontWeight.Bold)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .width('100%')
 
-        Text('自动化您的家庭环境。')
+        Text('鑷姩鍖栨偍鐨勫搴幆澧冦€?)
           .fontSize(18)
           .fontColor(COLOR_TEXT_MUTED)
           .width('100%')
       }
       .width('100%')
 
-
-
-      if (this.automation.scenes.filter((s: SceneCardState) => s.triggerTypeLabel !== 'manual').length === 0) {
+      if (this.automation.items.length === 0) {
         Column({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
-          Text('暂无自动化')
+          Text('鏆傛棤鑷姩鍖?)
             .fontSize(16)
             .fontColor(COLOR_TEXT_MUTED)
         }
@@ -58,27 +54,23 @@ export struct AutomationView {
         })
       } else {
         Column({ space: 16 }) {
-          ForEach(this.automation.scenes.filter((s: SceneCardState) => s.triggerTypeLabel !== 'manual'), (scene: SceneCardState) => {
+          ForEach(this.automation.items, (scene: SceneCardState) => {
             SceneCard({
               scene: scene,
               onToggle: (enabled: boolean) => {
-                scene.enabled = enabled;
-                // Since @ObjectLink doesn't do deep proxying automatically on array items,
-                // we'll trigger a UI update by re-assigning the array
-                this.automation.scenes = [...this.automation.scenes];
+                this.controller.handleAutomationToggleScene(this.appState, scene.id, enabled);
               },
               onRun: () => {
-                console.info('执行自动化: ' + scene.name);
+                this.controller.handleAutomationRunScene(this.appState, scene.id);
               },
               onEdit: () => {
-                console.info('编辑自动化: ' + scene.name);
-                // Future: Navigate to edit screen
+                this.navStack.pushPathByName('createAutomation', scene.id);
               },
               onDelete: () => {
-                this.automation.scenes = this.automation.scenes.filter((item: SceneCardState) => item.id !== scene.id);
+                this.controller.handleDeleteAutomation(this.appState, scene.id);
               }
             })
-          }, (s: SceneCardState) => s.id)
+          }, (scene: SceneCardState) => scene.id)
         }
         .width('100%')
       }
@@ -86,7 +78,7 @@ export struct AutomationView {
       Row() {
         Row({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 20, color: '#FFFFFF' })
-          Text('新建自动化')
+          Text('鏂板缓鑷姩鍖?)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFF')

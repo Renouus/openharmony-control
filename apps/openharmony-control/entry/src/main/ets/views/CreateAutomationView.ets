@@ -1,71 +1,104 @@
-import { RoutineDraft, ConditionDraft, ActionDraft, DevicePanelState, SceneChipState, SceneCardState } from '../model/page-view-state';
+import { ActionDraft, ConditionDraft, DevicePanelState, RoutineDraft, SceneChipState } from '../model/page-view-state';
 import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
-import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, COLOR_TEXT_MUTED,
-  COLOR_SURFACE_CONTAINER_HIGH,
-  COLOR_SURFACE_CONTAINER_LOW} from '../theme/smart-home-theme';
+import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { DEVICE_CAPABILITIES, DevicePropertyConfig, DeviceCommandConfig } from '../model/automation-capabilities';
-import { ScenePayloadDraft, SceneCommandDraft, SceneTriggerDraft, SceneCommandPayload } from '../services/device-api';
+import { DEVICE_CAPABILITIES, DeviceCommandConfig, DevicePropertyConfig } from '../model/automation-capabilities';
+import { AutomationPayloadDraft } from '../services/device-api';
 
 @Component
 export struct CreateAutomationView {
   @Prop appState: AppStateSnapshot;
+  @Prop editingAutomationId: string = '';
   @State draft: RoutineDraft = { name: '', icon: 'auto_awesome', conditions: [], actions: [] };
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
   onCancel: () => void = () => {};
-  onSave: (payload: ScenePayloadDraft) => void = () => {};
+  onSave: (payload: AutomationPayloadDraft) => void = () => {};
 
   getConditionLabel(cond: ConditionDraft): string {
     if (cond.type === 'time') {
-      return `定时: ${cond.time}`;
+      return `瀹氭椂: ${cond.time}`;
     }
     if (cond.type === 'device') {
-      let device = this.appState.home.devices.find((d: DevicePanelState) => d.id === cond.deviceId);
-      if (!device) return '未知设备';
-      let cap = DEVICE_CAPABILITIES[device.kind]?.conditions?.find((c: DevicePropertyConfig) => c.property === cond.property);
-      let propLabel = cap ? cap.label : cond.property;
-      let thresholdLabel = cond.threshold === 'true' ? '开启' : (cond.threshold === 'false' ? '关闭' : cond.threshold);
-      let opLabel = cond.operator === '==' ? '变为' : (cond.operator === '>' ? '大于' : cond.operator);
-      return `${device.roomName} ${device.name} ${propLabel} ${opLabel} ${thresholdLabel}`;
+      const device = this.appState.home.devices.find((item: DevicePanelState) => item.id === cond.deviceId);
+      if (!device) {
+        return '鏈煡璁惧';
+      }
+      const capability = DEVICE_CAPABILITIES[device.kind]?.conditions?.find(
+        (item: DevicePropertyConfig) => item.property === cond.property,
+      );
+      const propertyLabel = capability ? capability.label : cond.property;
+      const thresholdLabel = cond.threshold === 'true' ? '寮€鍚?' : (cond.threshold === 'false' ? '鍏抽棴' : cond.threshold);
+      const operatorLabel = cond.operator === '==' ? '鍙樹负' : (cond.operator === '>' ? '澶т簬' : cond.operator);
+      return `${device.roomName} ${device.name} ${propertyLabel} ${operatorLabel} ${thresholdLabel}`;
     }
-    return '未知条件';
+    return '鏈煡鏉′欢';
   }
 
   getActionLabel(action: ActionDraft): string {
     if (action.type === 'scene') {
-      let scene = this.appState.home.quickScenes.find((s: SceneChipState) => s.id === action.sceneId);
-      return scene ? `执行场景: ${scene.label}` : '未知场景';
+      const scene = this.appState.home.quickScenes.find((item: SceneChipState) => item.id === action.sceneId);
+      return scene ? `鎵ц鍦烘櫙: ${scene.label}` : '鏈煡鍦烘櫙';
     }
     if (action.type === 'device') {
-      let device = this.appState.home.devices.find((d: DevicePanelState) => d.id === action.deviceId);
-      if (!device) return '未知设备';
-      
-      let cmdParts = (action.command || '').split(':');
-      let cmdName = cmdParts[0];
-      let cmdValue = cmdParts.length > 1 ? cmdParts[1] : '';
-      
-      let cap = DEVICE_CAPABILITIES[device.kind]?.actions?.find((a: DeviceCommandConfig) => a.command === cmdName);
-      let cmdLabel = cap ? cap.label : cmdName;
-      let valLabel = cmdValue === 'true' ? '开启' : (cmdValue === 'false' ? '关闭' : cmdValue);
-      
-      return `${device.roomName} ${device.name} ${cmdLabel} ${valLabel}`;
+      const device = this.appState.home.devices.find((item: DevicePanelState) => item.id === action.deviceId);
+      if (!device) {
+        return '鏈煡璁惧';
+      }
+
+      const commandParts = (action.command || '').split(':');
+      const commandName = commandParts[0];
+      const commandValue = commandParts.length > 1 ? commandParts[1] : '';
+      const capability = DEVICE_CAPABILITIES[device.kind]?.actions?.find(
+        (item: DeviceCommandConfig) => item.command === commandName,
+      );
+      const commandLabel = capability ? capability.label : commandName;
+      const valueLabel = commandValue === 'true' ? '寮€鍚?' : (commandValue === 'false' ? '鍏抽棴' : commandValue);
+
+      return `${device.roomName} ${device.name} ${commandLabel} ${valueLabel}`;
     }
-    return '未知动作';
+    return '鏈煡鍔ㄤ綔';
+  }
+
+  private buildPayload(): AutomationPayloadDraft {
+    const payload = new AutomationPayloadDraft();
+    payload.name = this.draft.name;
+    payload.icon = this.draft.icon;
+    payload.enabled = true;
+    payload.triggerType = this.draft.conditions[0].type === 'time' ? 'time' : 'device';
+    payload.triggerJson = JSON.stringify(this.draft.conditions.map((condition: ConditionDraft) => ({
+      id: condition.id,
+      type: condition.type,
+      time: condition.time,
+      deviceId: condition.deviceId,
+      property: condition.property,
+      operator: condition.operator,
+      threshold: condition.threshold,
+      label: this.getConditionLabel(condition),
+    })));
+    payload.actionJson = JSON.stringify(this.draft.actions.map((action: ActionDraft) => ({
+      id: action.id,
+      type: action.type,
+      deviceId: action.deviceId,
+      command: action.command,
+      sceneId: action.sceneId,
+      label: this.getActionLabel(action),
+    })));
+    return payload;
   }
 
   @Builder
   IconPickerSheet() {
     Column() {
-      Text('选择图标')
+      Text('閫夋嫨鍥炬爣')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(COLOR_ON_SURFACE)
         .padding({ top: 24, bottom: 24 })
-      
+
       Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
         ForEach(['auto_awesome', 'home', 'bedtime', 'movie', 'lightbulb', 'ac_unit', 'lock', 'videocam', 'water_drop', 'power_settings_new'], (icon: string) => {
           Row() {
@@ -81,7 +114,7 @@ export struct CreateAutomationView {
             this.draft.icon = icon;
             this.showIconPicker = false;
           })
-        }, (i: string) => i)
+        }, (icon: string) => icon)
       }
       .padding({ left: 16, right: 16 })
     }
@@ -91,78 +124,38 @@ export struct CreateAutomationView {
 
   build() {
     Column() {
-      // Header
       Row() {
-        Text('取消')
+        Text('鍙栨秷')
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
           .onClick(() => {
             this.onCancel();
           })
-        Text('新建自动化')
+        Text(this.editingAutomationId ? '缂栬緫鑷姩鍖?' : '鏂板缓鑷姩鍖?')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Text('保存')
+        Text('淇濆瓨')
           .fontSize(16)
           .fontColor(COLOR_PRIMARY)
           .onClick(() => {
             if (!this.draft.name) {
-              console.error('Validation: Name is required');
               return;
             }
             if (this.draft.conditions.length === 0 || this.draft.actions.length === 0) {
-              console.error('Validation: Must have at least 1 condition and 1 action');
               return;
             }
-            
-            let payload = new ScenePayloadDraft();
-            payload.name = this.draft.name;
-            payload.icon = this.draft.icon;
-            payload.enabled = true;
-            payload.description = '自定义自动化规则';
-            let trigger = new SceneTriggerDraft();
-            trigger.type = this.draft.conditions[0].type === 'time' ? 'time' : 'device';
-            trigger.label = this.getConditionLabel(this.draft.conditions[0]);
-            payload.trigger = trigger;
-            payload.repeat = [];
-            payload.actionsLabel = this.draft.actions.map((a: ActionDraft) => this.getActionLabel(a));
-            payload.commands = this.draft.actions.map((a: ActionDraft) => {
-              let cmdParts = (a.command || '').split(':');
-              let cmdName = cmdParts[0];
-              let cmdValue = cmdParts.length > 1 ? cmdParts[1] : '';
-              
-              let payloadObj = new SceneCommandPayload();
-              if (cmdName === 'switch') {
-                payloadObj.on = cmdValue === 'true';
-              } else if (cmdName === 'lock') {
-                payloadObj.locked = cmdValue === 'true';
-              } else if (cmdName === 'set-target-temperature') {
-                payloadObj.targetTemperature = parseInt(cmdValue, 10);
-              } else if (cmdName === 'set-brightness') {
-                payloadObj.brightness = parseInt(cmdValue, 10);
-              }
-              
-              let cmd = new SceneCommandDraft();
-              cmd.deviceId = a.deviceId || '';
-              cmd.name = cmdName;
-              cmd.payload = payloadObj;
-              return cmd;
-            });
-            
-            this.onSave(payload);
+            this.onSave(this.buildPayload());
           })
       }
       .width('100%')
       .height(56)
       .padding({ left: 16, right: 16 })
 
-
       Scroll() {
         Column({ space: 24 }) {
-          // Name Input
           Row({ space: 16 }) {
             Row() {
               AppSymbol({ name: this.draft.icon || 'auto_awesome', glyphSize: 24, color: COLOR_PRIMARY })
@@ -179,7 +172,7 @@ export struct CreateAutomationView {
               backgroundColor: COLOR_SURFACE_CONTAINER_HIGH
             })
 
-            TextInput({ placeholder: '自动化名称', text: this.draft.name })
+            TextInput({ placeholder: '鑷姩鍖栧悕绉?', text: this.draft.name })
               .onChange((value: string) => {
                 this.draft.name = value;
               })
@@ -193,19 +186,18 @@ export struct CreateAutomationView {
           .borderRadius(20)
           .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
 
-          // Conditions
           Column({ space: 12 }) {
-            Text('如果...')
+            Text('濡傛灉...')
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
               .width('100%')
               .padding({ left: 4 })
-            
+
             Column() {
-              ForEach(this.draft.conditions, (cond: ConditionDraft, index: number) => {
+              ForEach(this.draft.conditions, (condition: ConditionDraft, index: number) => {
                 Row() {
-                  Text(this.getConditionLabel(cond))
+                  Text(this.getConditionLabel(condition))
                     .layoutWeight(1)
                     .fontSize(15)
                     .fontColor(COLOR_ON_SURFACE)
@@ -218,21 +210,21 @@ export struct CreateAutomationView {
                   .justifyContent(FlexAlign.Center)
                   .alignItems(VerticalAlign.Center)
                   .onClick(() => {
-                    let newCond = [...this.draft.conditions];
-                    newCond.splice(index, 1);
-                    this.draft.conditions = newCond;
+                    const nextConditions = [...this.draft.conditions];
+                    nextConditions.splice(index, 1);
+                    this.draft.conditions = nextConditions;
                   })
                 }
                 .width('100%')
                 .alignItems(VerticalAlign.Center)
                 .padding({ left: 16, right: 12, top: 16, bottom: 16 })
-                
+
                 if (index < this.draft.conditions.length - 1 || this.draft.conditions.length > 0) {
                   Divider().color(COLOR_OUTLINE_VARIANT).strokeWidth(0.5).margin({ left: 16, right: 16 })
                 }
               })
-              
-              Button('+ 添加条件', { type: ButtonType.Normal })
+
+              Button('+ 娣诲姞鏉′欢', { type: ButtonType.Normal })
                 .width('100%')
                 .height(48)
                 .backgroundColor(Color.Transparent)
@@ -253,15 +245,14 @@ export struct CreateAutomationView {
           }
           .width('100%')
 
-          // Actions
           Column({ space: 12 }) {
-            Text('就执行...')
+            Text('灏辨墽琛?..')
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
               .width('100%')
               .padding({ left: 4 })
-            
+
             Column() {
               ForEach(this.draft.actions, (action: ActionDraft, index: number) => {
                 Row() {
@@ -278,21 +269,21 @@ export struct CreateAutomationView {
                   .justifyContent(FlexAlign.Center)
                   .alignItems(VerticalAlign.Center)
                   .onClick(() => {
-                    let newAct = [...this.draft.actions];
-                    newAct.splice(index, 1);
-                    this.draft.actions = newAct;
+                    const nextActions = [...this.draft.actions];
+                    nextActions.splice(index, 1);
+                    this.draft.actions = nextActions;
                   })
                 }
                 .width('100%')
                 .alignItems(VerticalAlign.Center)
                 .padding({ left: 16, right: 12, top: 16, bottom: 16 })
-                
+
                 if (index < this.draft.actions.length - 1 || this.draft.actions.length > 0) {
                   Divider().color(COLOR_OUTLINE_VARIANT).strokeWidth(0.5).margin({ left: 16, right: 16 })
                 }
               })
-              
-              Button('+ 添加动作', { type: ButtonType.Normal })
+
+              Button('+ 娣诲姞鍔ㄤ綔', { type: ButtonType.Normal })
                 .width('100%')
                 .height(48)
                 .backgroundColor(Color.Transparent)

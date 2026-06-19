@@ -1,5 +1,5 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { SceneCardState, DeviceActionState, AutomationViewState } from '../model/page-view-state';
+import { DeviceActionState, SceneCardState, ScenesViewState } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
@@ -17,18 +17,18 @@ import {
 @Component
 export struct ScenesListView {
   @ObjectLink appState: AppStateSnapshot;
-  @ObjectLink automation: AutomationViewState;
+  @ObjectLink scenes: ScenesViewState;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
   @Builder
   SceneMenu(sceneId: string) {
     Menu() {
-      MenuItem({ content: '编辑场景' })
+      MenuItem({ content: '缂栬緫鍦烘櫙' })
         .onClick(() => {
           this.navStack.pushPathByName('sceneEditor', sceneId);
         })
-      MenuItem({ content: '删除场景' })
+      MenuItem({ content: '鍒犻櫎鍦烘櫙' })
         .onClick(() => {
           this.controller.handleDeleteScene(this.appState, sceneId);
         })
@@ -58,7 +58,7 @@ export struct ScenesListView {
         .width('100%')
 
       Column({ space: 20 }) {
-        ForEach(this.automation.scenes.filter((s: SceneCardState) => s.triggerTypeLabel === 'manual'), (scene: SceneCardState, index: number) => {
+        ForEach(this.scenes.items, (scene: SceneCardState, index: number) => {
           Column() {
             Row() {
               Row({ space: 16 }) {
@@ -115,11 +115,10 @@ export struct ScenesListView {
           .borderRadius(16)
           .shadow({ radius: 16, color: '#3A302A0A', offsetX: 0, offsetY: 2 })
           .onClick(() => {
-            this.controller.handleAutomationRunScene(this.appState, scene.id);
+            this.controller.handleHomeRunScene(this.appState, scene.id);
           })
         }, (scene: SceneCardState) => scene.id)
 
-        // Create New Scene Button
         Row({ space: 12 }) {
           Row() {
             AppSymbol({ name: 'add', glyphSize: 20, color: COLOR_TEXT_MUTED })

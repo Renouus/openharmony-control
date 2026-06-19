@@ -1,5 +1,8 @@
 import {
   AccessOverview,
+  AutomationEnablePayload,
+  AutomationPayloadDraft,
+  AutomationSnapshot,
   CameraSnapshot,
   ClimateOverview,
   CommandHistoryEntry,
@@ -16,6 +19,7 @@ import { DeviceSnapshot } from '../model/device-view-model';
 import { commandFeedbackLabel } from '../model/command-feedback';
 import { DatabaseHelper } from './db/DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './db/DeviceDao';
+import { AutomationDao, AutomationSyncItem } from './db/AutomationDao';
 import { RoomDao, RoomSyncItem } from './db/RoomDao';
 import { SceneDao, SceneSyncItem } from './db/SceneDao';
 import { SyncDao } from './db/SyncDao';
@@ -42,6 +46,7 @@ export interface SmartHomeRepositoryPort {
   deleteRoom(roomId: string): Promise<void>;
   updateDeviceRoom(deviceId: string, roomId: string): Promise<void>;
   listScenes(): Promise<SceneSnapshot[]>;
+  listAutomations(): Promise<AutomationSnapshot[]>;
   listHistory(limit: number): Promise<CommandHistoryEntry[]>;
   getAccessOverview(): Promise<AccessOverview>;
   getCameraOverview(): Promise<CameraSnapshot[]>;
@@ -55,12 +60,16 @@ export interface SmartHomeRepositoryPort {
   createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot>;
   updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot>;
   deleteScene(sceneId: string): Promise<void>;
+  createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot>;
+  updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot>;
+  deleteAutomation(automationId: string): Promise<void>;
   sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void>;
 }
 
 export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly api: DeviceApi;
   private readonly deviceDao: DeviceDao;
+  private readonly automationDao: AutomationDao;
   private readonly roomDao: RoomDao;
   private readonly sceneDao: SceneDao;
   private readonly syncDao: SyncDao;
@@ -69,6 +78,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   constructor(api: DeviceApi) {
     this.api = api;
     this.deviceDao = new DeviceDao();
+    this.automationDao = new AutomationDao();
     this.roomDao = new RoomDao();
     this.sceneDao = new SceneDao();
     this.syncDao = new SyncDao();
@@ -116,10 +126,17 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
         localSceneMap.set(scene.id, scene);
       });
 
+      const localAutomations = await this.automationDao.getAllSyncItems(store);
+      const localAutomationMap = new Map<string, AutomationSyncItem>();
+      localAutomations.forEach((automation: AutomationSyncItem) => {
+        localAutomationMap.set(automation.id, automation);
+      });
+
       const events = DomainEventAdapter.fromSyncResponse(updates, {
         devices: localDeviceMap,
         rooms: localRoomMap,
-        scenes: localSceneMap
+        scenes: localSceneMap,
+        automations: localAutomationMap,
       });
 
       // Must await the write: callers such as listDevices() re-read the local
@@ -225,6 +242,23 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     return localScenes;
   }
 
+  async listAutomations(): Promise<AutomationSnapshot[]> {
+    const store = DatabaseHelper.getInstance().getStore();
+    const localAutomations = await this.automationDao.getAllAutomations(store);
+
+    if (localAutomations.length === 0) {
+      const remoteAutomations = await this.api.listAutomations();
+      await this.automationDao.replaceAll(
+        store,
+        remoteAutomations.map((automation: AutomationSnapshot) => this.toAutomationSyncItem(automation)),
+      );
+      return await this.automationDao.getAllAutomations(store);
+    }
+
+    this.refreshAutomations().catch(console.error);
+    return localAutomations;
+  }
+
   async listHistory(limit: number): Promise<CommandHistoryEntry[]> {
     return await this.api.listHistory(limit);
   }
@@ -285,6 +319,26 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.sceneDao.markDeleted(store, sceneId);
   }
 
+  async createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot> {
+    const automation = await this.api.createAutomation(payload);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.automationDao.insertOrUpdate(store, this.toAutomationSyncItem(automation));
+    return automation;
+  }
+
+  async updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot> {
+    const automation = await this.api.updateAutomation(automationId, payload);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.automationDao.insertOrUpdate(store, this.toAutomationSyncItem(automation));
+    return automation;
+  }
+
+  async deleteAutomation(automationId: string): Promise<void> {
+    await this.api.deleteAutomation(automationId);
+    const store = DatabaseHelper.getInstance().getStore();
+    await this.automationDao.markDeleted(store, automationId);
+  }
+
   async sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void> {
     await this.api.postDemoCommand({
       requestId: `cmd-${Date.now()}`,
@@ -305,6 +359,15 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     const store = DatabaseHelper.getInstance().getStore();
     const remoteScenes = await this.api.listScenes();
     await this.sceneDao.replaceAll(store, remoteScenes.map((scene: SceneSnapshot) => this.toSceneSyncItem(scene)));
+  }
+
+  private async refreshAutomations(): Promise<void> {
+    const store = DatabaseHelper.getInstance().getStore();
+    const remoteAutomations = await this.api.listAutomations();
+    await this.automationDao.replaceAll(
+      store,
+      remoteAutomations.map((automation: AutomationSnapshot) => this.toAutomationSyncItem(automation)),
+    );
   }
 
   private toRoomSyncItem(room: RoomItem): RoomSyncItem {
@@ -333,6 +396,21 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       updatedAt: Date.now(),
       version: Date.now(),
       isDeleted: false
+    };
+  }
+
+  private toAutomationSyncItem(automation: AutomationSnapshot): AutomationSyncItem {
+    return {
+      id: automation.id,
+      icon: automation.icon,
+      name: automation.name,
+      triggerType: automation.triggerType,
+      triggerJson: automation.triggerJson,
+      actionJson: automation.actionJson,
+      enabled: automation.enabled,
+      updatedAt: Date.now(),
+      version: Date.now(),
+      isDeleted: false,
     };
   }
 }

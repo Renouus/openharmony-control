@@ -1,6 +1,7 @@
 import relationalStore from '@ohos.data.relationalStore';
 import { DomainEvent, DomainEventType } from '../../model/domain-event';
-import { SceneCommand, SceneTrigger } from '../device-api';
+import { AutomationSnapshot, SceneCommand, SceneTrigger } from '../device-api';
+import { AutomationDao, AutomationSyncItem } from './AutomationDao';
 import { DatabaseHelper } from './DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './DeviceDao';
 import { RoomDao, RoomSyncItem } from './RoomDao';
@@ -37,6 +38,19 @@ class SceneEventPayload implements SceneSyncItem {
   isDeleted?: boolean = false;
 }
 
+class AutomationEventPayload implements AutomationSyncItem {
+  id: string = '';
+  icon?: string = undefined;
+  name: string = '';
+  triggerType: string = '';
+  triggerJson: string = '[]';
+  actionJson: string = '[]';
+  enabled: boolean = false;
+  updatedAt: number = 0;
+  version: number = 0;
+  isDeleted?: boolean = false;
+}
+
 export class DatabaseEventProcessor {
   public async pushBatchAndWait(events: DomainEvent[], finalVersion?: number): Promise<void> {
     this.queue.push({ events, finalVersion });
@@ -48,6 +62,7 @@ export class DatabaseEventProcessor {
   private isProcessing = false;
 
   private deviceDao = new DeviceDao();
+  private automationDao = new AutomationDao();
   private roomDao = new RoomDao();
   private sceneDao = new SceneDao();
   private syncDao = new SyncDao();
@@ -91,6 +106,8 @@ export class DatabaseEventProcessor {
             await this.processRoomEvent(store, event as DomainEvent<RoomSyncItem>);
           } else if (event.entityType === 'scene') {
             await this.processSceneEvent(store, event as DomainEvent<SceneSyncItem>);
+          } else if (event.entityType === 'automation') {
+            await this.processAutomationEvent(store, event as DomainEvent<AutomationSyncItem>);
           }
         }
 
@@ -184,5 +201,35 @@ export class DatabaseEventProcessor {
     applyPayload.isDeleted = event.type === DomainEventType.ENTITY_DELETED;
 
     await this.sceneDao.applyEvent(store, applyPayload);
+  }
+
+  private async processAutomationEvent(
+    store: relationalStore.RdbStore,
+    event: DomainEvent<AutomationSyncItem>
+  ): Promise<void> {
+    const payload: AutomationSyncItem | undefined = event.payload;
+    if (!payload) {
+      return;
+    }
+
+    const localAutomations = await this.automationDao.getAllSyncItems(store);
+    const current = localAutomations.find((automation: AutomationSnapshot) => automation.id === event.entityId);
+    if (current && current.version >= event.version) {
+      return;
+    }
+
+    const applyPayload = new AutomationEventPayload();
+    applyPayload.id = payload.id;
+    applyPayload.icon = payload.icon;
+    applyPayload.name = payload.name;
+    applyPayload.triggerType = payload.triggerType;
+    applyPayload.triggerJson = payload.triggerJson;
+    applyPayload.actionJson = payload.actionJson;
+    applyPayload.enabled = payload.enabled;
+    applyPayload.updatedAt = payload.updatedAt;
+    applyPayload.version = payload.version;
+    applyPayload.isDeleted = event.type === DomainEventType.ENTITY_DELETED;
+
+    await this.automationDao.applyEvent(store, applyPayload);
   }
 }

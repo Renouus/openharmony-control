@@ -16,20 +16,12 @@ async function main(): Promise<void> {
   try {
     db.exec(`
       DELETE FROM devices;
-      DELETE FROM rooms;
-      DELETE FROM scenes;
-      DELETE FROM automations;
     `);
 
     const insertDevice = db.prepare(`
       INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `);
-    const insertAutomation = db.prepare(`
-      INSERT INTO automations (id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    `);
-
     const initialDevices = registry.list();
     const now = Date.now();
     let version = 1;
@@ -45,20 +37,8 @@ async function main(): Promise<void> {
       );
     }
 
-    insertAutomation.run(
-      'night-routine',
-      'auto_awesome',
-      'Night Routine',
-      'time',
-      JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-      JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
-      1,
-      now,
-      version++,
-    );
-
     db.prepare("UPDATE metadata SET value = ? WHERE key = 'global_version'").run(String(version - 1));
-    app.log.info(`Seeded ${initialDevices.length} devices and automation data at version ${version - 1}`);
+    app.log.info(`Seeded ${initialDevices.length} devices at version ${version - 1} without clearing scenes or automations`);
   } catch (error) {
     app.log.error(`Failed to seed initial data: ${error}`);
   }

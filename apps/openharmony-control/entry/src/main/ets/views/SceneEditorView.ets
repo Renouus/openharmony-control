@@ -6,7 +6,6 @@ import { COLOR_ON_SURFACE, COLOR_SURFACE, COLOR_PRIMARY, COLOR_OUTLINE_VARIANT, 
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DeviceCommandConfig } from '../model/automation-capabilities';
 import { ScenePayloadDraft, SceneCommandDraft, SceneTriggerDraft, SceneCommandPayload } from '../services/device-api';
-import http from '@ohos.net.http';
 
 interface SceneDraft {
   name: string;
@@ -32,36 +31,14 @@ export struct SceneEditorView {
     }
   }
 
-  async loadScene() {
+  loadScene() {
     this.isLoading = true;
-    try {
-      const client = http.createHttp();
-      const response = await client.request(`http://10.0.2.2:3000/api/scenes`, { method: http.RequestMethod.GET });
-      if (response.responseCode === 200) {
-        const data = JSON.parse(response.result as string) as Record<string, Object>;
-        const scenes = data.scenes as Record<string, Object>[];
-        const scene = scenes.find((s: Record<string, Object>) => s.id === this.editingSceneId);
-        if (scene) {
-          this.draft.name = scene.name as string;
-          this.draft.icon = (scene.icon as string) || 'movie';
-          const commands = (scene.commands as Record<string, Object>[]) || [];
-          this.draft.actions = commands.map((cmd: Record<string, Object>) => {
-            const payloadValues = Object.values(cmd.payload as Record<string, Object>);
-            return {
-              id: Date.now().toString() + Math.random().toString(),
-              type: 'device',
-              deviceId: cmd.deviceId as string,
-              command: `${cmd.name}:${payloadValues[0]}`
-            } as ActionDraft;
-          });
-        }
-      }
-      client.destroy();
-    } catch (e) {
-      console.error('Failed to load scene', e);
-    } finally {
-      this.isLoading = false;
+    const scene = this.appState.scenes.items.find((item) => item.id === this.editingSceneId);
+    if (scene) {
+      this.draft.name = scene.name;
+      this.draft.icon = scene.icon || 'movie';
     }
+    this.isLoading = false;
   }
 
   getActionLabel(action: ActionDraft): string {

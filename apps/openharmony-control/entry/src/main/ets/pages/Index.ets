@@ -269,7 +269,7 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'scenesList') {
         Scroll() {
-          ScenesListView({ appState: this.appState, automation: this.appState.automation })
+          ScenesListView({ appState: this.appState, scenes: this.appState.scenes })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -278,10 +278,14 @@ struct Index {
       } else if (this.currentSubPage === 'createAutomation') {
         CreateAutomationView({
           appState: this.appState,
+          editingAutomationId: this.subPageParam as string,
           onCancel: () => this.popSubPage(),
           onSave: (payload) => {
-            console.info('Automation saved in Index:', JSON.stringify(payload));
-            this.controller.handleCreateScene(this.appState, payload);
+            if (this.subPageParam) {
+              this.controller.handleUpdateAutomation(this.appState, this.subPageParam as string, payload);
+            } else {
+              this.controller.handleCreateAutomation(this.appState, payload);
+            }
             this.popSubPage();
           }
         })

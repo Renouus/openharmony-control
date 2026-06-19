@@ -1,13 +1,25 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { AutomationViewModel } from '../../../main/ets/viewmodel/automation-view-model';
 import { SmartHomeRepositoryPort } from '../../../main/ets/services/smart-home-repository';
-import { DevicePayload, SceneEnablePayload, ScenePayloadDraft, SceneSnapshot } from '../../../main/ets/services/device-api';
-import { filterNotificationEntries } from '../../../main/ets/model/smart-home-mappers';
+import {
+  AutomationEnablePayload,
+  AutomationPayloadDraft,
+  AutomationSnapshot,
+  DevicePayload,
+  SceneEnablePayload,
+  ScenePayloadDraft,
+  SceneSnapshot,
+} from '../../../main/ets/services/device-api';
+import { filterNotificationEntries, mapScenesViewState } from '../../../main/ets/model/smart-home-mappers';
 import { HistoryRowState } from '../../../main/ets/model/page-view-state';
 import { AppStateSnapshot } from '../../../main/ets/model/app-state-snapshot';
-import { applySceneDomainRefresh, createSceneDomainRefreshState } from '../../../main/ets/controllers/AppController';
 
 class AutomationRepositoryStub implements SmartHomeRepositoryPort {
+  public listScenesCalls: number = 0;
+  public listAutomationsCalls: number = 0;
+  public updateSceneCalls: number = 0;
+  public updateAutomationCalls: number = 0;
+
   async getSummary() {
     throw new Error('not used');
   }
@@ -17,47 +29,124 @@ class AutomationRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
+
+  async listRooms() { return []; }
+
+  async createRoom(_name: string, _icon: string) {
+    throw new Error('not used');
+  }
+
+  async updateRoom(_roomId: string, _name?: string, _icon?: string) {
+    throw new Error('not used');
+  }
+
+  async deleteRoom(_roomId: string) {}
+
+  async updateDeviceRoom(_deviceId: string, _roomId: string) {}
+
   async listScenes(): Promise<SceneSnapshot[]> {
+    this.listScenesCalls += 1;
     return [{
       id: 'movie',
       name: 'Movie',
       description: 'Dim the house',
       enabled: true,
-      trigger: { type: 'time', label: 'Every Friday 20:00' },
+      trigger: { type: 'manual', label: 'Run now' },
       repeat: ['Mon', 'Fri'],
       actionsLabel: ['Dim living room', 'Lock doors'],
       commands: [],
     }];
   }
+
+  async listAutomations(): Promise<AutomationSnapshot[]> {
+    this.listAutomationsCalls += 1;
+    return [{
+      id: 'night-routine',
+      icon: 'auto_awesome',
+      name: 'Night Routine',
+      triggerType: 'time',
+      triggerJson: '[{"id":"seed-time","type":"time","time":"22:00","label":"22:00"}]',
+      actionJson: '[{"id":"seed-lock","type":"device","command":"lock:true","label":"Lock front door"}]',
+      enabled: true,
+    }];
+  }
+
   async listHistory(_limit: number) { return []; }
+
   async getAccessOverview() { throw new Error('not used'); }
+
   async getCameraOverview() { return []; }
-  async shareGuestKey(_holder: string, _hours: number) {}
-  async toggleCameraRecording(_cameraId: string, _recording: boolean) {}
-  async runScene(_sceneId: string) {}
-  async listRooms() { return []; }
-  async createRoom(_name: string, _icon: string) { throw new Error('not used'); }
-  async updateRoom(_roomId: string, _name?: string, _icon?: string) { throw new Error('not used'); }
-  async deleteRoom(_roomId: string) {}
-  async updateDeviceRoom(_deviceId: string, _roomId: string) {}
+
   async getFamilyOverview() { throw new Error('not used'); }
+
   async sendBroadcast(_message: string) {}
+
   async getClimateOverview() { throw new Error('not used'); }
+
   async updateClimateMode(_mode: string) {}
-  async createScene(_payload: ScenePayloadDraft) { throw new Error('not used'); }
+
+  async shareGuestKey(_holder: string, _hours: number) {}
+
+  async toggleCameraRecording(_cameraId: string, _recording: boolean) {}
+
+  async runScene(_sceneId: string) {}
+
+  async createScene(_payload: ScenePayloadDraft) {
+    throw new Error('not used');
+  }
+
+  async updateScene(_sceneId: string, _payload: ScenePayloadDraft | SceneEnablePayload) {
+    this.updateSceneCalls += 1;
+    throw new Error('not used');
+  }
+
   async deleteScene(_sceneId: string) {}
-  async updateScene(_sceneId: string, _payload: ScenePayloadDraft | SceneEnablePayload) { throw new Error('not used'); }
+
+  async createAutomation(_payload: AutomationPayloadDraft) {
+    throw new Error('not used');
+  }
+
+  async updateAutomation(_automationId: string, _payload: AutomationPayloadDraft | AutomationEnablePayload) {
+    this.updateAutomationCalls += 1;
+    return {
+      id: 'night-routine',
+      icon: 'auto_awesome',
+      name: 'Night Routine',
+      triggerType: 'time',
+      triggerJson: '[]',
+      actionJson: '[]',
+      enabled: false,
+    };
+  }
+
+  async deleteAutomation(_automationId: string) {}
+
   async sendDeviceCommand(_deviceId: string, _name: string, _payload: DevicePayload) {}
 }
 
 export default function automationViewModelTest() {
   describe('automation view model', () => {
-    it('formats scene repeat labels for display', async () => {
-      const viewModel: AutomationViewModel = new AutomationViewModel(new AutomationRepositoryStub());
+    it('loads automation cards from dedicated automation data', async () => {
+      const repository = new AutomationRepositoryStub();
+      const viewModel: AutomationViewModel = new AutomationViewModel(repository);
 
       const state = await viewModel.load();
 
-      expect(state.scenes[0].repeatLabel).assertEqual('Mon Fri');
+      expect(repository.listAutomationsCalls).assertEqual(1);
+      expect(repository.listScenesCalls).assertEqual(0);
+      expect(state.items[0].id).assertEqual('night-routine');
+      expect(state.items[0].triggerTypeLabel).assertEqual('time');
+    });
+
+    it('updates automation state through automation repository methods', async () => {
+      const repository = new AutomationRepositoryStub();
+      const viewModel: AutomationViewModel = new AutomationViewModel(repository);
+
+      const feedback = await viewModel.toggleScene('night-routine', false);
+
+      expect(feedback).assertEqual('Automation paused');
+      expect(repository.updateAutomationCalls).assertEqual(1);
+      expect(repository.updateSceneCalls).assertEqual(0);
     });
   });
 
@@ -78,19 +167,20 @@ export default function automationViewModelTest() {
   });
 
   describe('state ownership', () => {
-    it('keeps the compatibility list mixed while splitting manual and automation state', () => {
+    it('keeps scenes and automations in separate state buckets', () => {
       const snapshot = new AppStateSnapshot();
-      const refreshState = createSceneDomainRefreshState({
-        scenes: [{
-          id: 'movie',
-          name: 'Movie',
-          description: 'Dim the lights',
-          enabled: true,
-          triggerLabel: 'Run now',
-          triggerTypeLabel: 'manual',
-          actions: ['Dim living room'],
-          repeatLabel: 'Never',
-        }, {
+      snapshot.assignScenes(mapScenesViewState([{
+        id: 'movie',
+        name: 'Movie',
+        description: 'Dim the lights',
+        enabled: true,
+        trigger: { type: 'manual', label: 'Run now' },
+        repeat: [],
+        actionsLabel: ['Dim living room'],
+        commands: [],
+      }], 'Scene sync'));
+      snapshot.assignAutomation({
+        items: [{
           id: 'night-routine',
           name: 'Night Routine',
           description: 'Lock and cool the house',
@@ -103,46 +193,10 @@ export default function automationViewModelTest() {
         feedback: 'Scene sync',
       });
 
-      applySceneDomainRefresh(snapshot, refreshState);
-
       expect(snapshot.scenes.items.map((scene) => scene.id).join(',')).assertEqual('movie');
       expect(snapshot.scenes.feedback).assertEqual('Scene sync');
       expect(snapshot.automation.items.map((scene) => scene.id).join(',')).assertEqual('night-routine');
-      expect(snapshot.automation.scenes.map((scene) => scene.id).join(',')).assertEqual('movie,night-routine');
       expect(snapshot.automation.feedback).assertEqual('Scene sync');
-    });
-
-    it('repopulates both scene buckets from one mixed refresh source', () => {
-      const snapshot = new AppStateSnapshot();
-
-      applySceneDomainRefresh(snapshot, createSceneDomainRefreshState({
-        scenes: [{
-          id: 'welcome-home',
-          name: 'Welcome Home',
-          description: 'Turn on entry lights',
-          enabled: true,
-          triggerLabel: 'Run now',
-          triggerTypeLabel: 'manual',
-          actions: ['Turn on entry light'],
-          repeatLabel: 'Never',
-        }, {
-          id: 'quiet-hours',
-          name: 'Quiet Hours',
-          description: 'Dim lights every night',
-          enabled: true,
-          triggerLabel: '23:00 every day',
-          triggerTypeLabel: 'time',
-          actions: ['Dim hallway lights'],
-          repeatLabel: 'Every day',
-        }],
-        feedback: 'Refresh complete',
-      }));
-
-      expect(snapshot.scenes.items.length).assertEqual(1);
-      expect(snapshot.automation.items.length).assertEqual(1);
-      expect(snapshot.automation.scenes.length).assertEqual(2);
-      expect(snapshot.scenes.feedback).assertEqual('Refresh complete');
-      expect(snapshot.automation.feedback).assertEqual('Refresh complete');
     });
   });
 }

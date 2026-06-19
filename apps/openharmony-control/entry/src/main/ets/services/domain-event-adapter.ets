@@ -1,11 +1,13 @@
 import { DomainEvent, DomainEventType } from '../model/domain-event';
 import {
+  SyncAutomationPayload,
   SyncDevicePayload,
   SyncResponse,
   SyncRoomPayload,
   SyncScenePayload
 } from './device-api';
 import util from '@ohos.util';
+import { AutomationSyncItem } from './db/AutomationDao';
 import { DeviceSyncItem } from './db/DeviceDao';
 import { RoomSyncItem } from './db/RoomDao';
 import { SceneSyncItem } from './db/SceneDao';
@@ -14,6 +16,7 @@ export interface SyncEntityMaps {
   devices: Map<string, DeviceSyncItem>;
   rooms: Map<string, RoomSyncItem>;
   scenes: Map<string, SceneSyncItem>;
+  automations: Map<string, AutomationSyncItem>;
 }
 
 export class DomainEventAdapter {
@@ -61,11 +64,19 @@ export class DomainEventAdapter {
       }
     });
 
+    response.automations.forEach((automationPayload: SyncAutomationPayload) => {
+      const incoming = DomainEventAdapter.toAutomationSyncItem(automationPayload);
+      const local = localMaps.automations.get(incoming.id);
+      if (!local || incoming.version > local.version) {
+        events.push(DomainEventAdapter.createEvent('automation', incoming.id, incoming.version, incoming, incoming.isDeleted));
+      }
+    });
+
     return events;
   }
 
   private static createEvent(
-    entityType: 'device' | 'room' | 'scene',
+    entityType: 'device' | 'room' | 'scene' | 'automation',
     entityId: string,
     version: number,
     payload: Object,
@@ -121,6 +132,21 @@ export class DomainEventAdapter {
       updatedAt: payload.updatedAt,
       version: payload.version,
       isDeleted: payload.isDeleted ?? false
+    };
+  }
+
+  private static toAutomationSyncItem(payload: SyncAutomationPayload): AutomationSyncItem {
+    return {
+      id: payload.id,
+      icon: payload.icon,
+      name: payload.name,
+      triggerType: payload.triggerType,
+      triggerJson: payload.triggerJson,
+      actionJson: payload.actionJson,
+      enabled: payload.enabled,
+      updatedAt: payload.updatedAt,
+      version: payload.version,
+      isDeleted: payload.isDeleted ?? false,
     };
   }
 }

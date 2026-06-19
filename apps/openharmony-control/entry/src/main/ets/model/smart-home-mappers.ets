@@ -3,6 +3,7 @@ import {
   AccessKey,
   AccessOverview,
   AccessPointSnapshot,
+  AutomationSnapshot,
   CameraSnapshot,
   ClimateOverview,
   CommandHistoryEntry,
@@ -38,6 +39,7 @@ import {
   RoomItemState,
   RoomLightCardState,
   SceneCardState,
+  ScenesViewStateData,
   SceneChipState,
   ScenePresetState,
   StatusChipState,
@@ -362,6 +364,7 @@ export function mapHomeViewState(
   activeSceneId?: string,
   rooms: RoomItem[] = [],
 ): HomeViewStateData {
+  const manualScenes = scenes.filter((scene: SceneSnapshot) => scene.trigger.type === 'manual');
   const accessCard: SummaryCardState = {
     title: '门禁控制',
     subtitle: '入户门、数字钥匙及其他入口',
@@ -389,8 +392,8 @@ export function mapHomeViewState(
     { label: '在线', value: `${summary.devices.online}/${summary.devices.total}` },
   ];
 
-  const finalActiveSceneId = activeSceneId ?? scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
-  const quickScenes: SceneChipState[] = scenes.slice(0, 4).map((scene: SceneSnapshot) => {
+  const finalActiveSceneId = activeSceneId ?? manualScenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
+  const quickScenes: SceneChipState[] = manualScenes.slice(0, 4).map((scene: SceneSnapshot) => {
     const chip: SceneChipState = {
       id: scene.id,
       label: scene.name,
@@ -579,9 +582,62 @@ export function mapSceneCard(scene: SceneSnapshot): SceneCardState {
   };
 }
 
-export function mapAutomationViewState(scenes: SceneSnapshot[], feedback: string): AutomationViewStateData {
+export function mapScenesViewState(scenes: SceneSnapshot[], feedback: string): ScenesViewStateData {
   return {
-    scenes: scenes.map(mapSceneCard),
+    items: scenes.map(mapSceneCard),
+    feedback,
+  };
+}
+
+function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
+  try {
+    const triggers = JSON.parse(automation.triggerJson) as Array<Record<string, Object>>;
+    const firstTrigger = triggers.length > 0 ? triggers[0] : undefined;
+    if (!firstTrigger) {
+      return automation.triggerType;
+    }
+    if (firstTrigger.type === 'time' && typeof firstTrigger.time === 'string') {
+      return firstTrigger.time;
+    }
+    if (typeof firstTrigger.label === 'string') {
+      return firstTrigger.label;
+    }
+  } catch {
+    // Fall back to trigger type when older payloads are malformed.
+  }
+  return automation.triggerType;
+}
+
+function parseAutomationActions(automation: AutomationSnapshot): string[] {
+  try {
+    const actions = JSON.parse(automation.actionJson) as Array<Record<string, Object>>;
+    return actions.map((action: Record<string, Object>) => {
+      if (typeof action.command === 'string') {
+        return action.command;
+      }
+      if (typeof action.type === 'string') {
+        return action.type;
+      }
+      return 'action';
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function mapAutomationViewState(automations: AutomationSnapshot[], feedback: string): AutomationViewStateData {
+  return {
+    items: automations.map((automation: AutomationSnapshot) => ({
+      id: automation.id,
+      icon: automation.icon,
+      name: automation.name,
+      description: 'Automation rule',
+      enabled: automation.enabled,
+      triggerLabel: parseAutomationTriggerLabel(automation),
+      triggerTypeLabel: automation.triggerType,
+      actions: parseAutomationActions(automation),
+      repeatLabel: '',
+    })),
     feedback,
   };
 }

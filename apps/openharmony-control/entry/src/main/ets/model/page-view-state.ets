@@ -281,7 +281,6 @@ export class ScenesViewState {
 
 @Observed
 export class AutomationViewState {
-  scenes: SceneCardState[] = [];
   items: SceneCardState[] = [];
   feedback: string = '';
 }
@@ -371,8 +370,7 @@ export interface ScenesViewStateData {
 }
 
 export interface AutomationViewStateData {
-  items?: SceneCardState[];
-  scenes?: SceneCardState[];
+  items: SceneCardState[];
   feedback: string;
 }
 
@@ -481,7 +479,6 @@ export function createEmptyScenesViewStateData(): ScenesViewStateData {
 export function createEmptyAutomationViewStateData(): AutomationViewStateData {
   return {
     items: [],
-    scenes: [],
     feedback: '',
   };
 }
