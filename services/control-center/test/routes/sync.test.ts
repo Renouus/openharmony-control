@@ -26,6 +26,28 @@ describe('GET /api/sync', () => {
     const payload = JSON.parse(response.payload);
     expect(payload).toHaveProperty('currentVersion');
     expect(payload).toHaveProperty('devices');
+    expect(payload).toHaveProperty('automations');
+  });
+
+  it('returns automation rows independently from scenes', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/sync?lastVersion=0',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = JSON.parse(response.payload);
+    expect(payload.automations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'night-routine',
+          triggerType: 'time',
+          actionJson: expect.any(String),
+          version: expect.any(Number),
+          isDeleted: false,
+        }),
+      ]),
+    );
   });
 
   it('should report newer row versions even when metadata has not advanced', async () => {

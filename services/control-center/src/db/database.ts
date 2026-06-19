@@ -47,6 +47,7 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
 
     CREATE TABLE IF NOT EXISTS automations (
       id TEXT PRIMARY KEY,
+      icon TEXT,
       name TEXT NOT NULL,
       trigger_type TEXT NOT NULL,
       trigger_json TEXT NOT NULL,
@@ -70,6 +71,8 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
 
   const currentVersion = ensureSchemaVersion(dbInstance);
   applyMigrations(dbInstance, currentVersion);
+  reconcileCriticalSchema(dbInstance);
+  seedDefaultAutomations(dbInstance);
   return dbInstance;
 }
 
@@ -130,10 +133,37 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
   }
 
   if (nextVersion < 2) {
+    ensureColumn(db, "automations", "icon", "ALTER TABLE automations ADD COLUMN icon TEXT");
     db.prepare(
       "INSERT OR IGNORE INTO metadata (key, value) VALUES ('schema_version', ?)",
     ).run(String(SCHEMA_VERSION));
     nextVersion = 2;
     setSchemaVersion(db, nextVersion);
   }
+}
+
+function reconcileCriticalSchema(db: Database.Database): void {
+  // Older local databases can report a newer schema_version while still
+  // missing columns from interrupted/manual migrations. Reconcile the columns
+  // we rely on during startup before any seed/write path runs.
+  ensureColumn(db, "automations", "icon", "ALTER TABLE automations ADD COLUMN icon TEXT");
+}
+
+function seedDefaultAutomations(db: Database.Database): void {
+  db.prepare(`
+    INSERT OR IGNORE INTO automations (
+      id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).run(
+    'night-routine',
+    'auto_awesome',
+    'Night Routine',
+    'time',
+    JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
+    JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
+    1,
+    Date.now(),
+    1,
+  );
 }

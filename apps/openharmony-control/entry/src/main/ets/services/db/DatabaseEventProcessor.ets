@@ -1,5 +1,6 @@
 import relationalStore from '@ohos.data.relationalStore';
 import { DomainEvent, DomainEventType } from '../../model/domain-event';
+import { SceneCommand, SceneTrigger } from '../device-api';
 import { DatabaseHelper } from './DatabaseHelper';
 import { DeviceDao, DeviceSyncItem } from './DeviceDao';
 import { RoomDao, RoomSyncItem } from './RoomDao';
@@ -9,6 +10,31 @@ import { SyncDao } from './SyncDao';
 export interface BatchRequest {
   events: DomainEvent[];
   finalVersion?: number;
+}
+
+class RoomEventPayload implements RoomSyncItem {
+  id: string = '';
+  name: string = '';
+  icon: string = '';
+  builtIn: boolean = false;
+  createdAt: number = 0;
+  updatedAt: number = 0;
+  version: number = 0;
+  isDeleted?: boolean = false;
+}
+
+class SceneEventPayload implements SceneSyncItem {
+  id: string = '';
+  name: string = '';
+  description: string = '';
+  enabled: boolean = false;
+  trigger: SceneTrigger = { type: '', label: '' };
+  repeat: string[] = [];
+  actionsLabel: string[] = [];
+  commands: SceneCommand[] = [];
+  updatedAt: number = 0;
+  version: number = 0;
+  isDeleted?: boolean = false;
 }
 
 export class DatabaseEventProcessor {
@@ -107,7 +133,7 @@ export class DatabaseEventProcessor {
     store: relationalStore.RdbStore,
     event: DomainEvent<RoomSyncItem>
   ): Promise<void> {
-    const payload = event.payload;
+    const payload: RoomSyncItem | undefined = event.payload;
     if (!payload) {
       return;
     }
@@ -117,16 +143,15 @@ export class DatabaseEventProcessor {
       return;
     }
 
-    const applyPayload: RoomSyncItem = {
-      id: payload.id,
-      name: payload.name,
-      icon: payload.icon,
-      builtIn: payload.builtIn,
-      createdAt: payload.createdAt,
-      updatedAt: payload.updatedAt,
-      version: payload.version,
-      isDeleted: event.type === DomainEventType.ENTITY_DELETED
-    };
+    const applyPayload = new RoomEventPayload();
+    applyPayload.id = payload.id;
+    applyPayload.name = payload.name;
+    applyPayload.icon = payload.icon;
+    applyPayload.builtIn = payload.builtIn;
+    applyPayload.createdAt = payload.createdAt;
+    applyPayload.updatedAt = payload.updatedAt;
+    applyPayload.version = payload.version;
+    applyPayload.isDeleted = event.type === DomainEventType.ENTITY_DELETED;
 
     await this.roomDao.applyEvent(store, applyPayload);
   }
@@ -135,7 +160,7 @@ export class DatabaseEventProcessor {
     store: relationalStore.RdbStore,
     event: DomainEvent<SceneSyncItem>
   ): Promise<void> {
-    const payload = event.payload;
+    const payload: SceneSyncItem | undefined = event.payload;
     if (!payload) {
       return;
     }
@@ -145,19 +170,18 @@ export class DatabaseEventProcessor {
       return;
     }
 
-    const applyPayload: SceneSyncItem = {
-      id: payload.id,
-      name: payload.name,
-      description: payload.description,
-      enabled: payload.enabled,
-      trigger: payload.trigger,
-      repeat: payload.repeat,
-      actionsLabel: payload.actionsLabel,
-      commands: payload.commands,
-      updatedAt: payload.updatedAt,
-      version: payload.version,
-      isDeleted: event.type === DomainEventType.ENTITY_DELETED
-    };
+    const applyPayload = new SceneEventPayload();
+    applyPayload.id = payload.id;
+    applyPayload.name = payload.name;
+    applyPayload.description = payload.description;
+    applyPayload.enabled = payload.enabled;
+    applyPayload.trigger = payload.trigger;
+    applyPayload.repeat = payload.repeat;
+    applyPayload.actionsLabel = payload.actionsLabel;
+    applyPayload.commands = payload.commands;
+    applyPayload.updatedAt = payload.updatedAt;
+    applyPayload.version = payload.version;
+    applyPayload.isDeleted = event.type === DomainEventType.ENTITY_DELETED;
 
     await this.sceneDao.applyEvent(store, applyPayload);
   }

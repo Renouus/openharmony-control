@@ -126,7 +126,7 @@ describe("scene routes", () => {
     expect(partial.json()).toMatchObject({ status: "PARTIAL_FAILURE" });
   });
 
-  it("toggles automation enabled state", async () => {
+  it("updates scene enabled state without using automation routes", async () => {
     const app = buildApp();
     const response = await app.inject({
       method: "PATCH",

@@ -102,4 +102,93 @@ describe('database init migrations', () => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('repairs missing automation columns even when schema_version already says 2', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'control-center-db-init-'));
+    const dbPath = join(tempDir, 'legacy-inconsistent.db');
+    const legacyDb = new Database(dbPath);
+    let legacyClosed = false;
+
+    try {
+      legacyDb.exec(`
+        CREATE TABLE metadata (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+        INSERT INTO metadata (key, value) VALUES ('global_version', '0');
+        INSERT INTO metadata (key, value) VALUES ('schema_version', '2');
+
+        CREATE TABLE devices (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          room_id TEXT,
+          state_json TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          version INTEGER NOT NULL,
+          is_deleted INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE rooms (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          icon TEXT NOT NULL,
+          built_in INTEGER DEFAULT 0,
+          updated_at INTEGER NOT NULL,
+          version INTEGER NOT NULL,
+          is_deleted INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE scenes (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          enabled INTEGER DEFAULT 1,
+          updated_at INTEGER NOT NULL,
+          version INTEGER NOT NULL,
+          is_deleted INTEGER DEFAULT 0,
+          trigger_json TEXT,
+          repeat_json TEXT,
+          actions_label_json TEXT,
+          commands_json TEXT
+        );
+
+        CREATE TABLE automations (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          trigger_type TEXT NOT NULL,
+          trigger_json TEXT NOT NULL,
+          action_json TEXT NOT NULL,
+          enabled INTEGER DEFAULT 1,
+          updated_at INTEGER NOT NULL,
+          version INTEGER NOT NULL,
+          is_deleted INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE history (
+          id TEXT PRIMARY KEY,
+          request_id TEXT,
+          device_id TEXT NOT NULL,
+          command_name TEXT NOT NULL,
+          status TEXT NOT NULL,
+          message TEXT,
+          created_at INTEGER NOT NULL
+        );
+      `);
+      legacyDb.close();
+      legacyClosed = true;
+
+      expect(() => initDatabase(dbPath)).not.toThrow();
+
+      const db = getDb();
+      const automationColumns = db.prepare('PRAGMA table_info(automations)').all() as Array<{ name: string }>;
+      expect(automationColumns.some((column) => column.name === 'icon')).toBe(true);
+    } finally {
+      if (!legacyClosed) {
+        legacyDb.close();
+      }
+      closeDatabase();
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

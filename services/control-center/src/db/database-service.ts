@@ -28,7 +28,7 @@ export class DatabaseService {
     const scenes = scenesRaw.map(r => ({ id: r.id, name: r.name, description: r.description, enabled: r.enabled === 1, updatedAt: r.updated_at, version: r.version, isDeleted: r.is_deleted === 1 }));
 
     const automationsRaw = this.db.prepare("SELECT * FROM automations WHERE version > ?").all(lastVersion) as any[];
-    const automations = automationsRaw.map(r => ({ id: r.id, name: r.name, triggerType: r.trigger_type, triggerJson: r.trigger_json, actionJson: r.action_json, enabled: r.enabled === 1, updatedAt: r.updated_at, version: r.version, isDeleted: r.is_deleted === 1 }));
+    const automations = automationsRaw.map(r => ({ id: r.id, icon: r.icon ?? undefined, name: r.name, triggerType: r.trigger_type, triggerJson: r.trigger_json, actionJson: r.action_json, enabled: r.enabled === 1, updatedAt: r.updated_at, version: r.version, isDeleted: r.is_deleted === 1 }));
 
     const currentVersion = this.getCurrentVersion();
 

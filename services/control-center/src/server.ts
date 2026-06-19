@@ -1,15 +1,6 @@
-/**
- * 控制中心服务入口 —— 启动 Fastify HTTP 服务器。
- *
- * 通过环境变量配置：
- * - CONTROL_CENTER_PORT：监听端口（默认 3443）
- * - CONTROL_CENTER_HOST：监听地址（默认 0.0.0.0）
- * - TLS_CERT_PATH / TLS_KEY_PATH：可选 TLS 证书路径
- * - CONTROL_CENTER_SHARED_KEY：HMAC 共享密钥
- */
 import { readFileSync } from "node:fs";
 import { buildApp } from "./app";
-import { initDatabase, getDb } from "./db/database";
+import { initDatabase } from "./db/database";
 import { DeviceRegistry } from "./registry/device-registry";
 
 const port = Number(process.env.CONTROL_CENTER_PORT ?? 3443);
@@ -22,9 +13,7 @@ async function main(): Promise<void> {
   const db = initDatabase(dbPath);
   app.log.info(`Database initialized at ${dbPath}`);
 
-  // Seed initial devices from registry into SQLite for /api/sync
   try {
-    // 先清理旧数据，确保每次启动都是干净的状态
     db.exec(`
       DELETE FROM devices;
       DELETE FROM rooms;
@@ -36,27 +25,46 @@ async function main(): Promise<void> {
       INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     `);
+    const insertAutomation = db.prepare(`
+      INSERT INTO automations (id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `);
 
     const initialDevices = registry.list();
     const now = Date.now();
     let version = 1;
-    for (const d of initialDevices) {
+    for (const device of initialDevices) {
       insertDevice.run(
-        d.id, d.name, d.kind, d.room || 'living-room', JSON.stringify(d.state), now, version++
+        device.id,
+        device.name,
+        device.kind,
+        device.room || 'living-room',
+        JSON.stringify(device.state),
+        now,
+        version++,
       );
     }
 
-    // 将 global_version 设置为当前设备的最大版本号，确保 sync 接口能正确下发
-    db.prepare("UPDATE metadata SET value = ? WHERE key = 'global_version'").run(String(version - 1));
-    app.log.info(`Seeded ${initialDevices.length} devices into database at version ${version - 1}`);
+    insertAutomation.run(
+      'night-routine',
+      'auto_awesome',
+      'Night Routine',
+      'time',
+      JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
+      JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
+      1,
+      now,
+      version++,
+    );
 
-  } catch (err) {
-    app.log.error("Failed to seed initial devices to DB: " + err);
+    db.prepare("UPDATE metadata SET value = ? WHERE key = 'global_version'").run(String(version - 1));
+    app.log.info(`Seeded ${initialDevices.length} devices and automation data at version ${version - 1}`);
+  } catch (error) {
+    app.log.error(`Failed to seed initial data: ${error}`);
   }
 
   const tlsCertPath = process.env.TLS_CERT_PATH;
   const tlsKeyPath = process.env.TLS_KEY_PATH;
-  // 如果配置了 TLS 证书则启用 HTTPS
   const listenOptions =
     tlsCertPath && tlsKeyPath
       ? {

@@ -20,6 +20,7 @@ import { LightDevice } from "./devices/light-device";
 import { CommandHistory } from "./history/command-history";
 import { DeviceRegistry } from "./registry/device-registry";
 import { registerAccessRoutes } from "./routes/access";
+import { registerAutomationRoutes } from "./routes/automations";
 import { registerCameraRoutes } from "./routes/camera";
 import { registerClimateRoutes } from "./routes/climate";
 import { registerCommandRoutes } from "./routes/commands";
@@ -89,6 +90,7 @@ export function buildApp(
       history,
       simulators,
     });
+    await registerAutomationRoutes(scope);
     await registerDemoRoutes(scope, registry, faultState);
     await registerRoomRoutes(scope, roomRegistry, registry);
     await syncRoutes(scope);
