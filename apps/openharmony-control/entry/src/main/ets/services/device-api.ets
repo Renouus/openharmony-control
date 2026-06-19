@@ -211,6 +211,26 @@ export interface AutomationSnapshot {
   enabled: boolean;
 }
 
+export class AutomationTriggerDraftItem {
+  id: string = '';
+  type: string = '';
+  time?: string;
+  deviceId?: string;
+  property?: string;
+  operator?: string;
+  threshold?: string;
+  label: string = '';
+}
+
+export class AutomationActionDraftItem {
+  id: string = '';
+  type: string = '';
+  deviceId?: string;
+  command?: string;
+  sceneId?: string;
+  label: string = '';
+}
+
 export class AutomationPayloadDraft {
   name: string = '';
   icon?: string;

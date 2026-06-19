@@ -5,7 +5,7 @@ import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DeviceCommandConfig, DevicePropertyConfig } from '../model/automation-capabilities';
-import { AutomationPayloadDraft } from '../services/device-api';
+import { AutomationActionDraftItem, AutomationPayloadDraft, AutomationTriggerDraftItem } from '../services/device-api';
 
 @Component
 export struct CreateAutomationView {
@@ -69,24 +69,30 @@ export struct CreateAutomationView {
     payload.icon = this.draft.icon;
     payload.enabled = true;
     payload.triggerType = this.draft.conditions[0].type === 'time' ? 'time' : 'device';
-    payload.triggerJson = JSON.stringify(this.draft.conditions.map((condition: ConditionDraft) => ({
-      id: condition.id,
-      type: condition.type,
-      time: condition.time,
-      deviceId: condition.deviceId,
-      property: condition.property,
-      operator: condition.operator,
-      threshold: condition.threshold,
-      label: this.getConditionLabel(condition),
-    })));
-    payload.actionJson = JSON.stringify(this.draft.actions.map((action: ActionDraft) => ({
-      id: action.id,
-      type: action.type,
-      deviceId: action.deviceId,
-      command: action.command,
-      sceneId: action.sceneId,
-      label: this.getActionLabel(action),
-    })));
+    const triggers: AutomationTriggerDraftItem[] = this.draft.conditions.map((condition: ConditionDraft) => {
+      const trigger = new AutomationTriggerDraftItem();
+      trigger.id = condition.id;
+      trigger.type = condition.type;
+      trigger.time = condition.time;
+      trigger.deviceId = condition.deviceId;
+      trigger.property = condition.property;
+      trigger.operator = condition.operator;
+      trigger.threshold = condition.threshold;
+      trigger.label = this.getConditionLabel(condition);
+      return trigger;
+    });
+    const actions: AutomationActionDraftItem[] = this.draft.actions.map((action: ActionDraft) => {
+      const actionItem = new AutomationActionDraftItem();
+      actionItem.id = action.id;
+      actionItem.type = action.type;
+      actionItem.deviceId = action.deviceId;
+      actionItem.command = action.command;
+      actionItem.sceneId = action.sceneId;
+      actionItem.label = this.getActionLabel(action);
+      return actionItem;
+    });
+    payload.triggerJson = JSON.stringify(triggers);
+    payload.actionJson = JSON.stringify(actions);
     return payload;
   }
 

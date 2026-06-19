@@ -23,14 +23,14 @@ export struct AutomationView {
   build() {
     Column({ space: 28 }) {
       Column({ space: 12 }) {
-        Text('鑷姩鍖?)
+        Text('Automations')
           .fontSize(38)
           .fontWeight(FontWeight.Bold)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .width('100%')
 
-        Text('鑷姩鍖栨偍鐨勫搴幆澧冦€?)
+        Text('Create rules that react to time, device state, and your home routines.')
           .fontSize(18)
           .fontColor(COLOR_TEXT_MUTED)
           .width('100%')
@@ -40,7 +40,7 @@ export struct AutomationView {
       if (this.automation.items.length === 0) {
         Column({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 32, color: COLOR_TEXT_MUTED })
-          Text('鏆傛棤鑷姩鍖?)
+          Text('No automations yet')
             .fontSize(16)
             .fontColor(COLOR_TEXT_MUTED)
         }
@@ -69,7 +69,7 @@ export struct AutomationView {
               onDelete: () => {
                 this.controller.handleDeleteAutomation(this.appState, scene.id);
               }
-            })
+            });
           }, (scene: SceneCardState) => scene.id)
         }
         .width('100%')
@@ -78,7 +78,7 @@ export struct AutomationView {
       Row() {
         Row({ space: 10 }) {
           AppSymbol({ name: 'add', glyphSize: 20, color: '#FFFFFF' })
-          Text('鏂板缓鑷姩鍖?)
+          Text('New automation')
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFF')

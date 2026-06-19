@@ -626,8 +626,8 @@ function parseAutomationActions(automation: AutomationSnapshot): string[] {
 }
 
 export function mapAutomationViewState(automations: AutomationSnapshot[], feedback: string): AutomationViewStateData {
-  return {
-    items: automations.map((automation: AutomationSnapshot) => ({
+  const items: SceneCardState[] = automations.map((automation: AutomationSnapshot) => {
+    const item: SceneCardState = {
       id: automation.id,
       icon: automation.icon,
       name: automation.name,
@@ -637,7 +637,11 @@ export function mapAutomationViewState(automations: AutomationSnapshot[], feedba
       triggerTypeLabel: automation.triggerType,
       actions: parseAutomationActions(automation),
       repeatLabel: '',
-    })),
+    };
+    return item;
+  });
+  return {
+    items,
     feedback,
   };
 }
