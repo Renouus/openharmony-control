@@ -415,33 +415,27 @@ export class AppController {
   async handleCreateAutomation(snapshot: AppStateSnapshot, payload: AutomationPayloadDraft): Promise<void> {
     try {
       await this.repository.createAutomation(payload);
-      await this.refreshAutomationState(snapshot, 'Automation created');
-      return;
-      snapshot.assignAutomation(await this.fetchAutomation('自动化已创建'));
+      await this.refreshAutomationState(snapshot, '自动化已创建');
     } catch {
-      snapshot.assignAutomation(await this.fetchAutomation('创建自动化失败'));
+      await this.refreshAutomationState(snapshot, '创建自动化失败');
     }
   }
 
   async handleUpdateAutomation(snapshot: AppStateSnapshot, automationId: string, payload: AutomationPayloadDraft): Promise<void> {
     try {
       await this.repository.updateAutomation(automationId, payload);
-      await this.refreshAutomationState(snapshot, 'Automation updated');
-      return;
-      snapshot.assignAutomation(await this.fetchAutomation('自动化已更新'));
+      await this.refreshAutomationState(snapshot, '自动化已更新');
     } catch {
-      snapshot.assignAutomation(await this.fetchAutomation('更新自动化失败'));
+      await this.refreshAutomationState(snapshot, '更新自动化失败');
     }
   }
 
   async handleDeleteAutomation(snapshot: AppStateSnapshot, automationId: string): Promise<void> {
     try {
       await this.repository.deleteAutomation(automationId);
-      await this.refreshAutomationState(snapshot, 'Automation deleted');
-      return;
-      snapshot.assignAutomation(await this.fetchAutomation('自动化已删除'));
+      await this.refreshAutomationState(snapshot, '自动化已删除');
     } catch {
-      snapshot.assignAutomation(await this.fetchAutomation('删除自动化失败'));
+      await this.refreshAutomationState(snapshot, '删除自动化失败');
     }
   }
 
@@ -449,11 +443,7 @@ export class AppController {
     try {
       const scene = await this.repository.createScene(payload);
       this.sceneStore.append(scene);
-      await this.rebuildSceneDerivedState(snapshot, 'Scene created');
-      return;
-      await this.repository.createScene(payload);
-      snapshot.assignScenes(await this.fetchScenes('场景已创建'));
-      snapshot.assignHome(await this.fetchHome('场景已创建'));
+      await this.rebuildSceneDerivedState(snapshot, '场景已创建');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('创建场景失败'));
       snapshot.assignHome(await this.fetchHome('创建场景失败'));
@@ -464,11 +454,7 @@ export class AppController {
     try {
       const scene = await this.repository.updateScene(sceneId, payload);
       this.sceneStore.replace(scene);
-      await this.rebuildSceneDerivedState(snapshot, 'Scene updated');
-      return;
-      await this.repository.updateScene(sceneId, payload);
-      snapshot.assignScenes(await this.fetchScenes('场景已更新'));
-      snapshot.assignHome(await this.fetchHome('场景已更新'));
+      await this.rebuildSceneDerivedState(snapshot, '场景已更新');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('更新场景失败'));
       snapshot.assignHome(await this.fetchHome('更新场景失败'));
@@ -480,11 +466,7 @@ export class AppController {
       const scene: PersistedScene = await this.repository.deleteScene(sceneId);
       this.sceneStore.applyTombstone(scene);
       this.sceneStore.removeVisible(sceneId);
-      await this.rebuildSceneDerivedState(snapshot, 'Scene deleted');
-      return;
-      await this.repository.deleteScene(sceneId);
-      snapshot.assignScenes(await this.fetchScenes('场景已删除'));
-      snapshot.assignHome(await this.fetchHome('场景已删除'));
+      await this.rebuildSceneDerivedState(snapshot, '场景已删除');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('删除场景失败'));
       snapshot.assignHome(await this.fetchHome('删除场景失败'));

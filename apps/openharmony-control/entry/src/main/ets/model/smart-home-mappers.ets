@@ -608,29 +608,39 @@ class AutomationActionLabelRecord {
 
 function humanizeAutomationCommand(command: string): string {
   if (command === 'lock:true') {
-    return 'Lock device';
+    return '上锁';
   }
   if (command === 'lock:false') {
-    return 'Unlock device';
+    return '解锁';
   }
   if (command === 'power:on') {
-    return 'Turn on device';
+    return '打开设备';
   }
   if (command === 'power:off') {
-    return 'Turn off device';
+    return '关闭设备';
   }
-  return 'Run device action';
+  return '执行设备动作';
+}
+
+function automationTriggerTypeFallback(triggerType: string): string {
+  if (triggerType === 'time') {
+    return '定时触发';
+  }
+  if (triggerType === 'device') {
+    return '设备联动';
+  }
+  return '触发条件';
 }
 
 function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
   try {
     const triggers = JSON.parse(automation.triggerJson) as AutomationTriggerLabelRecord[];
     if (!Array.isArray(triggers)) {
-      return automation.triggerType;
+      return automationTriggerTypeFallback(automation.triggerType);
     }
     const firstTrigger = triggers.length > 0 ? triggers[0] : undefined;
     if (!firstTrigger) {
-      return automation.triggerType;
+      return automationTriggerTypeFallback(automation.triggerType);
     }
     if (typeof firstTrigger.label === 'string' && firstTrigger.label.length > 0) {
       return firstTrigger.label;
@@ -641,7 +651,7 @@ function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
   } catch {
     // Fall back to trigger type when older payloads are malformed.
   }
-  return automation.triggerType;
+  return automationTriggerTypeFallback(automation.triggerType);
 }
 
 function parseAutomationActions(automation: AutomationSnapshot): string[] {
@@ -658,12 +668,12 @@ function parseAutomationActions(automation: AutomationSnapshot): string[] {
         return humanizeAutomationCommand(action.command);
       }
       if (action.type === 'scene') {
-        return 'Run scene action';
+        return '执行场景动作';
       }
       if (action.type === 'device') {
-        return 'Run device action';
+        return '执行设备动作';
       }
-      return 'Automation action';
+      return '自动化动作';
     });
   } catch {
     return [];
