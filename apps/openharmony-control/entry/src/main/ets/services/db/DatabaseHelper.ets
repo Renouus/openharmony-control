@@ -8,11 +8,18 @@ const STORE_CONFIG: relationalStore.StoreConfig = {
 
 const SQL_CREATE_TABLE_DEVICES = `CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL, room_id TEXT, state_json TEXT NOT NULL, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
 const SQL_CREATE_TABLE_ROOMS = `CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL, built_in INTEGER DEFAULT 0, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
-const SQL_CREATE_TABLE_SCENES = `CREATE TABLE IF NOT EXISTS scenes (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, enabled INTEGER DEFAULT 1, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0, trigger_json TEXT, repeat_json TEXT, actions_label_json TEXT, commands_json TEXT)`;
+const SQL_CREATE_TABLE_SCENES = `CREATE TABLE IF NOT EXISTS scenes (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT, description TEXT, enabled INTEGER DEFAULT 1, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0, trigger_json TEXT, repeat_json TEXT, actions_label_json TEXT, commands_json TEXT)`;
 const SQL_CREATE_TABLE_AUTOMATIONS = `CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, icon TEXT, name TEXT NOT NULL, trigger_type TEXT NOT NULL, trigger_json TEXT NOT NULL, action_json TEXT NOT NULL, enabled INTEGER DEFAULT 1, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
 const SQL_CREATE_TABLE_HISTORY = `CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, command_name TEXT NOT NULL, status TEXT NOT NULL, message TEXT, created_at INTEGER NOT NULL)`;
 const SQL_CREATE_TABLE_SYNC_METADATA = `CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
-const LOCAL_SCHEMA_VERSION = '2';
+const LOCAL_SCHEMA_VERSION = '4';
+const BUILT_IN_SCENE_ORDER: string[] = ['home', 'away', 'sleep', 'movie'];
+
+class LegacySceneOrderingRow {
+  id: string = '';
+  createdAt: number = 0;
+  updatedAt: number = 0;
+}
 
 export class DatabaseHelper {
   private static instance: DatabaseHelper;
@@ -73,7 +80,72 @@ export class DatabaseHelper {
 
     if (schemaVersion < 2) {
       await this.tryExecuteSql('ALTER TABLE automations ADD COLUMN icon TEXT');
+      await this.setSchemaVersion('2');
+    }
+
+    if (schemaVersion < 3) {
+      await this.tryExecuteSql('ALTER TABLE scenes ADD COLUMN icon TEXT');
+      await this.setSchemaVersion('3');
+    }
+
+    if (schemaVersion < 4) {
+      await this.tryExecuteSql('ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0');
+      await this.tryExecuteSql('ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+      await this.backfillLegacySceneOrdering();
       await this.setSchemaVersion(LOCAL_SCHEMA_VERSION);
+    }
+  }
+
+  private async backfillLegacySceneOrdering(): Promise<void> {
+    if (!this.rdbStore) {
+      return;
+    }
+
+    const predicates = new relationalStore.RdbPredicates('scenes');
+    const resultSet = await this.rdbStore.query(predicates);
+    const rows: LegacySceneOrderingRow[] = [];
+
+    while (resultSet.goToNextRow()) {
+      const row = new LegacySceneOrderingRow();
+      row.id = resultSet.getString(resultSet.getColumnIndex('id'));
+      row.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+      row.updatedAt = resultSet.getLong(resultSet.getColumnIndex('updated_at'));
+      rows.push(row);
+    }
+    resultSet.close();
+
+    rows.sort((left, right) => {
+      const leftBuiltInOrder = BUILT_IN_SCENE_ORDER.indexOf(left.id);
+      const rightBuiltInOrder = BUILT_IN_SCENE_ORDER.indexOf(right.id);
+
+      if (leftBuiltInOrder >= 0 && rightBuiltInOrder >= 0) {
+        return leftBuiltInOrder - rightBuiltInOrder;
+      }
+      if (leftBuiltInOrder >= 0) {
+        return -1;
+      }
+      if (rightBuiltInOrder >= 0) {
+        return 1;
+      }
+
+      const leftCreatedAt = left.createdAt > 0 ? left.createdAt : left.updatedAt;
+      const rightCreatedAt = right.createdAt > 0 ? right.createdAt : right.updatedAt;
+      if (leftCreatedAt !== rightCreatedAt) {
+        return leftCreatedAt - rightCreatedAt;
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const predicates = new relationalStore.RdbPredicates('scenes');
+      predicates.equalTo('id', row.id);
+      const createdAt = row.createdAt > 0 ? row.createdAt : row.updatedAt;
+      await this.rdbStore.update({
+        created_at: createdAt,
+        sort_order: index,
+      }, predicates);
     }
   }
 

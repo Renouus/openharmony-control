@@ -5,7 +5,8 @@ import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DeviceCommandConfig, DevicePropertyConfig } from '../model/automation-capabilities';
-import { AutomationActionDraftItem, AutomationPayloadDraft, AutomationTriggerDraftItem } from '../services/device-api';
+import { AutomationPayloadDraft, AutomationSnapshot } from '../services/device-api';
+import { buildAutomationPayloadDraft, hydrateAutomationDraft } from '../model/automation-editor-mappers';
 
 @Component
 export struct CreateAutomationView {
@@ -15,38 +16,55 @@ export struct CreateAutomationView {
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
+  @State hasHydratedEditDraft: boolean = false;
   onCancel: () => void = () => {};
   onSave: (payload: AutomationPayloadDraft) => void = () => {};
 
+  aboutToAppear(): void {
+    if (this.hasHydratedEditDraft || !this.editingAutomationId) {
+      return;
+    }
+
+    const snapshot = this.appState.automationSource.find(
+      (item: AutomationSnapshot) => item.id === this.editingAutomationId,
+    );
+    if (!snapshot) {
+      return;
+    }
+
+    this.draft = hydrateAutomationDraft(snapshot);
+    this.hasHydratedEditDraft = true;
+  }
+
   getConditionLabel(cond: ConditionDraft): string {
     if (cond.type === 'time') {
-      return `瀹氭椂: ${cond.time}`;
+      return `时间：${cond.time}`;
     }
     if (cond.type === 'device') {
       const device = this.appState.home.devices.find((item: DevicePanelState) => item.id === cond.deviceId);
       if (!device) {
-        return '鏈煡璁惧';
+        return '未知设备';
       }
       const capability = DEVICE_CAPABILITIES[device.kind]?.conditions?.find(
         (item: DevicePropertyConfig) => item.property === cond.property,
       );
       const propertyLabel = capability ? capability.label : cond.property;
-      const thresholdLabel = cond.threshold === 'true' ? '寮€鍚?' : (cond.threshold === 'false' ? '鍏抽棴' : cond.threshold);
-      const operatorLabel = cond.operator === '==' ? '鍙樹负' : (cond.operator === '>' ? '澶т簬' : cond.operator);
+      const thresholdLabel = cond.threshold === 'true' ? '开启' : (cond.threshold === 'false' ? '关闭' : cond.threshold);
+      const operatorLabel = cond.operator === '==' ? '等于' : (cond.operator === '>' ? '大于' : cond.operator);
       return `${device.roomName} ${device.name} ${propertyLabel} ${operatorLabel} ${thresholdLabel}`;
     }
-    return '鏈煡鏉′欢';
+    return '未知条件';
   }
 
   getActionLabel(action: ActionDraft): string {
     if (action.type === 'scene') {
       const scene = this.appState.home.quickScenes.find((item: SceneChipState) => item.id === action.sceneId);
-      return scene ? `鎵ц鍦烘櫙: ${scene.label}` : '鏈煡鍦烘櫙';
+      return scene ? `执行场景：${scene.label}` : '未知场景';
     }
     if (action.type === 'device') {
       const device = this.appState.home.devices.find((item: DevicePanelState) => item.id === action.deviceId);
       if (!device) {
-        return '鏈煡璁惧';
+        return '未知设备';
       }
 
       const commandParts = (action.command || '').split(':');
@@ -56,50 +74,25 @@ export struct CreateAutomationView {
         (item: DeviceCommandConfig) => item.command === commandName,
       );
       const commandLabel = capability ? capability.label : commandName;
-      const valueLabel = commandValue === 'true' ? '寮€鍚?' : (commandValue === 'false' ? '鍏抽棴' : commandValue);
+      const valueLabel = commandValue === 'true' ? '开启' : (commandValue === 'false' ? '关闭' : commandValue);
 
       return `${device.roomName} ${device.name} ${commandLabel} ${valueLabel}`;
     }
-    return '鏈煡鍔ㄤ綔';
+    return '未知动作';
   }
 
   private buildPayload(): AutomationPayloadDraft {
-    const payload = new AutomationPayloadDraft();
-    payload.name = this.draft.name;
-    payload.icon = this.draft.icon;
-    payload.enabled = true;
-    payload.triggerType = this.draft.conditions[0].type === 'time' ? 'time' : 'device';
-    const triggers: AutomationTriggerDraftItem[] = this.draft.conditions.map((condition: ConditionDraft) => {
-      const trigger = new AutomationTriggerDraftItem();
-      trigger.id = condition.id;
-      trigger.type = condition.type;
-      trigger.time = condition.time;
-      trigger.deviceId = condition.deviceId;
-      trigger.property = condition.property;
-      trigger.operator = condition.operator;
-      trigger.threshold = condition.threshold;
-      trigger.label = this.getConditionLabel(condition);
-      return trigger;
-    });
-    const actions: AutomationActionDraftItem[] = this.draft.actions.map((action: ActionDraft) => {
-      const actionItem = new AutomationActionDraftItem();
-      actionItem.id = action.id;
-      actionItem.type = action.type;
-      actionItem.deviceId = action.deviceId;
-      actionItem.command = action.command;
-      actionItem.sceneId = action.sceneId;
-      actionItem.label = this.getActionLabel(action);
-      return actionItem;
-    });
-    payload.triggerJson = JSON.stringify(triggers);
-    payload.actionJson = JSON.stringify(actions);
-    return payload;
+    return buildAutomationPayloadDraft(
+      this.draft,
+      (condition: ConditionDraft) => this.getConditionLabel(condition),
+      (action: ActionDraft) => this.getActionLabel(action),
+    );
   }
 
   @Builder
   IconPickerSheet() {
     Column() {
-      Text('閫夋嫨鍥炬爣')
+      Text('选择图标')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(COLOR_ON_SURFACE)
@@ -131,19 +124,19 @@ export struct CreateAutomationView {
   build() {
     Column() {
       Row() {
-        Text('鍙栨秷')
+        Text('取消')
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
           .onClick(() => {
             this.onCancel();
           })
-        Text(this.editingAutomationId ? '缂栬緫鑷姩鍖?' : '鏂板缓鑷姩鍖?')
+        Text(this.editingAutomationId ? '编辑自动化' : '新建自动化')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Text('淇濆瓨')
+        Text('保存')
           .fontSize(16)
           .fontColor(COLOR_PRIMARY)
           .onClick(() => {
@@ -178,7 +171,7 @@ export struct CreateAutomationView {
               backgroundColor: COLOR_SURFACE_CONTAINER_HIGH
             })
 
-            TextInput({ placeholder: '鑷姩鍖栧悕绉?', text: this.draft.name })
+            TextInput({ placeholder: '请输入自动化名称', text: this.draft.name })
               .onChange((value: string) => {
                 this.draft.name = value;
               })
@@ -193,7 +186,7 @@ export struct CreateAutomationView {
           .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
 
           Column({ space: 12 }) {
-            Text('濡傛灉...')
+            Text('触发条件')
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
@@ -230,7 +223,7 @@ export struct CreateAutomationView {
                 }
               })
 
-              Button('+ 娣诲姞鏉′欢', { type: ButtonType.Normal })
+              Button('+ 添加条件', { type: ButtonType.Normal })
                 .width('100%')
                 .height(48)
                 .backgroundColor(Color.Transparent)
@@ -252,7 +245,7 @@ export struct CreateAutomationView {
           .width('100%')
 
           Column({ space: 12 }) {
-            Text('灏辨墽琛?..')
+            Text('执行动作')
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor(COLOR_ON_SURFACE)
@@ -289,7 +282,7 @@ export struct CreateAutomationView {
                 }
               })
 
-              Button('+ 娣诲姞鍔ㄤ綔', { type: ButtonType.Normal })
+              Button('+ 添加动作', { type: ButtonType.Normal })
                 .width('100%')
                 .height(48)
                 .backgroundColor(Color.Transparent)

@@ -18,6 +18,14 @@ type BroadcastRequest = {
   message: string;
 };
 
+type FamilySettings = {
+  homeName: string;
+  address: string;
+  timezone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+};
+
 /** 演示用家庭成员（3 人，均在家） */
 const members: FamilyMemberDescriptor[] = [
   {
@@ -79,14 +87,47 @@ function isBroadcastRequest(body: unknown): body is BroadcastRequest {
   return typeof candidate.message === "string" && candidate.message.trim().length > 0;
 }
 
+function isFamilySettingsPatch(body: unknown): body is Partial<FamilySettings> {
+  if (body === null || typeof body !== "object") {
+    return false;
+  }
+
+  const candidate = body as Partial<FamilySettings>;
+  return [
+    candidate.homeName,
+    candidate.address,
+    candidate.timezone,
+    candidate.emergencyContactName,
+    candidate.emergencyContactPhone,
+  ].every((field) => field === undefined || typeof field === "string");
+}
+
 export async function registerFamilyRoutes(app: FastifyInstance): Promise<void> {
   const activities = createActivities();
+  const familySettings: FamilySettings = {
+    homeName: "My Home",
+    address: "1428 Elm Street, Sunnyvale",
+    timezone: "Asia/Shanghai",
+    emergencyContactName: "Emergency Center",
+    emergencyContactPhone: "110",
+  };
 
   app.get("/api/family", async () => ({
     presentCount: members.filter((member) => member.presence === "home").length,
     members,
     activities,
   }));
+
+  app.get("/api/family/settings", async () => familySettings);
+
+  app.put("/api/family/settings", async (request, reply) => {
+    if (!isFamilySettingsPatch(request.body)) {
+      return reply.code(400).send({ code: "INVALID_SETTINGS_PAYLOAD" });
+    }
+
+    Object.assign(familySettings, request.body);
+    return familySettings;
+  });
 
   app.post("/api/family/broadcast", async (request, reply) => {
     if (!isBroadcastRequest(request.body)) {

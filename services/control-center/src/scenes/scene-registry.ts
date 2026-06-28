@@ -14,6 +14,7 @@ export class SceneRegistry {
     // ── 回家场景：到家自动开灯 + 空调 ──
     {
       id: "home",
+      icon: "home",
       name: "回家",
       description: "打开客厅灯与空调，恢复舒适状态",
       enabled: true,
@@ -30,6 +31,7 @@ export class SceneRegistry {
     // ── 离家场景：锁门 + 全关 ──
     {
       id: "away",
+      icon: "flight_takeoff",
       name: "离家",
       description: "锁门、关闭灯光与空调",
       enabled: true,
@@ -45,6 +47,7 @@ export class SceneRegistry {
     // ── 睡眠场景：定时暗光 + 舒适温度 ──
     {
       id: "sleep",
+      icon: "bedtime",
       name: "睡眠",
       description: "锁门并降低灯光，维持夜间舒适温度",
       enabled: true,
@@ -61,6 +64,7 @@ export class SceneRegistry {
     // ── 电影之夜：手动触发，暗光氛围 ──
     {
       id: "movie",
+      icon: "movie",
       name: "电影之夜",
       description: "调暗灯光，营造观影氛围",
       enabled: false,
@@ -108,6 +112,7 @@ export class SceneRegistry {
     }
     
     if (patch.name !== undefined) scene.name = patch.name;
+    if (patch.icon !== undefined) scene.icon = patch.icon;
     if (patch.description !== undefined) scene.description = patch.description;
     if (patch.enabled !== undefined) scene.enabled = patch.enabled;
     if (patch.trigger !== undefined) scene.trigger = patch.trigger;

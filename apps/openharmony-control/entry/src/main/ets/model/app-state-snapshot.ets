@@ -7,6 +7,7 @@ import {
   AutomationViewStateData,
   NotificationsViewStateData,
   FamilyViewStateData,
+  FamilySettingsStateData,
   ClimateViewStateData,
   HomeViewState,
   LightingViewState,
@@ -17,9 +18,11 @@ import {
   AutomationViewState,
   NotificationsViewState,
   FamilyViewState,
+  FamilySettingsState,
   RoomListState,
   RoomItemState,
 } from '../model/page-view-state';
+import { AutomationSnapshot } from '../services/device-api';
 
 @Observed
 export class AppStateSnapshot {
@@ -30,8 +33,10 @@ export class AppStateSnapshot {
   climate: ClimateViewState = new ClimateViewState();
   scenes: ScenesViewState = new ScenesViewState();
   automation: AutomationViewState = new AutomationViewState();
+  automationSource: AutomationSnapshot[] = [];
   notifications: NotificationsViewState = new NotificationsViewState();
   family: FamilyViewState = new FamilyViewState();
+  familySettings: FamilySettingsState = new FamilySettingsState();
   roomList: RoomListState = new RoomListState();
 
   // In-place mutation so @Observed proxies propagate changes to @ObjectLink subscribers
@@ -103,6 +108,10 @@ export class AppStateSnapshot {
     this.automation.feedback = data.feedback;
   }
 
+  assignAutomationSource(source: AutomationSnapshot[]): void {
+    this.automationSource = source;
+  }
+
   assignNotifications(data: NotificationsViewStateData): void {
     this.notifications.entries = data.entries;
   }
@@ -114,6 +123,15 @@ export class AppStateSnapshot {
     this.family.members = data.members;
     this.family.activities = data.activities;
     this.family.feedback = data.feedback;
+  }
+
+  assignFamilySettings(data: FamilySettingsStateData): void {
+    this.familySettings.homeName = data.homeName;
+    this.familySettings.address = data.address;
+    this.familySettings.timezone = data.timezone;
+    this.familySettings.emergencyContactName = data.emergencyContactName;
+    this.familySettings.emergencyContactPhone = data.emergencyContactPhone;
+    this.familySettings.feedback = data.feedback;
   }
 
   assignRoomList(rooms: RoomItemState[]): void {

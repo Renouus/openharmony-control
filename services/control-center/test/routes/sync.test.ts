@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app';
 import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
 import { clientConnections } from '../../src/routes/websocket';
 
 describe('GET /api/sync', () => {
-  let app: any;
+  let app: FastifyInstance;
 
   beforeEach(() => {
     initDatabase(':memory:');
@@ -45,6 +46,16 @@ describe('GET /api/sync', () => {
           actionJson: expect.any(String),
           version: expect.any(Number),
           isDeleted: false,
+        }),
+      ]),
+    );
+    expect(payload.scenes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'home',
+          icon: 'home',
+          trigger: expect.any(Object),
+          commands: expect.any(Array),
         }),
       ]),
     );

@@ -1,10 +1,37 @@
 import relationalStore from '@ohos.data.relationalStore';
-import { SceneCommand, SceneSnapshot, SceneTrigger } from '../device-api';
+import { PersistedScene, SceneCommand, SceneTrigger } from '../device-api';
 
-export interface SceneSyncItem extends SceneSnapshot {
-  updatedAt: number;
-  version: number;
-  isDeleted?: boolean;
+export interface SceneSyncItem extends PersistedScene {}
+
+function parseSceneTrigger(value: string): SceneTrigger {
+  return JSON.parse(value) as SceneTrigger;
+}
+
+function parseStringArray(value: string): string[] {
+  return JSON.parse(value) as string[];
+}
+
+function parseSceneCommands(value: string): SceneCommand[] {
+  return JSON.parse(value) as SceneCommand[];
+}
+
+function mapResultSetToScene(resultSet: relationalStore.ResultSet): SceneSyncItem {
+  return {
+    id: resultSet.getString(resultSet.getColumnIndex('id')),
+    name: resultSet.getString(resultSet.getColumnIndex('name')),
+    icon: resultSet.getString(resultSet.getColumnIndex('icon')) || undefined,
+    description: resultSet.getString(resultSet.getColumnIndex('description')),
+    enabled: resultSet.getLong(resultSet.getColumnIndex('enabled')) === 1,
+    trigger: parseSceneTrigger(resultSet.getString(resultSet.getColumnIndex('trigger_json')) || '{"type":"manual","label":"Run now"}'),
+    repeat: parseStringArray(resultSet.getString(resultSet.getColumnIndex('repeat_json')) || '[]'),
+    actionsLabel: parseStringArray(resultSet.getString(resultSet.getColumnIndex('actions_label_json')) || '[]'),
+    commands: parseSceneCommands(resultSet.getString(resultSet.getColumnIndex('commands_json')) || '[]'),
+    sortOrder: resultSet.getLong(resultSet.getColumnIndex('sort_order')),
+    createdAt: resultSet.getLong(resultSet.getColumnIndex('created_at')),
+    updatedAt: resultSet.getLong(resultSet.getColumnIndex('updated_at')),
+    version: resultSet.getLong(resultSet.getColumnIndex('version')),
+    isDeleted: resultSet.getLong(resultSet.getColumnIndex('is_deleted')) === 1,
+  };
 }
 
 export class SceneDao {
@@ -23,7 +50,7 @@ export class SceneDao {
   }
 
   public async replaceAll(store: relationalStore.RdbStore, scenes: SceneSyncItem[]): Promise<void> {
-    await store.executeSql('DELETE FROM scenes');
+    await store.executeSql('DELETE FROM scenes WHERE is_deleted = 0');
     for (const scene of scenes) {
       await this.insertOrUpdate(store, scene);
     }
@@ -33,15 +60,18 @@ export class SceneDao {
     const valueBucket: relationalStore.ValuesBucket = {
       id: scene.id,
       name: scene.name,
+      icon: scene.icon ?? null,
       description: scene.description,
       enabled: scene.enabled ? 1 : 0,
+      created_at: scene.createdAt,
       updated_at: scene.updatedAt,
+      sort_order: scene.sortOrder,
       version: scene.version,
       is_deleted: scene.isDeleted ? 1 : 0,
       trigger_json: JSON.stringify(scene.trigger),
-      repeat_json: JSON.stringify(scene.repeat || []),
-      actions_label_json: JSON.stringify(scene.actionsLabel || []),
-      commands_json: JSON.stringify(scene.commands || [])
+      repeat_json: JSON.stringify(scene.repeat),
+      actions_label_json: JSON.stringify(scene.actionsLabel),
+      commands_json: JSON.stringify(scene.commands),
     };
 
     const predicates = new relationalStore.RdbPredicates('scenes');
@@ -52,62 +82,52 @@ export class SceneDao {
 
     if (exists) {
       await store.update(valueBucket, predicates);
-    } else {
-      await store.insert('scenes', valueBucket);
+      return;
     }
+
+    await store.insert('scenes', valueBucket);
   }
 
-  public async markDeleted(store: relationalStore.RdbStore, sceneId: string, version: number = Date.now()): Promise<void> {
+  public async markDeleted(
+    store: relationalStore.RdbStore,
+    sceneId: string,
+    version: number,
+    updatedAt: number,
+  ): Promise<void> {
     const predicates = new relationalStore.RdbPredicates('scenes');
     predicates.equalTo('id', sceneId);
     await store.update({
       is_deleted: 1,
-      updated_at: Date.now(),
-      version
+      updated_at: updatedAt,
+      version,
     }, predicates);
   }
 
-  public async getAllScenes(store: relationalStore.RdbStore): Promise<SceneSnapshot[]> {
-    const syncItems = await this.getAllSyncItems(store);
+  public async getVisibleScenes(store: relationalStore.RdbStore): Promise<PersistedScene[]> {
+    const predicates = new relationalStore.RdbPredicates('scenes');
+    predicates.equalTo('is_deleted', 0);
+    predicates.orderByAsc('sort_order');
+    predicates.orderByAsc('created_at');
+    predicates.orderByAsc('id');
+    const resultSet = await store.query(predicates);
 
-    const scenes: SceneSnapshot[] = [];
-    syncItems.forEach((scene: SceneSyncItem) => {
-      scenes.push({
-        id: scene.id,
-        name: scene.name,
-        description: scene.description,
-        enabled: scene.enabled,
-        trigger: scene.trigger,
-        repeat: scene.repeat,
-        actionsLabel: scene.actionsLabel,
-        commands: scene.commands
-      });
-    });
+    const scenes: PersistedScene[] = [];
+    while (resultSet.goToNextRow()) {
+      scenes.push(mapResultSetToScene(resultSet));
+    }
 
+    resultSet.close();
     return scenes;
   }
 
   public async getAllSyncItems(store: relationalStore.RdbStore): Promise<SceneSyncItem[]> {
     const predicates = new relationalStore.RdbPredicates('scenes');
-    predicates.equalTo('is_deleted', 0);
+    predicates.orderByAsc('id');
     const resultSet = await store.query(predicates);
 
     const scenes: SceneSyncItem[] = [];
     while (resultSet.goToNextRow()) {
-      const syncItem: SceneSyncItem = {
-        id: resultSet.getString(resultSet.getColumnIndex('id')),
-        name: resultSet.getString(resultSet.getColumnIndex('name')),
-        description: resultSet.getString(resultSet.getColumnIndex('description')),
-        enabled: resultSet.getLong(resultSet.getColumnIndex('enabled')) === 1,
-        trigger: JSON.parse(resultSet.getString(resultSet.getColumnIndex('trigger_json')) || '{"type":"manual","label":"Run now"}') as SceneTrigger,
-        repeat: JSON.parse(resultSet.getString(resultSet.getColumnIndex('repeat_json')) || '[]') as string[],
-        actionsLabel: JSON.parse(resultSet.getString(resultSet.getColumnIndex('actions_label_json')) || '[]') as string[],
-        commands: JSON.parse(resultSet.getString(resultSet.getColumnIndex('commands_json')) || '[]') as SceneCommand[],
-        updatedAt: resultSet.getLong(resultSet.getColumnIndex('updated_at')),
-        version: resultSet.getLong(resultSet.getColumnIndex('version')),
-        isDeleted: false
-      };
-      scenes.push(syncItem);
+      scenes.push(mapResultSetToScene(resultSet));
     }
 
     resultSet.close();
@@ -115,10 +135,6 @@ export class SceneDao {
   }
 
   public async applyEvent(store: relationalStore.RdbStore, scene: SceneSyncItem): Promise<void> {
-    if (scene.isDeleted) {
-      await this.markDeleted(store, scene.id, scene.version);
-      return;
-    }
     await this.insertOrUpdate(store, scene);
   }
 }

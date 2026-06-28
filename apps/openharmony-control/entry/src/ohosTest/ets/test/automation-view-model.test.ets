@@ -136,6 +136,12 @@ export default function automationViewModelTest() {
       expect(repository.listScenesCalls).assertEqual(0);
       expect(state.items[0].id).assertEqual('night-routine');
       expect(state.items[0].triggerTypeLabel).assertEqual('time');
+      expect(state.items[0].actions[0]).assertEqual('Lock front door');
+      expect(state.items[0].triggerLabel).assertEqual('22:00');
+      expect(state.items[0].canRunNow).assertFalse();
+      expect(state.items[0].canToggle).assertTrue();
+      expect(state.items[0].canEdit).assertTrue();
+      expect(state.items[0].canDelete).assertTrue();
     });
 
     it('updates automation state through automation repository methods', async () => {
@@ -188,7 +194,12 @@ export default function automationViewModelTest() {
           triggerLabel: '22:00 every day',
           triggerTypeLabel: 'time',
           actions: ['Lock front door', 'Set AC to 24C'],
+          commands: [],
           repeatLabel: 'Every day',
+          canRunNow: false,
+          canToggle: true,
+          canEdit: true,
+          canDelete: true,
         }],
         feedback: 'Scene sync',
       });
@@ -197,6 +208,24 @@ export default function automationViewModelTest() {
       expect(snapshot.scenes.feedback).assertEqual('Scene sync');
       expect(snapshot.automation.items.map((scene) => scene.id).join(',')).assertEqual('night-routine');
       expect(snapshot.automation.feedback).assertEqual('Scene sync');
+    });
+
+    it('stores raw automation snapshots alongside mapped automation page state', () => {
+      const snapshot = new AppStateSnapshot();
+      const source: AutomationSnapshot[] = [{
+        id: 'night-routine',
+        icon: 'auto_awesome',
+        name: 'Night Routine',
+        triggerType: 'time',
+        triggerJson: '[{"id":"t1","type":"time","time":"22:00","label":"22:00"}]',
+        actionJson: '[{"id":"a1","type":"device","deviceId":"door-front","command":"lock:true","label":"Lock front door"}]',
+        enabled: true,
+      }];
+
+      snapshot.assignAutomationSource(source);
+
+      expect(snapshot.automationSource.length).assertEqual(1);
+      expect(snapshot.automationSource[0].id).assertEqual('night-routine');
     });
   });
 }

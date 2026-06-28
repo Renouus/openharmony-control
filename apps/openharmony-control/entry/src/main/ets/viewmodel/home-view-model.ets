@@ -23,9 +23,16 @@ export class HomeViewModel {
   }
 
   async load(feedback: string = '', activeSceneId?: string): Promise<HomeViewStateData> {
+    return this.loadWithScenes([], feedback, activeSceneId);
+  }
+
+  async loadWithScenes(
+    scenes: SceneSnapshot[],
+    feedback: string = '',
+    activeSceneId?: string,
+  ): Promise<HomeViewStateData> {
     const summary: HomeSummary = await this.repository.getSummary();
     let devices: DeviceSnapshot[] = [];
-    let scenes: SceneSnapshot[] = [];
     let accessOverview: AccessOverview = {
       primary: { id: 'front-door', name: 'Front Door', locked: true, battery: 100 },
       keys: [],
@@ -36,9 +43,6 @@ export class HomeViewModel {
 
     try {
       devices = await this.repository.listDevices();
-    } catch {}
-    try {
-      scenes = await this.repository.listScenes();
     } catch {}
     try {
       accessOverview = await this.repository.getAccessOverview();

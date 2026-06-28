@@ -73,4 +73,57 @@ describe("family prototype routes", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ code: "BROADCAST_INVALID" });
   });
+
+  it("returns family settings and persists updates", async () => {
+    const app = buildApp();
+
+    const getBefore = await app.inject({
+      method: "GET",
+      url: "/api/family/settings",
+    });
+
+    expect(getBefore.statusCode).toBe(200);
+    expect(getBefore.json()).toMatchObject({
+      homeName: expect.any(String),
+      address: expect.any(String),
+      timezone: expect.any(String),
+      emergencyContactName: expect.any(String),
+      emergencyContactPhone: expect.any(String),
+    });
+
+    const updateResponse = await app.inject({
+      method: "PUT",
+      url: "/api/family/settings",
+      payload: {
+        homeName: "My Home",
+        address: "Shanghai Demo Road 88",
+        timezone: "Asia/Shanghai",
+        emergencyContactName: "Li Lei",
+        emergencyContactPhone: "13800000000",
+      },
+    });
+
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.json()).toMatchObject({
+      homeName: "My Home",
+      address: "Shanghai Demo Road 88",
+      timezone: "Asia/Shanghai",
+      emergencyContactName: "Li Lei",
+      emergencyContactPhone: "13800000000",
+    });
+
+    const getAfter = await app.inject({
+      method: "GET",
+      url: "/api/family/settings",
+    });
+
+    expect(getAfter.statusCode).toBe(200);
+    expect(getAfter.json()).toMatchObject({
+      homeName: "My Home",
+      address: "Shanghai Demo Road 88",
+      timezone: "Asia/Shanghai",
+      emergencyContactName: "Li Lei",
+      emergencyContactPhone: "13800000000",
+    });
+  });
 });

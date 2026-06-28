@@ -4,14 +4,14 @@ import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
 import {
+  COLOR_ON_PRIMARY_CONTAINER,
   COLOR_ON_SURFACE,
+  COLOR_OUTLINE_VARIANT,
   COLOR_PRIMARY,
+  COLOR_PRIMARY_CONTAINER,
+  COLOR_SECONDARY_CONTAINER,
   COLOR_SURFACE_CONTAINER_LOW,
   COLOR_TEXT_MUTED,
-  COLOR_SECONDARY_CONTAINER,
-  COLOR_OUTLINE_VARIANT,
-  COLOR_PRIMARY_CONTAINER,
-  COLOR_ON_PRIMARY_CONTAINER
 } from '../theme/smart-home-theme';
 
 @Component
@@ -24,11 +24,11 @@ export struct ScenesListView {
   @Builder
   SceneMenu(sceneId: string) {
     Menu() {
-      MenuItem({ content: '缂栬緫鍦烘櫙' })
+      MenuItem({ content: 'Edit scene' })
         .onClick(() => {
           this.navStack.pushPathByName('sceneEditor', sceneId);
         })
-      MenuItem({ content: '鍒犻櫎鍦烘櫙' })
+      MenuItem({ content: 'Delete scene' })
         .onClick(() => {
           this.controller.handleDeleteScene(this.appState, sceneId);
         })
@@ -63,7 +63,11 @@ export struct ScenesListView {
             Row() {
               Row({ space: 16 }) {
                 Row() {
-                  AppSymbol({ name: scene.icon || this.getIconName(index), glyphSize: 20, color: this.getIconColor(index) })
+                  AppSymbol({
+                    name: scene.icon || this.getIconName(index),
+                    glyphSize: 20,
+                    color: this.getIconColor(index),
+                  })
                 }
                 .width(40)
                 .height(40)
@@ -77,7 +81,7 @@ export struct ScenesListView {
                     .fontWeight(FontWeight.Medium)
                     .fontColor(COLOR_ON_SURFACE)
                     .fontFamily('serif')
-                  Text(`${scene.actions.length} devices active`)
+                  Text(`${scene.actions.length} actions configured`)
                     .fontSize(14)
                     .fontColor(COLOR_TEXT_MUTED)
                 }
@@ -115,7 +119,7 @@ export struct ScenesListView {
           .borderRadius(16)
           .shadow({ radius: 16, color: '#3A302A0A', offsetX: 0, offsetY: 2 })
           .onClick(() => {
-            this.controller.handleHomeRunScene(this.appState, scene.id);
+            this.navStack.pushPathByName('sceneEditor', scene.id);
           })
         }, (scene: SceneCardState) => scene.id)
 

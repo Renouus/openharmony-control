@@ -12,7 +12,7 @@ export struct ConditionPickerSheet {
   @State selectedType: 'time' | 'device' = 'device';
   @State selectedDeviceId: string = '';
   @State selectedPropertyConfig: DevicePropertyConfig | null = null;
-  @State thresholdValue: number = 25; // Default for slider
+  @State thresholdValue: number = 25;
   @State selectedTimeStr: string = '';
 
   aboutToAppear() {
@@ -44,7 +44,7 @@ export struct ConditionPickerSheet {
     Text('选择触发条件')
       .fontSize(18)
       .fontWeight(FontWeight.Bold)
-    
+
     List({ space: 10 }) {
       ListItem() {
         Text('特定时间')
@@ -58,7 +58,7 @@ export struct ConditionPickerSheet {
         this.selectedType = 'time';
         this.level = 2;
       })
-      
+
       ListItem() {
         Text('设备状态变化')
           .fontSize(16)
@@ -85,7 +85,7 @@ export struct ConditionPickerSheet {
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
       Blank()
-      Text('    ') // spacing balance
+      Text('    ')
     }
     .width('100%')
 
@@ -173,13 +173,9 @@ export struct ConditionPickerSheet {
     }
     .width('100%')
 
-    // Find the device
     if (this.selectedDeviceId) {
       Scroll() {
         Column({ space: 16 }) {
-          // In ArkTS, we cannot put complex expressions in ForEach directly or define local variables.
-          // We rely on component state or simple array iteration.
-          // Since we need the capabilities for the selected device, we filter appState.home.devices.
           ForEach(this.appState.home.devices.filter((d: DevicePanelState) => d.id === this.selectedDeviceId), (device: DevicePanelState) => {
             ForEach(DEVICE_CAPABILITIES[device.kind]?.conditions || [], (config: DevicePropertyConfig) => {
               if (config.type === 'boolean') {
@@ -190,14 +186,14 @@ export struct ConditionPickerSheet {
                       .backgroundColor(COLOR_PRIMARY)
                       .fontColor(COLOR_ON_PRIMARY)
                       .onClick(() => {
-                      this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '==', threshold: 'true' });
-                    })
+                        this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '==', threshold: 'true' });
+                      })
                     Button('关闭')
                       .backgroundColor(COLOR_SURFACE_CONTAINER)
                       .fontColor(COLOR_PRIMARY)
                       .onClick(() => {
-                      this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '==', threshold: 'false' });
-                    })
+                        this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '==', threshold: 'false' });
+                      })
                   }
                 }
                 .alignItems(HorizontalAlign.Start)
@@ -224,8 +220,8 @@ export struct ConditionPickerSheet {
                     .fontColor(COLOR_ON_PRIMARY)
                     .borderRadius(24)
                     .onClick(() => {
-                    this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '>', threshold: this.thresholdValue.toString() });
-                  })
+                      this.onSelect({ id: Date.now().toString(), type: 'device', deviceId: device.id, property: config.property, operator: '>', threshold: this.thresholdValue.toString() });
+                    })
                 }
                 .alignItems(HorizontalAlign.Start)
                 .width('100%')

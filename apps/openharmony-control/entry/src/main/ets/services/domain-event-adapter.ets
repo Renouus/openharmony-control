@@ -123,12 +123,15 @@ export class DomainEventAdapter {
     return {
       id: payload.id,
       name: payload.name,
+      icon: payload.icon,
       description: payload.description,
       enabled: payload.enabled,
       trigger: payload.trigger,
       repeat: payload.repeat,
       actionsLabel: payload.actionsLabel,
       commands: payload.commands,
+      sortOrder: payload.sortOrder,
+      createdAt: payload.createdAt,
       updatedAt: payload.updatedAt,
       version: payload.version,
       isDeleted: payload.isDeleted ?? false

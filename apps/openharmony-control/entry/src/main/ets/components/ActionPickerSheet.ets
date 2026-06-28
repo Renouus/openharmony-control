@@ -12,7 +12,7 @@ export struct ActionPickerSheet {
   @State level: number = 1;
   @State selectedType: 'scene' | 'device' = 'device';
   @State selectedDeviceId: string = '';
-  @State commandValue: number = 25; // Default for slider
+  @State commandValue: number = 25;
 
   build() {
     Column({ space: 16 }) {
@@ -36,7 +36,7 @@ export struct ActionPickerSheet {
     Text('选择执行动作')
       .fontSize(18)
       .fontWeight(FontWeight.Bold)
-    
+
     List({ space: 10 }) {
       if (this.allowScenes) {
         ListItem() {
@@ -52,7 +52,7 @@ export struct ActionPickerSheet {
           this.level = 2;
         })
       }
-      
+
       ListItem() {
         Text('控制设备')
           .fontSize(16)

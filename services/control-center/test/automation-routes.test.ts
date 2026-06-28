@@ -65,6 +65,8 @@ describe('automation routes', () => {
       id: created.id,
       enabled: false,
     });
+    expect(updateResponse.json().automation.triggerJson).toContain('"deviceId":"door-front"');
+    expect(updateResponse.json().automation.actionJson).toContain('"command":"lock:true"');
 
     const listResponse = await app.inject({ method: 'GET', url: '/api/automations' });
     expect(listResponse.json().automations).toEqual(
@@ -72,6 +74,8 @@ describe('automation routes', () => {
         expect.objectContaining({
           id: created.id,
           enabled: false,
+          triggerJson: expect.stringContaining('"deviceId":"door-front"'),
+          actionJson: expect.stringContaining('"command":"lock:true"'),
         }),
       ]),
     );

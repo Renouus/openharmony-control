@@ -19,10 +19,13 @@ import { ClimateView } from '../views/ClimateView';
 import { SceneEditorView } from '../views/SceneEditorView';
 import { RoutineEditorView } from '../views/RoutineEditorView';
 import { FamilySettingsView } from '../views/FamilySettingsView';
+import { HomeInfoEditorView } from '../views/HomeInfoEditorView';
+import { EmergencyContactEditorView } from '../views/EmergencyContactEditorView';
 import { GenericRoomView } from '../views/GenericRoomView';
 import { LightControlView } from '../views/LightControlView';
 import { ScenesListView } from '../views/ScenesListView';
 import { CreateAutomationView } from '../views/CreateAutomationView';
+import { FamilySettingsUpdateRequest } from '../services/device-api';
 import {
   COLOR_BG,
   COLOR_BORDER,
@@ -248,10 +251,30 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'familySettings') {
         Scroll() {
-          FamilySettingsView()
+          FamilySettingsView({ appState: this.appState })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
+        .layoutWeight(1)
+      } else if (this.currentSubPage === 'homeInfoEditor') {
+        HomeInfoEditorView({
+          appState: this.appState,
+          onCancel: () => this.popSubPage(),
+          onSave: async (payload: FamilySettingsUpdateRequest) => {
+            await this.controller.handleUpdateFamilySettings(this.appState, payload);
+            this.popSubPage();
+          }
+        })
+        .layoutWeight(1)
+      } else if (this.currentSubPage === 'emergencyContactEditor') {
+        EmergencyContactEditorView({
+          appState: this.appState,
+          onCancel: () => this.popSubPage(),
+          onSave: async (payload: FamilySettingsUpdateRequest) => {
+            await this.controller.handleUpdateFamilySettings(this.appState, payload);
+            this.popSubPage();
+          }
+        })
         .layoutWeight(1)
       } else if (this.currentSubPage === 'room') {
         Scroll() {
@@ -280,11 +303,12 @@ struct Index {
           appState: this.appState,
           editingAutomationId: this.subPageParam as string,
           onCancel: () => this.popSubPage(),
-          onSave: (payload) => {
-            if (this.subPageParam) {
-              this.controller.handleUpdateAutomation(this.appState, this.subPageParam as string, payload);
+          onSave: async (payload) => {
+            const editingAutomationId = this.subPageParam;
+            if (typeof editingAutomationId === 'string' && editingAutomationId.length > 0) {
+              await this.controller.handleUpdateAutomation(this.appState, editingAutomationId, payload);
             } else {
-              this.controller.handleCreateAutomation(this.appState, payload);
+              await this.controller.handleCreateAutomation(this.appState, payload);
             }
             this.popSubPage();
           }
@@ -295,11 +319,11 @@ struct Index {
           appState: this.appState,
           editingSceneId: this.subPageParam as string,
           onCancel: () => this.popSubPage(),
-          onSave: (payload) => {
+          onSave: async (payload) => {
             if (this.subPageParam) {
-              this.controller.handleUpdateScene(this.appState, this.subPageParam as string, payload);
+              await this.controller.handleUpdateScene(this.appState, this.subPageParam as string, payload);
             } else {
-              this.controller.handleCreateScene(this.appState, payload);
+              await this.controller.handleCreateScene(this.appState, payload);
             }
             this.popSubPage();
           }

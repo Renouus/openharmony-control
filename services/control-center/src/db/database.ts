@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
+import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 4;
 
 export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
   dbInstance = new Database(dbPath);
@@ -38,9 +39,12 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
     CREATE TABLE IF NOT EXISTS scenes (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      icon TEXT,
       description TEXT,
       enabled INTEGER DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       version INTEGER NOT NULL,
       is_deleted INTEGER DEFAULT 0
     );
@@ -134,10 +138,21 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
 
   if (nextVersion < 2) {
     ensureColumn(db, "automations", "icon", "ALTER TABLE automations ADD COLUMN icon TEXT");
-    db.prepare(
-      "INSERT OR IGNORE INTO metadata (key, value) VALUES ('schema_version', ?)",
-    ).run(String(SCHEMA_VERSION));
     nextVersion = 2;
+    setSchemaVersion(db, nextVersion);
+  }
+
+  if (nextVersion < 3) {
+    ensureColumn(db, "scenes", "icon", "ALTER TABLE scenes ADD COLUMN icon TEXT");
+    nextVersion = 3;
+    setSchemaVersion(db, nextVersion);
+  }
+
+  if (nextVersion < 4) {
+    ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
+    ensureColumn(db, "scenes", "sort_order", "ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+    backfillLegacySceneOrdering(db);
+    nextVersion = 4;
     setSchemaVersion(db, nextVersion);
   }
 }
@@ -147,6 +162,66 @@ function reconcileCriticalSchema(db: Database.Database): void {
   // missing columns from interrupted/manual migrations. Reconcile the columns
   // we rely on during startup before any seed/write path runs.
   ensureColumn(db, "automations", "icon", "ALTER TABLE automations ADD COLUMN icon TEXT");
+  ensureColumn(db, "scenes", "icon", "ALTER TABLE scenes ADD COLUMN icon TEXT");
+  ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "scenes", "sort_order", "ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+}
+
+type LegacySceneOrderingRow = {
+  id: string;
+  created_at: number;
+  updated_at: number;
+};
+
+function backfillLegacySceneOrdering(db: Database.Database): void {
+  const builtInSceneIds = new SceneRegistry().list().map((scene) => scene.id);
+  const builtInOrderMap = new Map<string, number>();
+  builtInSceneIds.forEach((sceneId, index) => {
+    builtInOrderMap.set(sceneId, index);
+  });
+
+  const rows = db.prepare(`
+    SELECT id, created_at, updated_at
+    FROM scenes
+  `).all() as LegacySceneOrderingRow[];
+
+  rows.sort((left, right) => {
+    const leftBuiltInOrder = builtInOrderMap.get(left.id);
+    const rightBuiltInOrder = builtInOrderMap.get(right.id);
+
+    if (leftBuiltInOrder !== undefined && rightBuiltInOrder !== undefined) {
+      return leftBuiltInOrder - rightBuiltInOrder;
+    }
+    if (leftBuiltInOrder !== undefined) {
+      return -1;
+    }
+    if (rightBuiltInOrder !== undefined) {
+      return 1;
+    }
+
+    const leftCreatedAt = left.created_at > 0 ? left.created_at : left.updated_at;
+    const rightCreatedAt = right.created_at > 0 ? right.created_at : right.updated_at;
+    if (leftCreatedAt !== rightCreatedAt) {
+      return leftCreatedAt - rightCreatedAt;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+
+  const updateRow = db.prepare(`
+    UPDATE scenes
+    SET created_at = ?, sort_order = ?
+    WHERE id = ?
+  `);
+
+  const updateOrdering = db.transaction(() => {
+    rows.forEach((row, index) => {
+      const createdAt = row.created_at > 0 ? row.created_at : row.updated_at;
+      updateRow.run(createdAt, index, row.id);
+    });
+  });
+
+  updateOrdering();
 }
 
 function seedDefaultAutomations(db: Database.Database): void {

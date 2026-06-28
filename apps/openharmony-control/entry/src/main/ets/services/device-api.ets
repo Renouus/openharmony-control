@@ -29,15 +29,18 @@ export interface SyncRoomPayload {
 export interface SyncScenePayload {
   id: string;
   name: string;
+  icon?: string;
   description: string;
   enabled: boolean;
   trigger: SceneTrigger;
   repeat: string[];
   actionsLabel: string[];
   commands: SceneCommand[];
+  sortOrder: number;
+  createdAt: number;
   updatedAt: number;
   version: number;
-  isDeleted?: boolean;
+  isDeleted: boolean;
 }
 
 // Transport placeholder only for this iteration.
@@ -144,12 +147,13 @@ export interface SummaryAlert {
 export interface SceneCommand {
   deviceId: string;
   name: string;
-  payload: object;
+  payload: SceneCommandPayload;
 }
 
 export interface SceneSnapshot {
   id: string;
   name: string;
+  icon?: string;
   description: string;
   enabled: boolean;
   trigger: SceneTrigger;
@@ -158,11 +162,24 @@ export interface SceneSnapshot {
   commands: SceneCommand[];
 }
 
+export interface ScenePersistenceMetadata {
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+  version: number;
+  isDeleted: boolean;
+}
+
+export interface PersistedScene extends SceneSnapshot, ScenePersistenceMetadata {}
+
+export interface PersistedSceneSnapshot extends PersistedScene {}
+
 export class SceneCommandPayload {
   on?: boolean;
   locked?: boolean;
   targetTemperature?: number;
   brightness?: number;
+  colorTemperature?: number;
 }
 
 export class SceneCommandDraft {
@@ -198,7 +215,11 @@ export interface SceneTrigger {
 }
 
 export interface SceneListResponse {
-  scenes: SceneSnapshot[];
+  scenes: PersistedSceneSnapshot[];
+}
+
+export interface SceneMutationResponse {
+  scene: PersistedScene;
 }
 
 export interface AutomationSnapshot {
@@ -332,6 +353,22 @@ export interface FamilyOverview {
   presentCount: number;
   members: FamilyMember[];
   activities: FamilyActivity[];
+}
+
+export interface FamilySettingsSnapshot {
+  homeName: string;
+  address: string;
+  timezone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+}
+
+export interface FamilySettingsUpdateRequest {
+  homeName?: string;
+  address?: string;
+  timezone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 }
 
 export interface BroadcastRequest {
@@ -521,7 +558,7 @@ export class DeviceApi {
     }
   }
 
-  async listScenes(): Promise<SceneSnapshot[]> {
+  async listScenes(): Promise<PersistedSceneSnapshot[]> {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes`, {
@@ -564,7 +601,7 @@ export class DeviceApi {
     }
   }
 
-  async createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot> {
+  async createScene(payload: ScenePayloadDraft): Promise<PersistedSceneSnapshot> {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes`, {
@@ -576,14 +613,14 @@ export class DeviceApi {
       if (response.responseCode < 200 || response.responseCode >= 300) {
         throw new Error(response.result as string);
       }
-      const data = JSON.parse(response.result as string) as Record<string, Object>;
-      return data.scene as SceneSnapshot;
+      const data = JSON.parse(response.result as string) as SceneMutationResponse;
+      return data.scene;
     } finally {
       client.destroy();
     }
   }
 
-  async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot> {
+  async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<PersistedSceneSnapshot> {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
@@ -595,14 +632,14 @@ export class DeviceApi {
       if (response.responseCode < 200 || response.responseCode >= 300) {
         throw new Error(response.result as string);
       }
-      const data = JSON.parse(response.result as string) as Record<string, Object>;
-      return data.scene as SceneSnapshot;
+      const data = JSON.parse(response.result as string) as SceneMutationResponse;
+      return data.scene;
     } finally {
       client.destroy();
     }
   }
 
-  async deleteScene(sceneId: string): Promise<void> {
+  async deleteScene(sceneId: string): Promise<PersistedScene> {
     const client = http.createHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
@@ -612,6 +649,8 @@ export class DeviceApi {
       if (response.responseCode < 200 || response.responseCode >= 300) {
         throw new Error(response.result as string);
       }
+      const data = JSON.parse(response.result as string) as SceneMutationResponse;
+      return data.scene;
     } finally {
       client.destroy();
     }
@@ -756,6 +795,34 @@ export class DeviceApi {
         expectDataType: http.HttpDataType.STRING,
       });
       return JSON.parse(response.result as string) as FamilyOverview;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async getFamilySettings(): Promise<FamilySettingsSnapshot> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/family/settings`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as FamilySettingsSnapshot;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateFamilySettings(payload: FamilySettingsUpdateRequest): Promise<FamilySettingsSnapshot> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/family/settings`, {
+        method: http.RequestMethod.PUT,
+        header: { 'content-type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      return JSON.parse(response.result as string) as FamilySettingsSnapshot;
     } finally {
       client.destroy();
     }

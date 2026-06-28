@@ -1,3 +1,5 @@
+import { SceneCommand } from '../services/device-api';
+
 export type AppPageId =
   | 'home'
   | 'lighting'
@@ -16,6 +18,8 @@ export type AppPageId =
   | 'masterBedroom'
   | 'pendantLight'
   | 'familySettings'
+  | 'homeInfoEditor'
+  | 'emergencyContactEditor'
   | 'scenesList'
   | 'lightControl'
   | 'room';
@@ -164,7 +168,12 @@ export interface SceneCardState {
   triggerLabel: string;
   triggerTypeLabel: string;
   actions: string[];
+  commands: SceneCommand[];
   repeatLabel: string;
+  canRunNow?: boolean;
+  canToggle?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
   deviceActions?: DeviceActionState[];
 }
 
@@ -301,6 +310,16 @@ export class FamilyViewState {
 }
 
 @Observed
+export class FamilySettingsState {
+  homeName: string = 'My Home';
+  address: string = '';
+  timezone: string = 'Asia/Shanghai';
+  emergencyContactName: string = '';
+  emergencyContactPhone: string = '';
+  feedback: string = '';
+}
+
+@Observed
 export class ClimateViewState {
   roomLabel: string = 'Living Room';
   indoorTemperature: number = 72;
@@ -384,6 +403,15 @@ export interface FamilyViewStateData {
   presentCount: number;
   members: FamilyMemberCardState[];
   activities: FamilyActivityState[];
+  feedback: string;
+}
+
+export interface FamilySettingsStateData {
+  homeName: string;
+  address: string;
+  timezone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
   feedback: string;
 }
 
@@ -496,6 +524,17 @@ export function createEmptyFamilyViewStateData(): FamilyViewStateData {
     presentCount: 0,
     members: [],
     activities: [],
+    feedback: '',
+  };
+}
+
+export function createEmptyFamilySettingsStateData(): FamilySettingsStateData {
+  return {
+    homeName: 'My Home',
+    address: '',
+    timezone: 'Asia/Shanghai',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
     feedback: '',
   };
 }

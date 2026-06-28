@@ -17,15 +17,26 @@ import { broadcastEvent } from "./websocket";
 type SceneRow = {
   id: string;
   name: string;
+  icon: string | null;
   description: string | null;
   enabled: number;
+  created_at: number;
   updated_at: number;
+  sort_order: number;
   version: number;
   is_deleted: number;
   trigger_json: string | null;
   repeat_json: string | null;
   actions_label_json: string | null;
   commands_json: string | null;
+};
+
+type PersistedSceneDescriptor = SceneDescriptor & {
+  createdAt: number;
+  updatedAt: number;
+  sortOrder: number;
+  version: number;
+  isDeleted: boolean;
 };
 
 export type SceneRouteOptions = {
@@ -95,7 +106,7 @@ export async function registerSceneRoutes(
     if (!success) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }
-    return reply.code(204).send();
+    return reply.code(200).send({ scene: success });
   });
 
   app.post("/api/scenes/:sceneId/run", async (request, reply) => {
@@ -237,132 +248,162 @@ export async function registerSceneRoutes(
   });
 }
 
-function listScenes(sceneRegistry: SceneRegistry): SceneDescriptor[] {
-  const dbScenes = loadScenesFromDb(sceneRegistry);
-  return dbScenes.length > 0 ? dbScenes : sceneRegistry.list();
+function listScenes(sceneRegistry: SceneRegistry): PersistedSceneDescriptor[] {
+  ensureBuiltInScenesPersisted(sceneRegistry);
+  return loadScenesFromDb();
 }
 
-function findScene(sceneId: SceneIdName, sceneRegistry: SceneRegistry): SceneDescriptor | undefined {
-  const dbScenes = loadScenesFromDb(sceneRegistry);
-  if (dbScenes.length > 0) {
-    return dbScenes.find((scene) => scene.id === sceneId);
-  }
-  return sceneRegistry.find(sceneId);
+function findScene(sceneId: SceneIdName, sceneRegistry: SceneRegistry): PersistedSceneDescriptor | undefined {
+  ensureBuiltInScenesPersisted(sceneRegistry);
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT *
+    FROM scenes
+    WHERE id = ? AND is_deleted = 0
+  `).get(sceneId) as SceneRow | undefined;
+
+  return row ? mapSceneRow(row) : undefined;
 }
 
 function createScene(
   sceneData: Omit<SceneDescriptor, "id">,
   sceneRegistry: SceneRegistry,
-): SceneDescriptor {
-  try {
-    ensureBuiltInScenesPersisted(sceneRegistry);
-    const db = getDb();
-    const id = `scene-${Date.now()}`;
-    const now = Date.now();
-    db.prepare(`
-      INSERT INTO scenes (
-        id, name, description, enabled, updated_at, version, is_deleted,
-        trigger_json, repeat_json, actions_label_json, commands_json
-      )
-      VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
-    `).run(
-      id,
-      sceneData.name,
-      sceneData.description,
-      sceneData.enabled ? 1 : 0,
-      now,
-      JSON.stringify(sceneData.trigger),
-      JSON.stringify(sceneData.repeat ?? []),
-      JSON.stringify(sceneData.actionsLabel ?? []),
-      JSON.stringify(sceneData.commands ?? []),
-    );
+): PersistedSceneDescriptor {
+  ensureBuiltInScenesPersisted(sceneRegistry);
+  const db = getDb();
+  const id = `scene-${Date.now()}`;
+  const now = Date.now();
+  const nextSortOrderRow = db.prepare(`
+    SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort_order
+    FROM scenes
+    WHERE is_deleted = 0
+  `).get() as { next_sort_order: number };
+  const version = incrementGlobalVersion(db);
 
-    return {
-      id,
-      ...cloneSceneData(sceneData),
-    };
-  } catch {
-    return sceneRegistry.create(sceneData);
-  }
+  db.prepare(`
+    INSERT INTO scenes (
+      id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
+      trigger_json, repeat_json, actions_label_json, commands_json
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+  `).run(
+    id,
+    sceneData.name,
+    sceneData.icon ?? null,
+    sceneData.description,
+    sceneData.enabled ? 1 : 0,
+    now,
+    now,
+    nextSortOrderRow.next_sort_order,
+    version,
+    JSON.stringify(sceneData.trigger),
+    JSON.stringify(sceneData.repeat ?? []),
+    JSON.stringify(sceneData.actionsLabel ?? []),
+    JSON.stringify(sceneData.commands ?? []),
+  );
+
+  return mapSceneRow(db.prepare(`
+    SELECT *
+    FROM scenes
+    WHERE id = ?
+  `).get(id) as SceneRow);
 }
 
 function updateScene(
   sceneId: SceneIdName,
   patch: Partial<Omit<SceneDescriptor, "id">>,
   sceneRegistry: SceneRegistry,
-): SceneDescriptor | undefined {
-  try {
-    ensureBuiltInScenesPersisted(sceneRegistry);
-    const db = getDb();
-    const existing = db.prepare(`
-      SELECT *
-      FROM scenes
-      WHERE id = ? AND is_deleted = 0
-    `).get(sceneId) as SceneRow | undefined;
+): PersistedSceneDescriptor | undefined {
+  ensureBuiltInScenesPersisted(sceneRegistry);
+  const db = getDb();
+  const existing = db.prepare(`
+    SELECT *
+    FROM scenes
+    WHERE id = ? AND is_deleted = 0
+  `).get(sceneId) as SceneRow | undefined;
 
-    if (!existing) {
-      return undefined;
-    }
-
-    const baseScene = mapSceneRow(existing);
-    const nextScene: SceneDescriptor = {
-      ...baseScene,
-      ...cloneSceneData(patch),
-    };
-    const updatedAt = Date.now();
-
-    db.prepare(`
-      UPDATE scenes
-      SET name = ?, description = ?, enabled = ?, updated_at = ?, version = version + 1,
-          trigger_json = ?, repeat_json = ?, actions_label_json = ?, commands_json = ?
-      WHERE id = ? AND is_deleted = 0
-    `).run(
-      nextScene.name,
-      nextScene.description,
-      nextScene.enabled ? 1 : 0,
-      updatedAt,
-      JSON.stringify(nextScene.trigger),
-      JSON.stringify(nextScene.repeat),
-      JSON.stringify(nextScene.actionsLabel),
-      JSON.stringify(nextScene.commands),
-      sceneId,
-    );
-
-    return nextScene;
-  } catch {
-    return sceneRegistry.update(sceneId, patch);
+  if (!existing) {
+    return undefined;
   }
+
+  const baseScene = mapSceneRow(existing);
+  const nextScene: SceneDescriptor = {
+    ...baseScene,
+    ...cloneSceneData(patch),
+  };
+  const updatedAt = Date.now();
+  const version = incrementGlobalVersion(db);
+
+  db.prepare(`
+    UPDATE scenes
+    SET name = ?, icon = ?, description = ?, enabled = ?, updated_at = ?, version = ?,
+        trigger_json = ?, repeat_json = ?, actions_label_json = ?, commands_json = ?
+    WHERE id = ? AND is_deleted = 0
+  `).run(
+    nextScene.name,
+    nextScene.icon ?? null,
+    nextScene.description,
+    nextScene.enabled ? 1 : 0,
+    updatedAt,
+    version,
+    JSON.stringify(nextScene.trigger),
+    JSON.stringify(nextScene.repeat),
+    JSON.stringify(nextScene.actionsLabel),
+    JSON.stringify(nextScene.commands),
+    sceneId,
+  );
+
+  return mapSceneRow(db.prepare(`
+    SELECT *
+    FROM scenes
+    WHERE id = ?
+  `).get(sceneId) as SceneRow);
 }
 
-function deleteScene(sceneId: SceneIdName, sceneRegistry: SceneRegistry): boolean {
-  try {
-    ensureBuiltInScenesPersisted(sceneRegistry);
-    const db = getDb();
-    const result = db.prepare(`
-      UPDATE scenes
-      SET is_deleted = 1, updated_at = ?, version = version + 1
-      WHERE id = ? AND is_deleted = 0
-    `).run(Date.now(), sceneId);
-    return result.changes > 0;
-  } catch {
-    return sceneRegistry.delete(sceneId);
+function deleteScene(
+  sceneId: SceneIdName,
+  sceneRegistry: SceneRegistry,
+): PersistedSceneDescriptor | undefined {
+  ensureBuiltInScenesPersisted(sceneRegistry);
+  const db = getDb();
+  const existing = db.prepare(`
+    SELECT *
+    FROM scenes
+    WHERE id = ? AND is_deleted = 0
+  `).get(sceneId) as SceneRow | undefined;
+
+  if (!existing) {
+    return undefined;
   }
+
+  const version = incrementGlobalVersion(db);
+  const updatedAt = Date.now();
+  const result = db.prepare(`
+    UPDATE scenes
+    SET is_deleted = 1, updated_at = ?, version = ?
+    WHERE id = ? AND is_deleted = 0
+  `).run(updatedAt, version, sceneId);
+  if (result.changes === 0) {
+    return undefined;
+  }
+
+  return {
+    ...mapSceneRow(existing),
+    updatedAt,
+    version,
+    isDeleted: true,
+  };
 }
 
-function loadScenesFromDb(sceneRegistry: SceneRegistry): SceneDescriptor[] {
-  try {
-    ensureBuiltInScenesPersisted(sceneRegistry);
-    const db = getDb();
-    const rows = db.prepare(`
-      SELECT *
-      FROM scenes
-      WHERE is_deleted = 0
-      ORDER BY updated_at ASC, id ASC
-    `).all() as SceneRow[];
-    return rows.map(mapSceneRow);
-  } catch {
-    return [];
-  }
+function loadScenesFromDb(): PersistedSceneDescriptor[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT *
+    FROM scenes
+    WHERE is_deleted = 0
+    ORDER BY sort_order ASC, created_at ASC, id ASC
+  `).all() as SceneRow[];
+  return rows.map(mapSceneRow);
 }
 
 function ensureBuiltInScenesPersisted(sceneRegistry: SceneRegistry): void {
@@ -370,37 +411,63 @@ function ensureBuiltInScenesPersisted(sceneRegistry: SceneRegistry): void {
   const builtInScenes = sceneRegistry.list();
   const insertScene = db.prepare(`
     INSERT OR IGNORE INTO scenes (
-      id, name, description, enabled, updated_at, version, is_deleted,
+      id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
       trigger_json, repeat_json, actions_label_json, commands_json
     )
-    VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
   `);
 
-  for (const scene of builtInScenes) {
+  const seededAt = Date.now();
+  builtInScenes.forEach((scene, index: number) => {
     insertScene.run(
       scene.id,
       scene.name,
+      scene.icon ?? null,
       scene.description,
       scene.enabled ? 1 : 0,
-      Date.now(),
+      seededAt,
+      seededAt,
+      index,
       JSON.stringify(scene.trigger),
       JSON.stringify(scene.repeat),
       JSON.stringify(scene.actionsLabel),
       JSON.stringify(scene.commands),
     );
-  }
+  });
 }
 
-function mapSceneRow(row: SceneRow): SceneDescriptor {
+function incrementGlobalVersion(db: ReturnType<typeof getDb>): number {
+  db.prepare(`
+    UPDATE metadata
+    SET value = CAST(value AS INTEGER) + 1
+    WHERE key = 'global_version'
+  `).run();
+
+  const row = db.prepare(`
+    SELECT value
+    FROM metadata
+    WHERE key = 'global_version'
+  `).get() as { value: string };
+
+  return parseInt(row.value, 10);
+}
+
+function mapSceneRow(row: SceneRow): PersistedSceneDescriptor {
   return {
     id: row.id,
     name: row.name,
+    icon: row.icon ?? undefined,
     description: row.description ?? "",
     enabled: row.enabled === 1,
     trigger: parseJson(row.trigger_json, { type: "manual", label: "Run now" }) as SceneDescriptor["trigger"],
     repeat: parseJson(row.repeat_json, []) as string[],
     actionsLabel: parseJson(row.actions_label_json, []) as string[],
     commands: parseJson(row.commands_json, []) as SceneDescriptor["commands"],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    sortOrder: row.sort_order,
+    version: row.version,
+    isDeleted: row.is_deleted === 1,
   };
 }
 
@@ -419,6 +486,7 @@ function parseJson<T>(value: string | null, fallback: T): T {
 function cloneSceneData<T extends Partial<Omit<SceneDescriptor, "id">>>(sceneData: T): T {
   return {
     ...sceneData,
+    icon: sceneData.icon,
     trigger: sceneData.trigger ? { ...sceneData.trigger } : sceneData.trigger,
     repeat: sceneData.repeat ? [...sceneData.repeat] : sceneData.repeat,
     actionsLabel: sceneData.actionsLabel ? [...sceneData.actionsLabel] : sceneData.actionsLabel,

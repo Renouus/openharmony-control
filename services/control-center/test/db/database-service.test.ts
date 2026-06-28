@@ -43,4 +43,46 @@ describe('DatabaseService', () => {
     expect(syncResult.devices).toHaveLength(1);
     expect(syncResult.devices[0].id).toBe('dev-2');
   });
+
+  it('should include scene ordering fields in sync responses', () => {
+    const db = getDb();
+    const service = new DatabaseService(db);
+
+    const now = Date.now();
+    db.prepare(
+      `INSERT INTO scenes (
+        id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
+        trigger_json, repeat_json, actions_label_json, commands_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      'scene-focus',
+      'Focus',
+      'self_care',
+      'Stay focused',
+      1,
+      now - 5000,
+      now,
+      7,
+      21,
+      0,
+      JSON.stringify({ type: 'manual', label: 'Run now' }),
+      JSON.stringify(['Mon']),
+      JSON.stringify(['Desk light on']),
+      JSON.stringify([{ deviceId: 'light-living-room', name: 'switch', payload: { on: true } }]),
+    );
+
+    const syncResult = service.getSyncData(0);
+    const focusScene = syncResult.scenes.find((scene) => scene.id === 'scene-focus');
+
+    expect(focusScene).toEqual(
+      expect.objectContaining({
+        id: 'scene-focus',
+        sortOrder: 7,
+        createdAt: now - 5000,
+        updatedAt: now,
+        version: 21,
+        isDeleted: false,
+      }),
+    );
+  });
 });

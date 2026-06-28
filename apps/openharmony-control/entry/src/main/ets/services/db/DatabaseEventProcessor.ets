@@ -21,21 +21,24 @@ class RoomEventPayload implements RoomSyncItem {
   createdAt: number = 0;
   updatedAt: number = 0;
   version: number = 0;
-  isDeleted?: boolean = false;
+  isDeleted: boolean = false;
 }
 
 class SceneEventPayload implements SceneSyncItem {
   id: string = '';
   name: string = '';
+  icon?: string = undefined;
   description: string = '';
   enabled: boolean = false;
   trigger: SceneTrigger = { type: '', label: '' };
   repeat: string[] = [];
   actionsLabel: string[] = [];
   commands: SceneCommand[] = [];
+  sortOrder: number = 0;
+  createdAt: number = 0;
   updatedAt: number = 0;
   version: number = 0;
-  isDeleted?: boolean = false;
+  isDeleted: boolean = false;
 }
 
 class AutomationEventPayload implements AutomationSyncItem {
@@ -48,7 +51,7 @@ class AutomationEventPayload implements AutomationSyncItem {
   enabled: boolean = false;
   updatedAt: number = 0;
   version: number = 0;
-  isDeleted?: boolean = false;
+  isDeleted: boolean = false;
 }
 
 export class DatabaseEventProcessor {
@@ -190,12 +193,15 @@ export class DatabaseEventProcessor {
     const applyPayload = new SceneEventPayload();
     applyPayload.id = payload.id;
     applyPayload.name = payload.name;
+    applyPayload.icon = payload.icon;
     applyPayload.description = payload.description;
     applyPayload.enabled = payload.enabled;
     applyPayload.trigger = payload.trigger;
     applyPayload.repeat = payload.repeat;
     applyPayload.actionsLabel = payload.actionsLabel;
     applyPayload.commands = payload.commands;
+    applyPayload.sortOrder = payload.sortOrder;
+    applyPayload.createdAt = payload.createdAt;
     applyPayload.updatedAt = payload.updatedAt;
     applyPayload.version = payload.version;
     applyPayload.isDeleted = event.type === DomainEventType.ENTITY_DELETED;

@@ -205,6 +205,7 @@ export type CommandHistoryEntry = {
 export type SceneDescriptor = {
   id: SceneIdName;
   name: string;
+  icon?: string;
   description: string;
   enabled: boolean;
   trigger: {

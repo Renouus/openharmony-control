@@ -100,9 +100,9 @@ export struct SceneCard {
             .fontSize(22)
             .fontColor(this.scene.enabled ? COLOR_ON_SURFACE : COLOR_TEXT_MUTED)
             .fontFamily('serif')
-          
+
           if (this.scene.triggerLabel) {
-            Text(this.scene.triggerTypeLabel === 'manual' ? this.scene.triggerLabel : `条件: ${this.scene.triggerLabel}`)
+            Text(this.scene.triggerTypeLabel === '手动' ? this.scene.triggerLabel : `条件：${this.scene.triggerLabel}`)
               .fontSize(13)
               .fontColor(COLOR_ON_SURFACE_VARIANT)
               .fontStyle(FontStyle.Italic)
@@ -126,10 +126,12 @@ export struct SceneCard {
 
         Blank()
 
-        Toggle({ type: ToggleType.Switch, isOn: this.scene.enabled })
-          .selectedColor(COLOR_PRIMARY)
-          .switchPointColor('#FFFFFF')
-          .onChange((value: boolean) => this.onToggle(value))
+        if (this.scene.canToggle) {
+          Toggle({ type: ToggleType.Switch, isOn: this.scene.enabled })
+            .selectedColor(COLOR_PRIMARY)
+            .switchPointColor('#FFFFFF')
+            .onChange((value: boolean) => this.onToggle(value))
+        }
       }
       .width('100%')
 
@@ -160,7 +162,7 @@ export struct SceneCard {
       }
       .width('100%')
 
-      if (this.scene.triggerTypeLabel === 'manual') {
+      if (this.scene.canRunNow) {
         Row() {
           Blank()
           Button('立即执行')

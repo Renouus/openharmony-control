@@ -4,6 +4,7 @@ import {
   CameraViewStateData,
   ClimateViewStateData,
   FamilyViewStateData,
+  FamilySettingsStateData,
   HomeViewStateData,
   LightingViewStateData,
   NotificationsViewStateData,
@@ -16,14 +17,23 @@ import {
   createEmptyScenesViewStateData,
   createEmptyAutomationViewStateData,
   createEmptyFamilyViewStateData,
+  createEmptyFamilySettingsStateData,
   createEmptyNotificationsViewStateData,
   RoomItemState,
 } from '../model/page-view-state';
-import { mapRoomList, mapScenesViewState } from '../model/smart-home-mappers';
+import { mapAutomationViewState, mapRoomList, mapScenesViewState } from '../model/smart-home-mappers';
 import { createRefreshPlan, AppPageRefreshTarget, IndexPageAction } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { AutomationPayloadDraft, DeviceApi, ScenePayloadDraft } from '../services/device-api';
+import {
+  AutomationSnapshot,
+  AutomationPayloadDraft,
+  DeviceApi,
+  FamilySettingsUpdateRequest,
+  PersistedScene,
+  ScenePayloadDraft,
+} from '../services/device-api';
 import { SmartHomeRepository } from '../services/smart-home-repository';
+import { SceneStore } from '../services/scene-store';
 import { HomeViewModel } from '../viewmodel/home-view-model';
 import { LightingViewModel } from '../viewmodel/lighting-view-model';
 import { AccessViewModel } from '../viewmodel/access-view-model';
@@ -38,6 +48,7 @@ const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
 export class AppController {
   readonly repository: SmartHomeRepository;
   readonly homeViewModel: HomeViewModel;
+  private readonly sceneStore: SceneStore;
   private activeSceneId?: string;
   readonly lightingViewModel: LightingViewModel;
   readonly accessViewModel: AccessViewModel;
@@ -50,6 +61,7 @@ export class AppController {
   constructor() {
     const api = new DeviceApi(BACKEND_BASE_URL);
     this.repository = new SmartHomeRepository(api);
+    this.sceneStore = new SceneStore();
     this.homeViewModel = new HomeViewModel(this.repository);
     this.lightingViewModel = new LightingViewModel(this.repository);
     this.accessViewModel = new AccessViewModel(this.repository);
@@ -69,7 +81,7 @@ export class AppController {
     snapshot.assignCamera(await this.fetchCamera(feedback));
     snapshot.assignClimate(await this.fetchClimate(feedback));
     snapshot.assignScenes(await this.fetchScenes(feedback));
-    snapshot.assignAutomation(await this.fetchAutomation(feedback));
+    await this.refreshAutomationState(snapshot, feedback);
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
     snapshot.assignRoomList(await this.fetchRoomList());
@@ -101,7 +113,7 @@ export class AppController {
           snapshot.assignScenes(await this.fetchScenes(feedback));
           break;
         case 'automation':
-          snapshot.assignAutomation(await this.fetchAutomation(feedback));
+          await this.refreshAutomationState(snapshot, feedback);
           break;
         case 'notifications':
           snapshot.assignNotifications(await this.fetchNotifications());
@@ -137,7 +149,12 @@ export class AppController {
 
   private async fetchHome(feedback: string = ''): Promise<HomeViewStateData> {
     try {
-      return await this.homeViewModel.load(feedback, this.activeSceneId);
+      await this.sceneStore.loadIfNeeded(this.repository);
+      return await this.homeViewModel.loadWithScenes(
+        this.sceneStore.visibleItems(),
+        feedback,
+        this.activeSceneId,
+      );
     } catch {
       const next = createEmptyHomeViewStateData();
       next.feedback = 'Control center unavailable';
@@ -187,8 +204,8 @@ export class AppController {
 
   private async fetchScenes(feedback: string = ''): Promise<ScenesViewStateData> {
     try {
-      const scenes = await this.repository.listScenes();
-      return mapScenesViewState(scenes, feedback);
+      await this.sceneStore.loadIfNeeded(this.repository);
+      return mapScenesViewState(this.sceneStore.visibleItems(), feedback);
     } catch {
       const scenes = createEmptyScenesViewStateData();
       scenes.feedback = 'Scenes unavailable';
@@ -196,14 +213,38 @@ export class AppController {
     }
   }
 
+  private async rebuildSceneDerivedState(snapshot: AppStateSnapshot, feedback: string): Promise<void> {
+    snapshot.assignScenes(mapScenesViewState(this.sceneStore.visibleItems(), feedback));
+    snapshot.assignHome(await this.homeViewModel.loadWithScenes(
+      this.sceneStore.visibleItems(),
+      feedback,
+      this.activeSceneId,
+    ));
+  }
+
   private async fetchAutomation(feedback: string = ''): Promise<AutomationViewStateData> {
     try {
-      return await this.automationViewModel.load(feedback);
+      const automations = await this.fetchAutomationSource();
+      return mapAutomationViewState(automations, feedback);
     } catch {
       const automation = createEmptyAutomationViewStateData();
       automation.feedback = 'Automation unavailable';
       return automation;
     }
+  }
+
+  private async fetchAutomationSource(): Promise<AutomationSnapshot[]> {
+    try {
+      return await this.repository.listAutomations();
+    } catch {
+      return [];
+    }
+  }
+
+  private async refreshAutomationState(snapshot: AppStateSnapshot, feedback: string = ''): Promise<void> {
+    const automations = await this.fetchAutomationSource();
+    snapshot.assignAutomationSource(automations);
+    snapshot.assignAutomation(mapAutomationViewState(automations, feedback));
   }
 
   private async fetchNotifications(): Promise<NotificationsViewStateData> {
@@ -220,6 +261,24 @@ export class AppController {
     } catch {
       const next = createEmptyFamilyViewStateData();
       next.feedback = 'Family data unavailable';
+      return next;
+    }
+  }
+
+  private async fetchFamilySettings(feedback: string = ''): Promise<FamilySettingsStateData> {
+    try {
+      const settings = await this.repository.getFamilySettings();
+      return {
+        homeName: settings.homeName,
+        address: settings.address,
+        timezone: settings.timezone,
+        emergencyContactName: settings.emergencyContactName,
+        emergencyContactPhone: settings.emergencyContactPhone,
+        feedback,
+      };
+    } catch {
+      const next = createEmptyFamilySettingsStateData();
+      next.feedback = 'Family settings unavailable';
       return next;
     }
   }
@@ -353,14 +412,11 @@ export class AppController {
     return this.refreshPlannedTargets(snapshot, 'automationToggleScene', feedback);
   }
 
-  async handleAutomationRunScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
-    const feedback = await this.automationViewModel.runScene(sceneId);
-    return this.refreshPlannedTargets(snapshot, 'automationRunScene', feedback);
-  }
-
   async handleCreateAutomation(snapshot: AppStateSnapshot, payload: AutomationPayloadDraft): Promise<void> {
     try {
       await this.repository.createAutomation(payload);
+      await this.refreshAutomationState(snapshot, 'Automation created');
+      return;
       snapshot.assignAutomation(await this.fetchAutomation('自动化已创建'));
     } catch {
       snapshot.assignAutomation(await this.fetchAutomation('创建自动化失败'));
@@ -370,6 +426,8 @@ export class AppController {
   async handleUpdateAutomation(snapshot: AppStateSnapshot, automationId: string, payload: AutomationPayloadDraft): Promise<void> {
     try {
       await this.repository.updateAutomation(automationId, payload);
+      await this.refreshAutomationState(snapshot, 'Automation updated');
+      return;
       snapshot.assignAutomation(await this.fetchAutomation('自动化已更新'));
     } catch {
       snapshot.assignAutomation(await this.fetchAutomation('更新自动化失败'));
@@ -379,6 +437,8 @@ export class AppController {
   async handleDeleteAutomation(snapshot: AppStateSnapshot, automationId: string): Promise<void> {
     try {
       await this.repository.deleteAutomation(automationId);
+      await this.refreshAutomationState(snapshot, 'Automation deleted');
+      return;
       snapshot.assignAutomation(await this.fetchAutomation('自动化已删除'));
     } catch {
       snapshot.assignAutomation(await this.fetchAutomation('删除自动化失败'));
@@ -387,6 +447,10 @@ export class AppController {
 
   async handleCreateScene(snapshot: AppStateSnapshot, payload: ScenePayloadDraft): Promise<void> {
     try {
+      const scene = await this.repository.createScene(payload);
+      this.sceneStore.append(scene);
+      await this.rebuildSceneDerivedState(snapshot, 'Scene created');
+      return;
       await this.repository.createScene(payload);
       snapshot.assignScenes(await this.fetchScenes('场景已创建'));
       snapshot.assignHome(await this.fetchHome('场景已创建'));
@@ -398,6 +462,10 @@ export class AppController {
 
   async handleUpdateScene(snapshot: AppStateSnapshot, sceneId: string, payload: ScenePayloadDraft): Promise<void> {
     try {
+      const scene = await this.repository.updateScene(sceneId, payload);
+      this.sceneStore.replace(scene);
+      await this.rebuildSceneDerivedState(snapshot, 'Scene updated');
+      return;
       await this.repository.updateScene(sceneId, payload);
       snapshot.assignScenes(await this.fetchScenes('场景已更新'));
       snapshot.assignHome(await this.fetchHome('场景已更新'));
@@ -409,6 +477,11 @@ export class AppController {
 
   async handleDeleteScene(snapshot: AppStateSnapshot, sceneId: string): Promise<void> {
     try {
+      const scene: PersistedScene = await this.repository.deleteScene(sceneId);
+      this.sceneStore.applyTombstone(scene);
+      this.sceneStore.removeVisible(sceneId);
+      await this.rebuildSceneDerivedState(snapshot, 'Scene deleted');
+      return;
       await this.repository.deleteScene(sceneId);
       snapshot.assignScenes(await this.fetchScenes('场景已删除'));
       snapshot.assignHome(await this.fetchHome('场景已删除'));
@@ -423,6 +496,22 @@ export class AppController {
   async handleFamilyBroadcast(snapshot: AppStateSnapshot, message: string = 'Whole-home broadcast'): Promise<void> {
     const feedback = await this.familyViewModel.sendBroadcast(message);
     return this.refreshPlannedTargets(snapshot, 'familyBroadcast', feedback);
+  }
+
+  async refreshFamilySettings(snapshot: AppStateSnapshot, feedback: string = ''): Promise<void> {
+    snapshot.assignFamilySettings(await this.fetchFamilySettings(feedback));
+  }
+
+  async handleUpdateFamilySettings(
+    snapshot: AppStateSnapshot,
+    payload: FamilySettingsUpdateRequest,
+  ): Promise<void> {
+    try {
+      await this.repository.updateFamilySettings(payload);
+      snapshot.assignFamilySettings(await this.fetchFamilySettings('Family settings updated'));
+    } catch {
+      snapshot.assignFamilySettings(await this.fetchFamilySettings('Failed to update family settings'));
+    }
   }
 
   // ====== Room handlers ======

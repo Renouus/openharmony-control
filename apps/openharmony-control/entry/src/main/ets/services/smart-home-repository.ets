@@ -9,7 +9,11 @@ import {
   DeviceApi,
   DevicePayload,
   FamilyOverview,
+  FamilySettingsSnapshot,
+  FamilySettingsUpdateRequest,
   HomeSummary,
+  PersistedScene,
+  PersistedSceneSnapshot,
   SceneSnapshot,
   ScenePayloadDraft,
   SceneEnablePayload,
@@ -46,20 +50,23 @@ export interface SmartHomeRepositoryPort {
   deleteRoom(roomId: string): Promise<void>;
   updateDeviceRoom(deviceId: string, roomId: string): Promise<void>;
   listScenes(): Promise<SceneSnapshot[]>;
+  listPersistedScenes(): Promise<PersistedScene[]>;
   listAutomations(): Promise<AutomationSnapshot[]>;
   listHistory(limit: number): Promise<CommandHistoryEntry[]>;
   getAccessOverview(): Promise<AccessOverview>;
   getCameraOverview(): Promise<CameraSnapshot[]>;
   getFamilyOverview(): Promise<FamilyOverview>;
+  getFamilySettings(): Promise<FamilySettingsSnapshot>;
+  updateFamilySettings(payload: FamilySettingsUpdateRequest): Promise<FamilySettingsSnapshot>;
   sendBroadcast(message: string): Promise<void>;
   getClimateOverview(): Promise<ClimateOverview>;
   updateClimateMode(mode: string): Promise<void>;
   shareGuestKey(holder: string, hours: number): Promise<void>;
   toggleCameraRecording(cameraId: string, recording: boolean): Promise<void>;
   runScene(sceneId: string): Promise<void>;
-  createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot>;
-  updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot>;
-  deleteScene(sceneId: string): Promise<void>;
+  createScene(payload: ScenePayloadDraft): Promise<PersistedScene>;
+  updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<PersistedScene>;
+  deleteScene(sceneId: string): Promise<PersistedScene>;
   createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot>;
   updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot>;
   deleteAutomation(automationId: string): Promise<void>;
@@ -229,17 +236,19 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   }
 
   async listScenes(): Promise<SceneSnapshot[]> {
+    return this.listPersistedScenes();
+  }
+
+  async listPersistedScenes(): Promise<PersistedScene[]> {
     const store = DatabaseHelper.getInstance().getStore();
-    const localScenes = await this.sceneDao.getAllScenes(store);
-
-    if (localScenes.length === 0) {
+    try {
       const remoteScenes = await this.api.listScenes();
-      await this.sceneDao.replaceAll(store, remoteScenes.map((scene: SceneSnapshot) => this.toSceneSyncItem(scene)));
-      return await this.sceneDao.getAllScenes(store);
+      await this.sceneDao.replaceAll(store, remoteScenes.map((scene: PersistedSceneSnapshot) => this.toSceneSyncItem(scene)));
+      return await this.sceneDao.getVisibleScenes(store);
+    } catch (error) {
+      console.error('Failed to refresh scenes from API:', error);
+      return await this.sceneDao.getVisibleScenes(store);
     }
-
-    this.refreshScenes().catch(console.error);
-    return localScenes;
   }
 
   async listAutomations(): Promise<AutomationSnapshot[]> {
@@ -275,6 +284,14 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     return await this.api.getFamilyOverview();
   }
 
+  async getFamilySettings(): Promise<FamilySettingsSnapshot> {
+    return await this.api.getFamilySettings();
+  }
+
+  async updateFamilySettings(payload: FamilySettingsUpdateRequest): Promise<FamilySettingsSnapshot> {
+    return await this.api.updateFamilySettings(payload);
+  }
+
   async sendBroadcast(message: string): Promise<void> {
     await this.api.sendBroadcast(message);
   }
@@ -299,24 +316,25 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.api.runScene(sceneId);
   }
 
-  async createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot> {
+  async createScene(payload: ScenePayloadDraft): Promise<PersistedScene> {
     const scene = await this.api.createScene(payload);
     const store = DatabaseHelper.getInstance().getStore();
     await this.sceneDao.insertOrUpdate(store, this.toSceneSyncItem(scene));
     return scene;
   }
 
-  async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot> {
+  async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<PersistedScene> {
     const scene = await this.api.updateScene(sceneId, payload);
     const store = DatabaseHelper.getInstance().getStore();
     await this.sceneDao.insertOrUpdate(store, this.toSceneSyncItem(scene));
     return scene;
   }
 
-  async deleteScene(sceneId: string): Promise<void> {
-    await this.api.deleteScene(sceneId);
+  async deleteScene(sceneId: string): Promise<PersistedScene> {
+    const scene = await this.api.deleteScene(sceneId);
     const store = DatabaseHelper.getInstance().getStore();
-    await this.sceneDao.markDeleted(store, sceneId);
+    await this.sceneDao.insertOrUpdate(store, this.toSceneSyncItem(scene));
+    return scene;
   }
 
   async createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot> {
@@ -355,12 +373,6 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
   }
 
-  private async refreshScenes(): Promise<void> {
-    const store = DatabaseHelper.getInstance().getStore();
-    const remoteScenes = await this.api.listScenes();
-    await this.sceneDao.replaceAll(store, remoteScenes.map((scene: SceneSnapshot) => this.toSceneSyncItem(scene)));
-  }
-
   private async refreshAutomations(): Promise<void> {
     const store = DatabaseHelper.getInstance().getStore();
     const remoteAutomations = await this.api.listAutomations();
@@ -383,19 +395,22 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     };
   }
 
-  private toSceneSyncItem(scene: SceneSnapshot): SceneSyncItem {
+  private toSceneSyncItem(scene: PersistedScene): SceneSyncItem {
     return {
       id: scene.id,
       name: scene.name,
+      icon: scene.icon,
       description: scene.description,
       enabled: scene.enabled,
       trigger: scene.trigger,
       repeat: scene.repeat,
       actionsLabel: scene.actionsLabel,
       commands: scene.commands,
-      updatedAt: Date.now(),
-      version: Date.now(),
-      isDeleted: false
+      sortOrder: scene.sortOrder,
+      createdAt: scene.createdAt,
+      updatedAt: scene.updatedAt,
+      version: scene.version,
+      isDeleted: scene.isDeleted
     };
   }
 

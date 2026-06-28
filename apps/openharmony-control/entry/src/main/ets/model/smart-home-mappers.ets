@@ -364,7 +364,6 @@ export function mapHomeViewState(
   activeSceneId?: string,
   rooms: RoomItem[] = [],
 ): HomeViewStateData {
-  const manualScenes = scenes.filter((scene: SceneSnapshot) => scene.trigger.type === 'manual');
   const accessCard: SummaryCardState = {
     title: '门禁控制',
     subtitle: '入户门、数字钥匙及其他入口',
@@ -392,12 +391,12 @@ export function mapHomeViewState(
     { label: '在线', value: `${summary.devices.online}/${summary.devices.total}` },
   ];
 
-  const finalActiveSceneId = activeSceneId ?? manualScenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
-  const quickScenes: SceneChipState[] = manualScenes.slice(0, 4).map((scene: SceneSnapshot) => {
+  const finalActiveSceneId = activeSceneId ?? scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
+  const quickScenes: SceneChipState[] = scenes.map((scene: SceneSnapshot) => {
     const chip: SceneChipState = {
       id: scene.id,
       label: scene.name,
-      icon: sceneIcon(scene.id),
+      icon: scene.icon ?? sceneIcon(scene.id),
       active: scene.id === finalActiveSceneId,
     };
     return chip;
@@ -573,12 +572,18 @@ export function mapSceneCard(scene: SceneSnapshot): SceneCardState {
   return {
     id: scene.id,
     name: scene.name,
+    icon: scene.icon,
     description: scene.description,
     enabled: scene.enabled,
     triggerLabel: scene.trigger.label,
     triggerTypeLabel: scene.trigger.type,
     actions: scene.actionsLabel,
+    commands: scene.commands,
     repeatLabel: formatSceneRepeat(scene),
+    canRunNow: scene.trigger.type === 'manual',
+    canToggle: true,
+    canEdit: true,
+    canDelete: true,
   };
 }
 
@@ -589,18 +594,49 @@ export function mapScenesViewState(scenes: SceneSnapshot[], feedback: string): S
   };
 }
 
+class AutomationTriggerLabelRecord {
+  label?: string;
+  time?: string;
+  type?: string;
+}
+
+class AutomationActionLabelRecord {
+  label?: string;
+  command?: string;
+  type?: string;
+}
+
+function humanizeAutomationCommand(command: string): string {
+  if (command === 'lock:true') {
+    return 'Lock device';
+  }
+  if (command === 'lock:false') {
+    return 'Unlock device';
+  }
+  if (command === 'power:on') {
+    return 'Turn on device';
+  }
+  if (command === 'power:off') {
+    return 'Turn off device';
+  }
+  return 'Run device action';
+}
+
 function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
   try {
-    const triggers = JSON.parse(automation.triggerJson) as Array<Record<string, Object>>;
+    const triggers = JSON.parse(automation.triggerJson) as AutomationTriggerLabelRecord[];
+    if (!Array.isArray(triggers)) {
+      return automation.triggerType;
+    }
     const firstTrigger = triggers.length > 0 ? triggers[0] : undefined;
     if (!firstTrigger) {
       return automation.triggerType;
     }
+    if (typeof firstTrigger.label === 'string' && firstTrigger.label.length > 0) {
+      return firstTrigger.label;
+    }
     if (firstTrigger.type === 'time' && typeof firstTrigger.time === 'string') {
       return firstTrigger.time;
-    }
-    if (typeof firstTrigger.label === 'string') {
-      return firstTrigger.label;
     }
   } catch {
     // Fall back to trigger type when older payloads are malformed.
@@ -610,15 +646,24 @@ function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
 
 function parseAutomationActions(automation: AutomationSnapshot): string[] {
   try {
-    const actions = JSON.parse(automation.actionJson) as Array<Record<string, Object>>;
-    return actions.map((action: Record<string, Object>) => {
+    const actions = JSON.parse(automation.actionJson) as AutomationActionLabelRecord[];
+    if (!Array.isArray(actions)) {
+      return [];
+    }
+    return actions.map((action: AutomationActionLabelRecord) => {
+      if (typeof action.label === 'string' && action.label.length > 0) {
+        return action.label;
+      }
       if (typeof action.command === 'string') {
-        return action.command;
+        return humanizeAutomationCommand(action.command);
       }
-      if (typeof action.type === 'string') {
-        return action.type;
+      if (action.type === 'scene') {
+        return 'Run scene action';
       }
-      return 'action';
+      if (action.type === 'device') {
+        return 'Run device action';
+      }
+      return 'Automation action';
     });
   } catch {
     return [];
@@ -627,17 +672,25 @@ function parseAutomationActions(automation: AutomationSnapshot): string[] {
 
 export function mapAutomationViewState(automations: AutomationSnapshot[], feedback: string): AutomationViewStateData {
   const items: SceneCardState[] = automations.map((automation: AutomationSnapshot) => {
+    const triggerTypeLabel = automation.triggerType === 'time'
+      ? '定时触发'
+      : (automation.triggerType === 'device' ? '设备联动' : automation.triggerType);
     const item: SceneCardState = {
       id: automation.id,
       icon: automation.icon,
       name: automation.name,
-      description: 'Automation rule',
+      description: '满足条件后自动执行设定动作',
       enabled: automation.enabled,
       triggerLabel: parseAutomationTriggerLabel(automation),
-      triggerTypeLabel: automation.triggerType,
+      triggerTypeLabel,
       actions: parseAutomationActions(automation),
-      repeatLabel: '',
+      commands: [],
+      repeatLabel: '自动执行',
     };
+    item.canRunNow = false;
+    item.canToggle = true;
+    item.canEdit = true;
+    item.canDelete = true;
     return item;
   });
   return {

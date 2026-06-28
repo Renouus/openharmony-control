@@ -1,10 +1,19 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { HomeViewModel } from '../../../main/ets/viewmodel/home-view-model';
 import { SmartHomeRepositoryPort, DashboardData } from '../../../main/ets/services/smart-home-repository';
-import { AutomationEnablePayload, AutomationPayloadDraft, DevicePayload, SceneEnablePayload, ScenePayloadDraft } from '../../../main/ets/services/device-api';
+import {
+  AutomationEnablePayload,
+  AutomationPayloadDraft,
+  DevicePayload,
+  SceneEnablePayload,
+  ScenePayloadDraft,
+  SceneSnapshot,
+} from '../../../main/ets/services/device-api';
 
 class HomeRepositoryStub implements SmartHomeRepositoryPort {
   failCameras: boolean = false;
+  scenes: SceneSnapshot[] = [];
+  listScenesCalls: number = 0;
 
   async getSummary() {
     return {
@@ -34,10 +43,16 @@ class HomeRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
-  async listScenes() { return []; }
+
+  async listScenes() {
+    this.listScenesCalls += 1;
+    return this.scenes;
+  }
+
   async listAutomations() { return []; }
   async listRooms() { return []; }
   async listHistory(_limit: number) { return []; }
+
   async getAccessOverview() {
     return {
       primary: { id: 'front-door', name: 'Front Door', locked: true, battery: 92 },
@@ -45,18 +60,20 @@ class HomeRepositoryStub implements SmartHomeRepositoryPort {
       accessPoints: [],
     };
   }
+
   async getCameraOverview() {
     if (this.failCameras) {
       throw new Error('camera unavailable');
     }
     return [];
   }
+
   async shareGuestKey(_holder: string, _hours: number) {}
   async toggleCameraRecording(_cameraId: string, _recording: boolean) {}
   async runScene(_sceneId: string) {}
   async createScene(_payload: ScenePayloadDraft) { throw new Error('not used'); }
   async updateScene(_sceneId: string, _payload: ScenePayloadDraft | SceneEnablePayload) { throw new Error('not used'); }
-  async deleteScene(_sceneId: string) {}
+  async deleteScene(_sceneId: string) { throw new Error('not used'); }
   async createAutomation(_payload: AutomationPayloadDraft) { throw new Error('not used'); }
   async updateAutomation(_automationId: string, _payload: AutomationPayloadDraft | AutomationEnablePayload) { throw new Error('not used'); }
   async deleteAutomation(_automationId: string) {}
@@ -65,6 +82,8 @@ class HomeRepositoryStub implements SmartHomeRepositoryPort {
   async deleteRoom(_roomId: string) {}
   async updateDeviceRoom(_deviceId: string, _roomId: string) {}
   async getFamilyOverview() { throw new Error('not used'); }
+  async getFamilySettings() { throw new Error('not used'); }
+  async updateFamilySettings() { throw new Error('not used'); }
   async sendBroadcast(_message: string) {}
   async getClimateOverview() { throw new Error('not used'); }
   async updateClimateMode(_mode: string) {}
@@ -76,7 +95,7 @@ export default function homeViewModelTest() {
     it('aggregates summary metrics for the dashboard header', async () => {
       const viewModel: HomeViewModel = new HomeViewModel(new HomeRepositoryStub());
 
-      const state = await viewModel.load();
+      const state = await viewModel.loadWithScenes([]);
 
       expect(state.heroMetrics.length).assertEqual(3);
       expect(state.heroMetrics[0].value).assertEqual('2 on');
@@ -90,11 +109,92 @@ export default function homeViewModelTest() {
       repository.failCameras = true;
       const viewModel: HomeViewModel = new HomeViewModel(repository);
 
-      const state = await viewModel.load();
+      const state = await viewModel.loadWithScenes([]);
 
       expect(state.securityTitle).assertEqual('All Secure');
       expect(state.heroMetrics.length).assertEqual(3);
       expect(state.cameraCard.badgeLabel).assertEqual('Waiting');
+    });
+
+    it('exposes all scenes on the home page without fetching scenes again', async () => {
+      const repository = new HomeRepositoryStub();
+      repository.scenes = [
+        {
+          id: 'movie',
+          name: 'Movie Night',
+          icon: 'movie',
+          description: 'Dim the lights',
+          enabled: true,
+          trigger: { type: 'manual', label: 'Run now' },
+          repeat: [],
+          actionsLabel: ['Dim living room'],
+          commands: [],
+        },
+        {
+          id: 'sleep',
+          name: 'Sleep',
+          icon: 'bedtime',
+          description: 'Bedtime mode',
+          enabled: false,
+          trigger: { type: 'manual', label: 'Run now' },
+          repeat: [],
+          actionsLabel: ['Turn off lights'],
+          commands: [],
+        },
+        {
+          id: 'focus',
+          name: 'Focus',
+          icon: 'self_care',
+          description: 'Focus mode',
+          enabled: false,
+          trigger: { type: 'manual', label: 'Run now' },
+          repeat: [],
+          actionsLabel: ['Desk light on'],
+          commands: [],
+        },
+        {
+          id: 'arrive-home',
+          name: 'Arrive Home',
+          icon: 'home',
+          description: 'Arrival mode',
+          enabled: false,
+          trigger: { type: 'location', label: 'Arrive home' },
+          repeat: [],
+          actionsLabel: ['Hall light on'],
+          commands: [],
+        },
+        {
+          id: 'reading',
+          name: 'Reading',
+          icon: 'lightbulb',
+          description: 'Reading mode',
+          enabled: false,
+          trigger: { type: 'manual', label: 'Run now' },
+          repeat: [],
+          actionsLabel: ['Warm light'],
+          commands: [],
+        },
+        {
+          id: 'cleaning',
+          name: 'Cleaning',
+          icon: 'home',
+          description: 'Cleaning mode',
+          enabled: false,
+          trigger: { type: 'manual', label: 'Run now' },
+          repeat: [],
+          actionsLabel: ['All lights on'],
+          commands: [],
+        },
+      ];
+      const viewModel: HomeViewModel = new HomeViewModel(repository);
+
+      const state = await viewModel.loadWithScenes(repository.scenes);
+
+      expect(state.quickScenes.length).assertEqual(6);
+      expect(state.quickScenes[3].label).assertEqual('Arrive Home');
+      expect(state.quickScenes[4].label).assertEqual('Reading');
+      expect(state.quickScenes[5].label).assertEqual('Cleaning');
+      expect(repository.listScenesCalls).assertEqual(0);
     });
   });
 }

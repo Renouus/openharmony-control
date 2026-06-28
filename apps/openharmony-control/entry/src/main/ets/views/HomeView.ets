@@ -200,13 +200,16 @@ struct HomeContent {
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
             .fontFamily('serif')
-          AppSymbol({ name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY })
+          Row() {
+            AppSymbol({ name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY })
+          }
+          .padding(4)
+          .onClick(() => {
+            this.navStack.pushPathByName('scenesList', null);
+          })
           Blank()
         }
         .width('100%')
-        .onClick(() => {
-          this.navStack.pushPathByName('scenesList', null);
-        })
 
         Scroll() {
           Row({ space: 14 }) {

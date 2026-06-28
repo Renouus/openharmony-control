@@ -22,13 +22,4 @@ export class AutomationViewModel {
       return normalizeRepositoryError(error as Object);
     }
   }
-
-  async runScene(sceneId: string): Promise<string> {
-    try {
-      await this.repository.updateAutomation(sceneId, { enabled: true });
-      return 'Automation updated';
-    } catch (error) {
-      return normalizeRepositoryError(error as Object);
-    }
-  }
 }

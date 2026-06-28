@@ -23,6 +23,7 @@ describe("scene routes", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "home",
+          icon: "home",
           name: "回家",
           enabled: true,
           trigger: expect.objectContaining({ type: "location", label: "到家时" }),
@@ -193,5 +194,142 @@ describe("scene routes", () => {
       closeDatabase();
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it("lists newly created scenes at the end in creation order", async () => {
+    const app = buildApp();
+
+    const firstCreate = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Focus",
+        description: "Focus mode",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Desk light on"],
+        commands: [
+          { deviceId: "light-living-room", name: "switch", payload: { on: true } },
+        ],
+      },
+    });
+
+    const secondCreate = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Reading",
+        description: "Reading mode",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Dim lights"],
+        commands: [
+          { deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 35 } },
+        ],
+      },
+    });
+
+    expect(firstCreate.statusCode).toBe(201);
+    expect(secondCreate.statusCode).toBe(201);
+
+    const listResponse = await app.inject({ method: "GET", url: "/api/scenes" });
+    const scenes = listResponse.json().scenes as Array<{ id: string }>;
+    const firstCreatedSceneId = firstCreate.json().scene.id as string;
+    const secondCreatedSceneId = secondCreate.json().scene.id as string;
+
+    expect(scenes[scenes.length - 2].id).toBe(firstCreatedSceneId);
+    expect(scenes[scenes.length - 1].id).toBe(secondCreatedSceneId);
+  });
+
+  it("removes deleted scenes from later list responses", async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Deep Work",
+        description: "No distractions",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Turn on lamp"],
+        commands: [
+          { deviceId: "light-living-room", name: "switch", payload: { on: true } },
+        ],
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    const createdSceneId = createResponse.json().scene.id as string;
+
+    const deleteResponse = await app.inject({
+      method: "DELETE",
+      url: `/api/scenes/${createdSceneId}`,
+    });
+    expect(deleteResponse.statusCode).toBe(200);
+    expect(deleteResponse.json()).toMatchObject({
+      scene: {
+        id: createdSceneId,
+        isDeleted: true,
+      },
+    });
+
+    const listResponse = await app.inject({ method: "GET", url: "/api/scenes" });
+    const scenes = listResponse.json().scenes as Array<{ id: string }>;
+
+    expect(scenes.find((scene) => scene.id === createdSceneId)).toBeUndefined();
+  });
+
+  it("keeps an updated scene in the same list position", async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Focus",
+        description: "Focus mode",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Desk light on"],
+        commands: [
+          { deviceId: "light-living-room", name: "switch", payload: { on: true } },
+        ],
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    const createdSceneId = createResponse.json().scene.id as string;
+
+    const listBeforeUpdate = await app.inject({ method: "GET", url: "/api/scenes" });
+    const scenesBeforeUpdate = listBeforeUpdate.json().scenes as Array<{ id: string }>;
+    const previousIndex = scenesBeforeUpdate.findIndex((scene) => scene.id === createdSceneId);
+
+    const updateResponse = await app.inject({
+      method: "PUT",
+      url: `/api/scenes/${createdSceneId}`,
+      payload: {
+        name: "Focus Plus",
+        description: "Long-form focus mode",
+        enabled: false,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Desk light on", "Mute alerts"],
+        commands: [
+          { deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 45 } },
+        ],
+      },
+    });
+
+    expect(updateResponse.statusCode).toBe(200);
+
+    const listAfterUpdate = await app.inject({ method: "GET", url: "/api/scenes" });
+    const scenesAfterUpdate = listAfterUpdate.json().scenes as Array<{ id: string; name: string }>;
+    const updatedIndex = scenesAfterUpdate.findIndex((scene) => scene.id === createdSceneId);
+
+    expect(updatedIndex).toBe(previousIndex);
+    expect(scenesAfterUpdate[updatedIndex].name).toBe("Focus Plus");
   });
 });
