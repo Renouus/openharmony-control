@@ -29,7 +29,7 @@ import { broadcastEvent } from "./websocket";
 
 export type CommandRouteOptions = {
   registry: DeviceRegistry;
-  simulators: DeviceSimulator[];
+  simulators: Map<string, DeviceSimulator>;
   secret: string;
   history: CommandHistory;
   faultState: DemoFaultState;
@@ -42,9 +42,7 @@ export async function registerCommandRoutes(
   options: CommandRouteOptions,
 ): Promise<void> {
   const replayGuard = options.replayGuard ?? new ReplayGuard();
-  const simulators = new Map(
-    options.simulators.map((simulator) => [simulator.deviceId, simulator]),
-  );
+  const simulators = options.simulators;
 
   // ── 演示用：对原始命令进�?HMAC 签名 ──
   app.post("/api/demo/sign-command", async (request) => {

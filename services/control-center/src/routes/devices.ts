@@ -9,6 +9,12 @@ import {
   type DeviceState,
   type EnhancedDeviceDescriptor,
 } from "@smart-home/device-contract";
+import {
+  createDeviceFromTemplate,
+  createSimulatorFromTemplate,
+  findCreatableDeviceTemplate,
+} from "../devices/device-template-registry";
+import type { DeviceSimulator } from "../devices/device-simulator";
 import { getDb } from "../db/database";
 import type { DeviceRegistry } from "../registry/device-registry";
 
@@ -23,9 +29,15 @@ type DeviceRow = {
   is_deleted: number;
 };
 
+type CreateDeviceRequest = {
+  deviceCode?: string;
+  roomId?: string;
+};
+
 export async function registerDeviceRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
+  simulators: Map<string, DeviceSimulator>,
 ): Promise<void> {
   app.get("/api/devices", async () => ({ devices: loadDevices(registry) }));
 
@@ -128,6 +140,37 @@ export async function registerDeviceRoutes(
     }
     return { success: true };
   });
+
+  app.post("/api/devices", async (request, reply) => {
+    const body = request.body as CreateDeviceRequest;
+    const deviceCode = body.deviceCode?.trim() ?? "";
+    const roomId = body.roomId?.trim() ?? "";
+
+    if (deviceCode.length === 0 || roomId.length === 0) {
+      return reply.code(400).send({
+        code: "BAD_REQUEST",
+        message: "deviceCode and roomId are required",
+      });
+    }
+
+    const template = findCreatableDeviceTemplate(deviceCode);
+    if (!template) {
+      return reply.code(404).send({ code: "DEVICE_TEMPLATE_NOT_FOUND" });
+    }
+
+    if (registry.find(template.descriptor.id) !== undefined) {
+      return reply.code(409).send({ code: "DEVICE_ALREADY_EXISTS" });
+    }
+
+    ensureRegistryDevicesPersisted(registry);
+    const createdDevice = createDevice(template, roomId, registry);
+    const simulator = createSimulatorFromTemplate(template, createdDevice);
+    if (simulator !== undefined) {
+      simulators.set(simulator.deviceId, simulator);
+    }
+
+    return reply.code(201).send({ device: createdDevice });
+  });
 }
 
 function loadDevices(registry: DeviceRegistry): EnhancedDeviceDescriptor[] {
@@ -171,6 +214,84 @@ function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
   }
 }
 
+function ensureRegistryDevicesPersisted(registry: DeviceRegistry): void {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM devices
+    WHERE is_deleted = 0
+  `).get() as { count: number };
+
+  if (row.count > 0) {
+    return;
+  }
+
+  const insertDevice = db.prepare(`
+    INSERT OR IGNORE INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+    VALUES (?, ?, ?, ?, ?, ?, 0, 0)
+  `);
+
+  db.transaction(() => {
+    registry.list().forEach((device) => {
+      insertDevice.run(
+        device.id,
+        device.name,
+        device.kind,
+        device.room,
+        JSON.stringify(device.state),
+        device.state.updatedAt,
+      );
+    });
+  })();
+}
+
+function createDevice(
+  template: NonNullable<ReturnType<typeof findCreatableDeviceTemplate>>,
+  roomId: string,
+  registry: DeviceRegistry,
+): EnhancedDeviceDescriptor {
+  const now = Date.now();
+  const device = createDeviceFromTemplate(template, roomId, now);
+  const version = incrementGlobalVersion();
+
+  registry.register(
+    {
+      id: device.id,
+      name: device.name,
+      brand: device.brand,
+      kind: device.kind,
+      capabilities: device.capabilities,
+      state: device.state,
+    },
+    { room: device.room, displayOrder: 100 },
+  );
+
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+  `).run(
+    device.id,
+    device.name,
+    device.kind,
+    device.room,
+    JSON.stringify(device.state),
+    now,
+    version,
+  );
+
+  return mapDeviceRow({
+    id: device.id,
+    name: device.name,
+    type: device.kind,
+    room_id: device.room,
+    state_json: JSON.stringify(device.state),
+    updated_at: now,
+    version,
+    is_deleted: 0,
+  });
+}
+
 function updateDeviceRoomInDb(deviceId: string, roomId: string): boolean {
   try {
     const db = getDb();
@@ -198,6 +319,23 @@ function updateDeviceRoomInDb(deviceId: string, roomId: string): boolean {
   } catch {
     return false;
   }
+}
+
+function incrementGlobalVersion(): number {
+  const db = getDb();
+  db.prepare(`
+    UPDATE metadata
+    SET value = CAST(value AS INTEGER) + 1
+    WHERE key = 'global_version'
+  `).run();
+
+  const row = db.prepare(`
+    SELECT value
+    FROM metadata
+    WHERE key = 'global_version'
+  `).get() as { value: string };
+
+  return parseInt(row.value, 10);
 }
 
 function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {

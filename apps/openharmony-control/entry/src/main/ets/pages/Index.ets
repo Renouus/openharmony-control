@@ -435,7 +435,7 @@ struct Index {
       if (this.isAddSheetOpen) {
         Column() {
           Blank()
-          AddDeviceSheet({ onClose: () => this.closeTransientUi() })
+          AddDeviceSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
         }
         .width('100%')
         .height('100%')

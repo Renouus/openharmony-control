@@ -179,4 +179,97 @@ describe("device snapshot routes", () => {
       },
     });
   });
+
+  it("creates a device from a supported device code and persists it for follow-up reads", async () => {
+    const app = buildApp();
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      payload: {
+        deviceCode: "LIGHT-READING",
+        roomId: "bedroom",
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      device: {
+        id: "light-reading",
+        kind: "light",
+        room: "bedroom",
+      },
+    });
+
+    const listResponse = await app.inject({ method: "GET", url: "/api/devices" });
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json().devices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "light-reading",
+          kind: "light",
+          room: "bedroom",
+        }),
+      ]),
+    );
+
+    const summaryResponse = await app.inject({ method: "GET", url: "/api/summary" });
+    expect(summaryResponse.statusCode).toBe(200);
+    expect(summaryResponse.json()).toMatchObject({
+      devices: { total: 14 },
+      rooms: { bedroom: 4 },
+      lighting: {
+        rooms: {
+          bedroom: { total: 2 },
+        },
+      },
+    });
+  });
+
+  it("rejects duplicate device creations for the same template device", async () => {
+    const app = buildApp();
+
+    const firstCreate = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      payload: {
+        deviceCode: "LIGHT-READING",
+        roomId: "living-room",
+      },
+    });
+
+    expect(firstCreate.statusCode).toBe(201);
+
+    const duplicateCreate = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      payload: {
+        deviceCode: "LIGHT-READING",
+        roomId: "bedroom",
+      },
+    });
+
+    expect(duplicateCreate.statusCode).toBe(409);
+    expect(duplicateCreate.json()).toMatchObject({
+      code: "DEVICE_ALREADY_EXISTS",
+    });
+  });
+
+  it("returns a clear error for unsupported device codes", async () => {
+    const app = buildApp();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      payload: {
+        deviceCode: "UNKNOWN-CODE",
+        roomId: "living-room",
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({
+      code: "DEVICE_TEMPLATE_NOT_FOUND",
+    });
+  });
 });

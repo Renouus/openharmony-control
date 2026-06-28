@@ -29,6 +29,7 @@ class AutomationRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
+  async createDevice(_deviceCode: string, _roomId: string) { throw new Error('not used'); }
 
   async listRooms() { return []; }
 

@@ -42,8 +42,14 @@ import { ClimateViewModel } from '../viewmodel/climate-view-model';
 import { AutomationViewModel } from '../viewmodel/automation-view-model';
 import { NotificationsViewModel } from '../viewmodel/notifications-view-model';
 import { FamilyViewModel } from '../viewmodel/family-view-model';
+import { normalizeRepositoryError } from '../services/smart-home-repository';
 
 const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
+
+export interface DeviceCreationResult {
+  success: boolean;
+  message: string;
+}
 
 export class AppController {
   readonly repository: SmartHomeRepository;
@@ -497,6 +503,23 @@ export class AppController {
   }
 
   // ====== Room handlers ======
+
+  async handleCreateDevice(
+    snapshot: AppStateSnapshot,
+    deviceCode: string,
+    roomId: string,
+  ): Promise<DeviceCreationResult> {
+    try {
+      await this.repository.createDevice(deviceCode, roomId);
+      await this.refreshAll(snapshot, 'Device added');
+      return { success: true, message: 'Device added' };
+    } catch (error) {
+      const message = normalizeRepositoryError(error as Object);
+      snapshot.assignHome(await this.fetchHome(message));
+      snapshot.assignRoomList(await this.fetchRoomList());
+      return { success: false, message };
+    }
+  }
 
   async handleCreateRoom(snapshot: AppStateSnapshot, name: string, icon: string): Promise<void> {
     try {

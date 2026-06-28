@@ -44,6 +44,7 @@ export interface SmartHomeRepositoryPort {
   getSummary(): Promise<HomeSummary>;
   getDashboardData(historyLimit: number): Promise<DashboardData>;
   listDevices(): Promise<DeviceSnapshot[]>;
+  createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
   updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
@@ -197,6 +198,12 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     return localDevices;
   }
 
+  async createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot> {
+    const device = await this.api.createDevice(deviceCode, roomId);
+    await this.performBackgroundSync(true);
+    return device;
+  }
+
   async listRooms(): Promise<RoomItem[]> {
     const store = DatabaseHelper.getInstance().getStore();
     const localRooms = await this.roomDao.getAllRooms(store);
@@ -314,6 +321,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async runScene(sceneId: string): Promise<void> {
     await this.api.runScene(sceneId);
+    await this.syncDevicesAfterMutation();
   }
 
   async createScene(payload: ScenePayloadDraft): Promise<PersistedScene> {
@@ -365,6 +373,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       name,
       payload,
     });
+    await this.syncDevicesAfterMutation();
   }
 
   private async refreshRooms(): Promise<void> {
@@ -428,12 +437,25 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       isDeleted: false,
     };
   }
+
+  private async syncDevicesAfterMutation(): Promise<void> {
+    await this.performBackgroundSync();
+  }
 }
 
 export function normalizeRepositoryError(error: Object): string {
   if (error instanceof Error) {
     const code = extractErrorCode(error.message);
     if (code.length > 0) {
+      if (code === 'DEVICE_TEMPLATE_NOT_FOUND') {
+        return 'Device code not supported';
+      }
+      if (code === 'DEVICE_ALREADY_EXISTS') {
+        return 'Device already added';
+      }
+      if (code === 'BAD_REQUEST') {
+        return 'Invalid device information';
+      }
       return commandFeedbackLabel(code);
     }
   }
@@ -446,6 +468,9 @@ function extractErrorCode(message: string): string {
     'DEVICE_NOT_FOUND',
     'DEVICE_OFFLINE',
     'COMMAND_INVALID',
+    'DEVICE_TEMPLATE_NOT_FOUND',
+    'DEVICE_ALREADY_EXISTS',
+    'BAD_REQUEST',
   ];
   const matched = knownCodes.find((code: string) => message.indexOf(code) >= 0);
   if (matched !== undefined) {

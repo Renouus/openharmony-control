@@ -106,6 +106,41 @@ describe("secure device commands", () => {
     });
   });
 
+  it("can control a newly created template-backed light device", async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/devices",
+      payload: {
+        deviceCode: "LIGHT-READING",
+        roomId: "bedroom",
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+
+    const envelope = await sign(app, {
+      requestId: "cmd-created-light-1",
+      timestamp: Date.now(),
+      deviceId: "light-reading",
+      name: "switch",
+      payload: { on: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "SUCCESS",
+      deviceId: "light-reading",
+      state: { power: true },
+    });
+  });
+
   it("locks or unlocks the front door through one explicit command", async () => {
     const app = buildApp();
     const envelope = await sign(app, {

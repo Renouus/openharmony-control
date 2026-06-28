@@ -35,7 +35,6 @@ import { registerRoomRoutes } from "./routes/rooms";
 import syncRoutes from "./routes/sync";
 import websocketPlugin from "@fastify/websocket";
 import websocketRoutes from "./routes/websocket";
-import { getDb } from "./db/database";
 
 export function buildApp(
   registry = new DeviceRegistry(),
@@ -48,7 +47,8 @@ export function buildApp(
   const roomRegistry = new RoomRegistry();
 
   // 9 个设备模拟器? 门锁 + 5 灯光 + 2 空调
-  const simulators = [
+  const simulators = new Map(
+    [
     new DoorLockDevice(),
     new DoorLockDevice("door-back", { locked: true, online: true }),
     new LightDevice(),
@@ -62,7 +62,8 @@ export function buildApp(
       { power: false, targetTemperature: 26, online: true, updatedAt: Date.now() },
       new SimulatedAirConditionerAdapter("gree"),
     ),
-  ];
+    ].map((simulator) => [simulator.deviceId, simulator]),
+  );
 
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问?
   void app.register(cors, { origin: true });
@@ -72,7 +73,7 @@ export function buildApp(
 
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
-    await registerDeviceRoutes(scope, registry);
+    await registerDeviceRoutes(scope, registry, simulators);
     await registerAccessRoutes(scope, registry);
     await registerCameraRoutes(scope);
     await registerFamilyRoutes(scope);

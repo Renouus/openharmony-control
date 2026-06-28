@@ -43,6 +43,7 @@ class HomeRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
+  async createDevice(_deviceCode: string, _roomId: string) { throw new Error('not used'); }
 
   async listScenes() {
     this.listScenesCalls += 1;

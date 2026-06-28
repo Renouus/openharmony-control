@@ -263,6 +263,7 @@ export struct SceneEditorView {
   ActionSheetBuilder() {
     ActionPickerSheet({
       appState: this.appState,
+      allowScenes: false,
       onSelect: (action: ActionDraft) => {
         this.draft.actions = [...this.draft.actions, action];
         this.showActionSheet = false;

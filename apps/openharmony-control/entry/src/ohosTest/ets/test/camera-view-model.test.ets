@@ -13,6 +13,7 @@ class CameraRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
+  async createDevice(_deviceCode: string, _roomId: string) { throw new Error('not used'); }
   async listScenes() { return []; }
   async listAutomations() { return []; }
   async listRooms() { return []; }

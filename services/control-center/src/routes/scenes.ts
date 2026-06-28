@@ -43,16 +43,14 @@ export type SceneRouteOptions = {
   registry: DeviceRegistry;
   sceneRegistry: SceneRegistry;
   history: CommandHistory;
-  simulators: DeviceSimulator[];
+  simulators: Map<string, DeviceSimulator>;
 };
 
 export async function registerSceneRoutes(
   app: FastifyInstance,
   options: SceneRouteOptions,
 ): Promise<void> {
-  const simulators = new Map(
-    options.simulators.map((simulator) => [simulator.deviceId, simulator]),
-  );
+  const simulators = options.simulators;
 
   app.get("/api/scenes", async () => ({
     scenes: listScenes(options.sceneRegistry),

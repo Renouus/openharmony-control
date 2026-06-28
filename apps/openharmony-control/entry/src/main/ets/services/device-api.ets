@@ -78,6 +78,15 @@ export interface RoomListResponse {
   rooms: RoomItem[];
 }
 
+export class CreateDeviceRequest {
+  deviceCode: string = '';
+  roomId: string = '';
+}
+
+export interface DeviceMutationResponse {
+  device: DeviceSnapshot;
+}
+
 export interface HomeSummary {
   mode: string;
   security: SummarySecurity;
@@ -540,6 +549,26 @@ export class DeviceApi {
         header: { 'Content-Type': 'application/json' },
         extraData: JSON.stringify({ roomId }),
       });
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot> {
+    const client = http.createHttp();
+    try {
+      const payload: CreateDeviceRequest = { deviceCode, roomId };
+      const response = await client.request(`${this.baseUrl}/api/devices`, {
+        method: http.RequestMethod.POST,
+        header: { 'Content-Type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const body = JSON.parse(response.result as string) as DeviceMutationResponse;
+      return body.device;
     } finally {
       client.destroy();
     }
