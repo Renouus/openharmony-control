@@ -16,6 +16,7 @@ import {
 } from "../devices/device-template-registry";
 import type { DeviceSimulator } from "../devices/device-simulator";
 import { getDb } from "../db/database";
+import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import type { DeviceRegistry } from "../registry/device-registry";
 
 type DeviceRow = {
@@ -34,16 +35,21 @@ type CreateDeviceRequest = {
   roomId?: string;
 };
 
+type DeviceRouteOptions = {
+  vendorProvider?: VendorDeviceProvider;
+};
+
 export async function registerDeviceRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
   simulators: Map<string, DeviceSimulator>,
+  options: DeviceRouteOptions = {},
 ): Promise<void> {
-  app.get("/api/devices", async () => ({ devices: loadDevices(registry) }));
+  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.vendorProvider) }));
 
   app.get("/api/devices/:deviceId", async (request, reply) => {
     const { deviceId } = request.params as { deviceId: string };
-    const device = loadDevice(deviceId, registry);
+    const device = await loadDevice(deviceId, registry, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
@@ -51,7 +57,7 @@ export async function registerDeviceRoutes(
   });
 
   app.get("/api/summary", async () => {
-    const devices = loadDevices(registry);
+    const devices = await loadDevices(registry, options.vendorProvider);
     const door = findLoadedDevice(devices, "door-front");
     const lights = devices.filter((device) => device.kind === DeviceKind.Light);
     const lightCount = lights.filter((device) => device.state.power === true).length;
@@ -173,15 +179,27 @@ export async function registerDeviceRoutes(
   });
 }
 
-function loadDevices(registry: DeviceRegistry): EnhancedDeviceDescriptor[] {
+async function loadDevices(
+  registry: DeviceRegistry,
+  vendorProvider?: VendorDeviceProvider,
+): Promise<EnhancedDeviceDescriptor[]> {
   const dbDevices = loadDevicesFromDb();
-  return dbDevices.length > 0 ? dbDevices : registry.list();
+  const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
+  const vendorDevices = vendorProvider ? await vendorProvider.listDevices() : [];
+  return [...baseDevices, ...vendorDevices].sort(
+    (left, right) => left.displayOrder - right.displayOrder,
+  );
 }
 
-function loadDevice(
+async function loadDevice(
   deviceId: string,
   registry: DeviceRegistry,
-): EnhancedDeviceDescriptor | undefined {
+  vendorProvider?: VendorDeviceProvider,
+): Promise<EnhancedDeviceDescriptor | undefined> {
+  if (vendorProvider?.ownsDevice(deviceId)) {
+    return await vendorProvider.getDevice(deviceId);
+  }
+
   const dbDevices = loadDevicesFromDb();
   if (dbDevices.length > 0) {
     return findLoadedDevice(dbDevices, deviceId);

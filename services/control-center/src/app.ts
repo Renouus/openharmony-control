@@ -14,6 +14,13 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { SimulatedAirConditionerAdapter } from "./adapters/air-conditioner-adapter";
+import { ActionExecutor } from "./automation/action-executor";
+import { AutomationRepository } from "./automation/automation-repository";
+import { AutomationRuntime } from "./automation/automation-runtime";
+import { ExecutionLogService } from "./automation/execution-log-service";
+import { RuleEvaluator } from "./automation/rule-evaluator";
+import { DeviceStateTriggerAdapter } from "./automation/triggers/device-state-trigger-adapter";
+import { SensorEventTriggerAdapter } from "./automation/triggers/sensor-event-trigger-adapter";
 import { AirConditionerDevice } from "./devices/air-conditioner-device";
 import { DoorLockDevice } from "./devices/door-lock-device";
 import { LightDevice } from "./devices/light-device";
@@ -30,21 +37,51 @@ import { registerDeviceRoutes } from "./routes/devices";
 import { registerFamilyRoutes } from "./routes/family";
 import { registerSceneRoutes } from "./routes/scenes";
 import { SceneRegistry } from "./scenes/scene-registry";
+import { SceneService } from "./services/scene-service";
+import { DeviceCommandService } from "./services/device-command-service";
 import { RoomRegistry } from "./registry/rooms";
 import { registerRoomRoutes } from "./routes/rooms";
+import { ReplayGuard } from "./security/envelope";
 import syncRoutes from "./routes/sync";
+import { getDb } from "./db/database";
 import websocketPlugin from "@fastify/websocket";
 import websocketRoutes from "./routes/websocket";
+import type { VendorDeviceProvider } from "./integrations/vendor-provider";
+import { createTuyaProvider } from "./integrations/tuya/tuya-provider";
+import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
+
+function createNoopAutomationRuntime(): AutomationRuntime {
+  return {
+    dispatch: async () => {},
+    hasRule: () => false,
+    loadEnabledAutomations: async () => {},
+    reload: async () => {},
+    unload: () => {},
+  } as unknown as AutomationRuntime;
+}
+
+export type AppBuildOptions = {
+  vendorProvider?: VendorDeviceProvider;
+};
+
+export function createVendorProviderFromEnv(
+  env: EnvLike = process.env,
+): VendorDeviceProvider | undefined {
+  const tuyaConfig = loadTuyaConfig(env);
+  return tuyaConfig ? createTuyaProvider({ config: tuyaConfig }) : undefined;
+}
 
 export function buildApp(
   registry = new DeviceRegistry(),
   secret = process.env.CONTROL_CENTER_SHARED_KEY ?? "demo-shared-key",
+  options: AppBuildOptions = {},
 ) {
   const app = Fastify({ logger: false });
   const history = new CommandHistory();
   const sceneRegistry = new SceneRegistry();
   const faultState = createDemoFaultState();
   const roomRegistry = new RoomRegistry();
+  const vendorProvider = options.vendorProvider ?? createVendorProviderFromEnv();
 
   // 9 个设备模拟器? 门锁 + 5 灯光 + 2 空调
   const simulators = new Map(
@@ -65,6 +102,47 @@ export function buildApp(
     ].map((simulator) => [simulator.deviceId, simulator]),
   );
 
+  const replayGuard = new ReplayGuard();
+  const sceneService = new SceneService(
+    registry,
+    sceneRegistry,
+    history,
+    simulators,
+    app.log,
+  );
+  let automationRuntime = createNoopAutomationRuntime();
+  const deviceStateTriggerAdapter = new DeviceStateTriggerAdapter((event) =>
+    automationRuntime.dispatch(event),
+  );
+  const sensorEventTriggerAdapter = new SensorEventTriggerAdapter((event) =>
+    automationRuntime.dispatch(event),
+  );
+  const deviceCommandService = new DeviceCommandService(
+    registry,
+    simulators,
+    history,
+    replayGuard,
+    secret,
+    app.log,
+    deviceStateTriggerAdapter,
+    vendorProvider,
+  );
+  try {
+    const db = getDb();
+    const realExecutionLogService = new ExecutionLogService(db);
+    const realActionExecutor = new ActionExecutor(deviceCommandService, sceneService, realExecutionLogService);
+    automationRuntime = new AutomationRuntime(
+      new AutomationRepository(db),
+      new RuleEvaluator(),
+      realActionExecutor,
+      realExecutionLogService,
+    );
+    void automationRuntime.loadEnabledAutomations();
+  } catch {
+    automationRuntime = createNoopAutomationRuntime();
+  }
+  app.decorate("automationRuntime", automationRuntime);
+
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问?
   void app.register(cors, { origin: true });
 
@@ -73,7 +151,7 @@ export function buildApp(
 
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
-    await registerDeviceRoutes(scope, registry, simulators);
+    await registerDeviceRoutes(scope, registry, simulators, { vendorProvider });
     await registerAccessRoutes(scope, registry);
     await registerCameraRoutes(scope);
     await registerFamilyRoutes(scope);
@@ -84,6 +162,8 @@ export function buildApp(
       simulators,
       history,
       faultState,
+      deviceStateTriggerAdapter,
+      vendorProvider,
     });
     await registerSceneRoutes(scope, {
       registry,
@@ -92,7 +172,13 @@ export function buildApp(
       simulators,
     });
     await registerAutomationRoutes(scope);
-    await registerDemoRoutes(scope, registry, faultState);
+    await registerDemoRoutes(
+      scope,
+      registry,
+      faultState,
+      deviceStateTriggerAdapter,
+      sensorEventTriggerAdapter,
+    );
     await registerRoomRoutes(scope, roomRegistry, registry);
     await syncRoutes(scope);
     await websocketRoutes(scope);
