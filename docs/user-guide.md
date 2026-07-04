@@ -10,6 +10,23 @@
 
 The ArkTS app currently calls `http://10.0.2.2:3443`. For a physical device, replace that base URL in `apps/openharmony-control/entry/src/main/ets/pages/Index.ets` with the host LAN address.
 
+## Tuya Virtual Device Mode
+
+The default control center still runs with local simulator devices. To test the Tuya virtual `Ceiling lighting` device, set these environment variables before starting the backend:
+
+```powershell
+$env:DEVICE_PROVIDER='tuya'
+$env:TUYA_BASE_URL='https://openapi.tuyacn.com'
+$env:TUYA_ACCESS_ID='<Access ID / Client ID>'
+$env:TUYA_ACCESS_SECRET='<Access Secret / Client Secret>'
+$env:TUYA_LIGHT_DEVICE_ID='vdevo178318782505115'
+$env:TUYA_LIGHT_NAME='Ceiling lighting'
+$env:TUYA_LIGHT_ROOM='living-room'
+npm.cmd run dev:control-center
+```
+
+Do not commit or screenshot the real `TUYA_ACCESS_SECRET`. In Tuya mode, the backend maps `switch_led`, `bright_value`, and `temp_value` to the existing OmniHome light controls.
+
 ## DevEco Notes
 
 - DevEco/hvigor rejects project paths containing Chinese characters. If building from this repository path, copy or map `apps/openharmony-control` to an ASCII-only path first.
