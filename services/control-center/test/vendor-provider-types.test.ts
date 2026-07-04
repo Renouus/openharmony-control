@@ -6,7 +6,9 @@ import type {
 } from "../src/integrations/vendor-provider";
 
 describe("vendor provider contract", () => {
-  it("supports a vendor provider that lists devices and executes commands", async () => {
+  it("preserves a real fail-first step while supporting a vendor provider contract", async () => {
+    // `import type` is erased in this Vitest workspace, so this runtime import keeps
+    // the red step real by failing when the contract module does not exist yet.
     await expect(import("../src/integrations/vendor-provider")).resolves.toBeDefined();
 
     const success: VendorExecutionResult = {
