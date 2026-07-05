@@ -9,11 +9,7 @@ import {
   brightnessFromTuya,
   colorTemperatureFromTuya,
 } from "./tuya-command-translator";
-
-export type TuyaStatusItem = {
-  code: string;
-  value: boolean | number | string | Record<string, unknown>;
-};
+import type { TuyaStatusItem } from "./tuya-types";
 
 export type TuyaLightMappingInput = {
   rawDeviceId: string;

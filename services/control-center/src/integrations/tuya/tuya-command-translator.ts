@@ -1,9 +1,5 @@
 import type { DeviceCommand } from "@smart-home/device-contract";
-
-export type TuyaCommand = {
-  code: string;
-  value: boolean | number | string;
-};
+import type { TuyaCommand } from "./tuya-types";
 
 function scaleValue(
   value: number,
