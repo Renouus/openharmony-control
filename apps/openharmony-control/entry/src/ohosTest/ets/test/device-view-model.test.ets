@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { toDeviceCardState } from '../../../main/ets/model/device-view-model';
+import { deriveCapabilitiesForDeviceType } from '../../../main/ets/services/db/DeviceDao';
 
 export default function deviceViewModelTest() {
   describe('device view model', () => {
@@ -19,6 +20,15 @@ export default function deviceViewModelTest() {
 
       expect(card.subtitle).assertEqual('24 C / 48%');
       expect(card.statusLabel).assertEqual('Online');
+    });
+
+    it('restores light capabilities for devices loaded from sync cache', () => {
+      const capabilities = deriveCapabilitiesForDeviceType('light');
+
+      expect(capabilities.length).assertEqual(3);
+      expect(capabilities[0]).assertEqual('switch');
+      expect(capabilities[1]).assertEqual('brightness');
+      expect(capabilities[2]).assertEqual('color-temperature');
     });
   });
 }

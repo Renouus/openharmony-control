@@ -1,6 +1,12 @@
 import Database from 'better-sqlite3';
-import { mapDeviceRowToSyncDto, type DeviceSyncRow } from './device-sync-mapper';
+import {
+  mapDeviceRowToSyncDto,
+  mapVendorDeviceToSyncDto,
+  type DeviceSyncDto,
+  type DeviceSyncRow,
+} from './device-sync-mapper';
 import { SceneRegistry } from '../scenes/scene-registry';
+import type { VendorDeviceProvider } from '../integrations/vendor-provider';
 
 type RoomSyncRow = {
   id: string;
@@ -92,7 +98,7 @@ type SyncAutomationPayload = {
 
 export interface SyncResponse {
   currentVersion: number;
-  devices: ReturnType<typeof mapDeviceRowToSyncDto>[];
+  devices: DeviceSyncDto[];
   rooms: SyncRoomPayload[];
   scenes: SyncScenePayload[];
   automations: SyncAutomationPayload[];
@@ -102,14 +108,22 @@ export class DatabaseService {
   private db: Database.Database;
 
   // DI: Dependency Injection over Singleton binding
-  constructor(db: Database.Database) {
+  constructor(
+    db: Database.Database,
+    private readonly vendorProvider?: VendorDeviceProvider,
+  ) {
     this.db = db;
   }
 
-  public getSyncData(lastVersion: number): SyncResponse {
+  public async getSyncData(lastVersion: number): Promise<SyncResponse> {
     this.ensureBuiltInScenesPersisted();
     const devicesRaw = this.db.prepare("SELECT * FROM devices WHERE version > ?").all(lastVersion) as DeviceSyncRow[];
-    const devices = devicesRaw.map(mapDeviceRowToSyncDto);
+    const dbDevices = devicesRaw.map(mapDeviceRowToSyncDto);
+    const vendorDevices = await this.loadAllVendorSyncDevices();
+    const devices = [
+      ...dbDevices,
+      ...vendorDevices.filter((device: DeviceSyncDto) => device.version > lastVersion),
+    ];
 
     const roomsRaw = this.db.prepare("SELECT * FROM rooms WHERE version > ?").all(lastVersion) as RoomSyncRow[];
     const rooms = roomsRaw.map((row: RoomSyncRow) => ({
@@ -154,7 +168,7 @@ export class DatabaseService {
       isDeleted: row.is_deleted === 1,
     }));
 
-    const currentVersion = this.getCurrentVersion();
+    const currentVersion = await this.getCurrentVersion(vendorDevices);
 
     return {
       currentVersion,
@@ -172,7 +186,7 @@ export class DatabaseService {
     return parseInt(versionRow.value, 10);
   }
 
-  private getCurrentVersion(): number {
+  private async getCurrentVersion(vendorDevices: DeviceSyncDto[]): Promise<number> {
     const row = this.db.prepare(`
       SELECT MAX(version) AS version FROM (
         SELECT CAST(value AS INTEGER) AS version FROM metadata WHERE key = 'global_version'
@@ -187,7 +201,21 @@ export class DatabaseService {
       )
     `).get() as { version: number | null };
 
-    return row.version ?? 0;
+    const dbVersion = row.version ?? 0;
+    const vendorVersion = vendorDevices.reduce((maxVersion: number, device: DeviceSyncDto) => {
+      return Math.max(maxVersion, device.version);
+    }, 0);
+
+    return Math.max(dbVersion, vendorVersion);
+  }
+
+  private async loadAllVendorSyncDevices(): Promise<DeviceSyncDto[]> {
+    if (!this.vendorProvider) {
+      return [];
+    }
+
+    const devices = await this.vendorProvider.listDevices();
+    return devices.map(mapVendorDeviceToSyncDto);
   }
 
   private ensureBuiltInScenesPersisted(): void {

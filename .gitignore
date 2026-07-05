@@ -17,3 +17,4 @@ apps/openharmony-control/.idea/openharmony-control.iml
 .idea/
 .preview/
 *.cjs
+services/control-center/.env

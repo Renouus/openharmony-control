@@ -16,6 +16,7 @@
 
 ## Current Automated Result
 
-- `npm.cmd test`: 9 contract tests passed in `@smart-home/device-contract`; 40 service tests passed in `@smart-home/control-center` for 49 passing tests total on 2026-06-04.
-- `npm.cmd run typecheck`: TypeScript checks passed for `@smart-home/device-contract` and `@smart-home/control-center` on 2026-06-04.
+- `npm.cmd test`: 9 contract tests passed in `@smart-home/device-contract`; 106 service tests passed in `@smart-home/control-center` for 115 passing tests total on 2026-07-05.
+- `npm.cmd run typecheck`: TypeScript checks passed for `@smart-home/device-contract` and `@smart-home/control-center` on 2026-07-05.
+- Tuya virtual-device verification is a manual cloud integration check. Automated tests use a fake vendor provider and do not call Tuya Cloud.
 - ArkTS/HAP packaging was not re-verified in this pass. DevEco SDK repair is still required before making any packaging claim.

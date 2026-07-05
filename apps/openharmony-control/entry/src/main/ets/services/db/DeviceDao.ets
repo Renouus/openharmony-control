@@ -13,6 +13,25 @@ export interface DeviceSyncItem {
   isDeleted?: boolean;
 }
 
+export function deriveCapabilitiesForDeviceType(type: string): string[] {
+  if (type === 'light') {
+    return ['switch', 'brightness', 'color-temperature'];
+  }
+  if (type === 'air-conditioner') {
+    return ['switch', 'target-temperature'];
+  }
+  if (type === 'door-lock') {
+    return ['lock'];
+  }
+  if (type === 'environment-sensor') {
+    return ['environment-reading'];
+  }
+  if (type === 'motion-sensor') {
+    return ['motion-detection'];
+  }
+  return [];
+}
+
 export class DeviceDao {
   public async getVersion(store: relationalStore.RdbStore, deviceId: string): Promise<number> {
     const predicates = new relationalStore.RdbPredicates('devices');
@@ -91,7 +110,7 @@ export class DeviceDao {
         kind: item.type,
         room: item.roomId || '',
         state: (item.payload || new Object()) as DeviceState,
-        capabilities: []
+        capabilities: deriveCapabilitiesForDeviceType(item.type)
       };
       devices.push(snapshot);
     });
