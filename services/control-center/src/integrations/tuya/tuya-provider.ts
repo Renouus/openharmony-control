@@ -9,16 +9,17 @@ import { TuyaConnectorClient, type TuyaDeviceDetail } from "./tuya-client";
 import {
   fromOmniVendorDeviceId,
   mapTuyaLightDevice,
-  type TuyaStatusItem,
 } from "./tuya-mapper";
+import type {
+  TuyaCommand,
+  TuyaConfiguredDevice,
+  TuyaStatusItem,
+} from "./tuya-types";
 
 export type TuyaApiClient = {
   getDeviceDetail(deviceId: string): Promise<TuyaDeviceDetail>;
   getDeviceStatus(deviceId: string): Promise<TuyaStatusItem[]>;
-  sendCommands(
-    deviceId: string,
-    commands: ReturnType<typeof translateTuyaLightCommand>,
-  ): Promise<boolean>;
+  sendCommands(deviceId: string, commands: TuyaCommand[]): Promise<boolean>;
 };
 
 export type CreateTuyaProviderInput = {
@@ -30,6 +31,7 @@ export function createTuyaProvider(
   input: CreateTuyaProviderInput,
 ): VendorDeviceProvider {
   const { config } = input;
+  const lightConfig = resolveSingleLightConfig(config);
   const client = input.client ?? new TuyaConnectorClient(config);
   let lastSnapshotSignature: string | undefined;
   let lastSnapshotVersion = 0;
@@ -42,7 +44,7 @@ export function createTuyaProvider(
       left.code.localeCompare(right.code),
     );
     return JSON.stringify({
-      name: detail.name || config.lightName,
+      name: detail.name || lightConfig.name,
       online: detail.online,
       status: stableStatus,
     });
@@ -64,13 +66,13 @@ export function createTuyaProvider(
   }
 
   async function loadLight() {
-    const detail = await client.getDeviceDetail(config.lightDeviceId);
-    const status = await client.getDeviceStatus(config.lightDeviceId);
+    const detail = await client.getDeviceDetail(lightConfig.id);
+    const status = await client.getDeviceStatus(lightConfig.id);
     const updatedAt = resolveSnapshotVersion(detail, status);
     return mapTuyaLightDevice({
-      rawDeviceId: config.lightDeviceId,
-      name: detail.name || config.lightName,
-      room: config.lightRoom,
+      rawDeviceId: lightConfig.id,
+      name: detail.name || lightConfig.name,
+      room: lightConfig.room,
       online: detail.online,
       status,
       updatedAt,
@@ -80,17 +82,17 @@ export function createTuyaProvider(
   return {
     providerId: "tuya",
     ownsDevice: (deviceId) =>
-      fromOmniVendorDeviceId("tuya", deviceId) === config.lightDeviceId,
+      fromOmniVendorDeviceId("tuya", deviceId) === lightConfig.id,
     listDevices: async () => [await loadLight()],
     getDevice: async (deviceId) => {
-      if (fromOmniVendorDeviceId("tuya", deviceId) !== config.lightDeviceId) {
+      if (fromOmniVendorDeviceId("tuya", deviceId) !== lightConfig.id) {
         return undefined;
       }
       return await loadLight();
     },
     executeCommand: async (command: DeviceCommand): Promise<VendorExecutionResult> => {
       const rawDeviceId = fromOmniVendorDeviceId("tuya", command.deviceId);
-      if (rawDeviceId !== config.lightDeviceId) {
+      if (rawDeviceId !== lightConfig.id) {
         return {
           ok: false,
           code: "DEVICE_NOT_FOUND",
@@ -118,4 +120,14 @@ export function createTuyaProvider(
       }
     },
   };
+}
+
+function resolveSingleLightConfig(config: TuyaConfig): TuyaConfiguredDevice {
+  const lightDevices = config.devices.filter((device) => device.kind === "light");
+  if (lightDevices.length !== 1) {
+    throw new Error(
+      `Single-light Tuya provider requires exactly one configured light device, found ${lightDevices.length}`,
+    );
+  }
+  return lightDevices[0];
 }

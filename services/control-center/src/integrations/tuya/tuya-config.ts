@@ -2,20 +2,12 @@ import type { TuyaConfiguredDevice } from "./tuya-types";
 
 export type EnvLike = Record<string, string | undefined>;
 
-export type LegacyTuyaConfig = {
+export type TuyaConfig = {
   baseUrl: string;
   accessId: string;
   accessSecret: string;
-  lightDeviceId: string;
-  lightName: string;
-  lightRoom: string;
-};
-
-export type TuyaMultiDeviceConfig = LegacyTuyaConfig & {
   devices: TuyaConfiguredDevice[];
 };
-
-export type TuyaConfig = LegacyTuyaConfig | TuyaMultiDeviceConfig;
 
 const allowedDeviceKinds = [
   "light",
@@ -121,29 +113,15 @@ function parseDeviceConfig(env: EnvLike): TuyaConfiguredDevice[] {
 
 export function loadTuyaConfig(
   env: EnvLike = process.env,
-): TuyaMultiDeviceConfig | undefined {
+): TuyaConfig | undefined {
   if (!shouldUseTuyaProvider(env)) {
     return undefined;
   }
 
-  const baseUrl = requireEnv(env, "TUYA_BASE_URL");
-  const accessId = requireEnv(env, "TUYA_ACCESS_ID");
-  const accessSecret = requireEnv(env, "TUYA_ACCESS_SECRET");
-  const devices = parseDeviceConfig(env);
-  const legacyLight = devices.find((device) => device.kind === "light");
-  if (!legacyLight) {
-    throw new Error(
-      "TUYA_DEVICE_CONFIG must include at least one light device while legacy Tuya provider compatibility is required",
-    );
-  }
-
   return {
-    baseUrl,
-    accessId,
-    accessSecret,
-    lightDeviceId: legacyLight.id,
-    lightName: legacyLight.name,
-    lightRoom: legacyLight.room,
-    devices,
+    baseUrl: requireEnv(env, "TUYA_BASE_URL"),
+    accessId: requireEnv(env, "TUYA_ACCESS_ID"),
+    accessSecret: requireEnv(env, "TUYA_ACCESS_SECRET"),
+    devices: parseDeviceConfig(env),
   };
 }

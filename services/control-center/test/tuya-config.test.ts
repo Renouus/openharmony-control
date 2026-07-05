@@ -25,9 +25,6 @@ describe("tuya config", () => {
       baseUrl: "https://openapi.tuyacn.com",
       accessId: "access-id",
       accessSecret: "secret",
-      lightDeviceId: "light-1",
-      lightName: "Ceiling lighting",
-      lightRoom: "living-room",
       devices: [
         { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
         { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },

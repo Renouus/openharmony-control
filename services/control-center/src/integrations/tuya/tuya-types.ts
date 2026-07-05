@@ -11,3 +11,13 @@ export type TuyaConfiguredDevice = {
   kind: TuyaDeviceKind;
   displayOrder?: number;
 };
+
+export type TuyaStatusItem = {
+  code: string;
+  value: boolean | number | string | Record<string, unknown>;
+};
+
+export type TuyaCommand = {
+  code: string;
+  value: boolean | number | string | Record<string, unknown>;
+};

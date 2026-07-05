@@ -1,7 +1,6 @@
 import { TuyaContext } from "@tuya/tuya-connector-nodejs";
 import type { TuyaConfig } from "./tuya-config";
-import type { TuyaCommand } from "./tuya-command-translator";
-import type { TuyaStatusItem } from "./tuya-mapper";
+import type { TuyaCommand, TuyaStatusItem } from "./tuya-types";
 
 export type TuyaDeviceDetail = {
   id: string;

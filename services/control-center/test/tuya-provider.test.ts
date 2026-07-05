@@ -5,6 +5,12 @@ import {
 } from "../src/integrations/tuya/tuya-provider";
 
 describe("tuya provider", () => {
+  const baseConfig = {
+    baseUrl: "https://openapi.tuyacn.com",
+    accessId: "access-id",
+    accessSecret: "secret",
+  } as const;
+
   it("lists the configured light as an OmniHome device", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
@@ -26,12 +32,16 @@ describe("tuya provider", () => {
 
     const provider = createTuyaProvider({
       config: {
-        baseUrl: "https://openapi.tuyacn.com",
-        accessId: "access-id",
-        accessSecret: "secret",
-        lightDeviceId: "vdevo178318782505115",
-        lightName: "Ceiling lighting",
-        lightRoom: "living-room",
+        ...baseConfig,
+        devices: [
+          { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
+          {
+            id: "vdevo178318782505115",
+            name: "Ceiling lighting",
+            room: "living-room",
+            kind: "light",
+          },
+        ],
       },
       client,
     });
@@ -70,12 +80,15 @@ describe("tuya provider", () => {
 
     const provider = createTuyaProvider({
       config: {
-        baseUrl: "https://openapi.tuyacn.com",
-        accessId: "access-id",
-        accessSecret: "secret",
-        lightDeviceId: "vdevo178318782505115",
-        lightName: "Ceiling lighting",
-        lightRoom: "living-room",
+        ...baseConfig,
+        devices: [
+          {
+            id: "vdevo178318782505115",
+            name: "Ceiling lighting",
+            room: "living-room",
+            kind: "light",
+          },
+        ],
       },
       client,
     });
@@ -115,12 +128,15 @@ describe("tuya provider", () => {
 
     const provider = createTuyaProvider({
       config: {
-        baseUrl: "https://openapi.tuyacn.com",
-        accessId: "access-id",
-        accessSecret: "secret",
-        lightDeviceId: "vdevo178318782505115",
-        lightName: "Ceiling lighting",
-        lightRoom: "living-room",
+        ...baseConfig,
+        devices: [
+          {
+            id: "vdevo178318782505115",
+            name: "Ceiling lighting",
+            room: "living-room",
+            kind: "light",
+          },
+        ],
       },
       client,
     });
@@ -158,12 +174,15 @@ describe("tuya provider", () => {
 
     const provider = createTuyaProvider({
       config: {
-        baseUrl: "https://openapi.tuyacn.com",
-        accessId: "access-id",
-        accessSecret: "secret",
-        lightDeviceId: "vdevo178318782505115",
-        lightName: "Ceiling lighting",
-        lightRoom: "living-room",
+        ...baseConfig,
+        devices: [
+          {
+            id: "vdevo178318782505115",
+            name: "Ceiling lighting",
+            room: "living-room",
+            kind: "light",
+          },
+        ],
       },
       client,
     });
@@ -179,5 +198,55 @@ describe("tuya provider", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("accepts provider config with exactly one light device", async () => {
+    const client: TuyaApiClient = {
+      getDeviceDetail: vi.fn(async () => ({
+        id: "light-1",
+        name: "Ceiling lighting",
+        online: true,
+      })),
+      getDeviceStatus: vi.fn(async () => [{ code: "switch_led", value: true }]),
+      sendCommands: vi.fn(async () => true),
+    };
+
+    const provider = createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "sensor-1", name: "Living Sensor", room: "living-room", kind: "environment-sensor" },
+          { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
+        ],
+      },
+      client,
+    });
+
+    await expect(provider.getDevice("tuya-light-1")).resolves.toEqual(
+      expect.objectContaining({ id: "tuya-light-1", kind: "light" }),
+    );
+  });
+
+  it("rejects provider config when no light device is configured", () => {
+    expect(() => createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
+        ],
+      },
+    })).toThrow("Single-light Tuya provider requires exactly one configured light device, found 0");
+  });
+
+  it("rejects provider config when multiple light devices are configured", () => {
+    expect(() => createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
+          { id: "light-2", name: "Desk lamp", room: "study", kind: "light" },
+        ],
+      },
+    })).toThrow("Single-light Tuya provider requires exactly one configured light device, found 2");
   });
 });
