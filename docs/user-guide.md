@@ -12,16 +12,23 @@ The ArkTS app currently calls `http://10.0.2.2:3443`. For a physical device, rep
 
 ## Tuya Virtual Device Mode
 
-The default control center still runs with local simulator devices. To test the Tuya virtual `Ceiling lighting` device, set these environment variables before starting the backend:
+The default control center still runs with local simulator devices. The backend now loads `services/control-center/.env` automatically at startup, so you can keep your Tuya settings in one place.
+
+Use `services/control-center/.env.example` as the template for your local `services/control-center/.env`, then set:
+
+```dotenv
+DEVICE_PROVIDER=tuya
+TUYA_BASE_URL=https://openapi.tuyacn.com
+TUYA_ACCESS_ID=<Access ID / Client ID>
+TUYA_ACCESS_SECRET=<Access Secret / Client Secret>
+TUYA_LIGHT_DEVICE_ID=vdevo178318782505115
+TUYA_LIGHT_NAME=Ceiling lighting
+TUYA_LIGHT_ROOM=living-room
+```
+
+After that, start the backend normally:
 
 ```powershell
-$env:DEVICE_PROVIDER='tuya'
-$env:TUYA_BASE_URL='https://openapi.tuyacn.com'
-$env:TUYA_ACCESS_ID='<Access ID / Client ID>'
-$env:TUYA_ACCESS_SECRET='<Access Secret / Client Secret>'
-$env:TUYA_LIGHT_DEVICE_ID='vdevo178318782505115'
-$env:TUYA_LIGHT_NAME='Ceiling lighting'
-$env:TUYA_LIGHT_ROOM='living-room'
 npm.cmd run dev:control-center
 ```
 

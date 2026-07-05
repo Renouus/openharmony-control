@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
+import { loadControlCenterEnv } from "./config/control-center-env";
 import { buildApp } from "./app";
 import { initDatabase } from "./db/database";
 import { DeviceRegistry } from "./registry/device-registry";
+
+loadControlCenterEnv();
 
 const port = Number(process.env.CONTROL_CENTER_PORT ?? 3443);
 const host = process.env.CONTROL_CENTER_HOST ?? "0.0.0.0";
