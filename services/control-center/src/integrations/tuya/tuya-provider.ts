@@ -3,22 +3,25 @@ import type {
   VendorDeviceProvider,
   VendorExecutionResult,
 } from "../vendor-provider";
+import { mapTuyaAirConditionerDevice, translateTuyaAirConditionerCommand } from "./adapters/tuya-ac-adapter";
+import { mapTuyaLightDevice, translateTuyaLightCommand } from "./adapters/tuya-light-adapter";
+import { mapTuyaLockDevice, translateTuyaLockCommand } from "./adapters/tuya-lock-adapter";
+import { mapTuyaSensorDevice } from "./adapters/tuya-sensor-adapter";
 import type { TuyaConfig } from "./tuya-config";
-import { translateTuyaLightCommand } from "./tuya-command-translator";
+import { classifyTuyaDevice } from "./tuya-device-classifier";
 import { TuyaConnectorClient, type TuyaDeviceDetail } from "./tuya-client";
-import {
-  fromOmniVendorDeviceId,
-  mapTuyaLightDevice,
-  type TuyaStatusItem,
-} from "./tuya-mapper";
+import { fromOmniVendorDeviceId } from "./tuya-mapper";
+import type {
+  TuyaCommand,
+  TuyaConfiguredDevice,
+  TuyaDeviceKind,
+  TuyaStatusItem,
+} from "./tuya-types";
 
 export type TuyaApiClient = {
   getDeviceDetail(deviceId: string): Promise<TuyaDeviceDetail>;
   getDeviceStatus(deviceId: string): Promise<TuyaStatusItem[]>;
-  sendCommands(
-    deviceId: string,
-    commands: ReturnType<typeof translateTuyaLightCommand>,
-  ): Promise<boolean>;
+  sendCommands(deviceId: string, commands: TuyaCommand[]): Promise<boolean>;
 };
 
 export type CreateTuyaProviderInput = {
@@ -31,10 +34,11 @@ export function createTuyaProvider(
 ): VendorDeviceProvider {
   const { config } = input;
   const client = input.client ?? new TuyaConnectorClient(config);
-  let lastSnapshotSignature: string | undefined;
-  let lastSnapshotVersion = 0;
+  const lastSnapshotSignature = new Map<string, string>();
+  const lastSnapshotVersion = new Map<string, number>();
 
   function createSnapshotSignature(
+    configured: TuyaConfiguredDevice,
     detail: TuyaDeviceDetail,
     status: TuyaStatusItem[],
   ): string {
@@ -42,55 +46,149 @@ export function createTuyaProvider(
       left.code.localeCompare(right.code),
     );
     return JSON.stringify({
-      name: detail.name || config.lightName,
+      name: detail.name || configured.name,
       online: detail.online,
       status: stableStatus,
     });
   }
 
   function resolveSnapshotVersion(
+    deviceId: string,
+    configured: TuyaConfiguredDevice,
     detail: TuyaDeviceDetail,
     status: TuyaStatusItem[],
   ): number {
-    const signature = createSnapshotSignature(detail, status);
-    if (signature === lastSnapshotSignature && lastSnapshotVersion > 0) {
-      return lastSnapshotVersion;
+    const signature = createSnapshotSignature(configured, detail, status);
+    const previousSignature = lastSnapshotSignature.get(deviceId);
+    const previousVersion = lastSnapshotVersion.get(deviceId) ?? 0;
+    if (signature === previousSignature && previousVersion > 0) {
+      return previousVersion;
     }
 
-    const nextVersion = Math.max(Date.now(), lastSnapshotVersion + 1);
-    lastSnapshotSignature = signature;
-    lastSnapshotVersion = nextVersion;
+    const nextVersion = Math.max(Date.now(), previousVersion + 1);
+    lastSnapshotSignature.set(deviceId, signature);
+    lastSnapshotVersion.set(deviceId, nextVersion);
     return nextVersion;
   }
 
-  async function loadLight() {
-    const detail = await client.getDeviceDetail(config.lightDeviceId);
-    const status = await client.getDeviceStatus(config.lightDeviceId);
-    const updatedAt = resolveSnapshotVersion(detail, status);
-    return mapTuyaLightDevice({
-      rawDeviceId: config.lightDeviceId,
-      name: detail.name || config.lightName,
-      room: config.lightRoom,
-      online: detail.online,
+  async function loadConfiguredDevice(configured: TuyaConfiguredDevice) {
+    const detail = await client.getDeviceDetail(configured.id);
+    const status = await client.getDeviceStatus(configured.id);
+    const updatedAt = resolveSnapshotVersion(configured.id, configured, detail, status);
+    const kind = classifyTuyaDevice({
+      configuredKind: configured.kind,
+      category: detail.category,
       status,
-      updatedAt,
     });
+
+    if (kind === "light") {
+      return mapTuyaLightDevice({
+        rawDeviceId: configured.id,
+        name: detail.name || configured.name,
+        room: configured.room,
+        online: detail.online,
+        status,
+        updatedAt,
+        displayOrder: configured.displayOrder,
+      });
+    }
+
+    if (kind === "air-conditioner") {
+      return mapTuyaAirConditionerDevice({
+        rawDeviceId: configured.id,
+        name: detail.name || configured.name,
+        room: configured.room,
+        online: detail.online,
+        status,
+        updatedAt,
+        displayOrder: configured.displayOrder,
+      });
+    }
+
+    if (kind === "door-lock") {
+      return mapTuyaLockDevice({
+        rawDeviceId: configured.id,
+        name: detail.name || configured.name,
+        room: configured.room,
+        online: detail.online,
+        status,
+        updatedAt,
+        displayOrder: configured.displayOrder,
+      });
+    }
+
+    if (kind === "environment-sensor") {
+      return mapTuyaSensorDevice({
+        rawDeviceId: configured.id,
+        name: detail.name || configured.name,
+        room: configured.room,
+        online: detail.online,
+        status,
+        updatedAt,
+        displayOrder: configured.displayOrder,
+      });
+    }
+
+    return undefined;
+  }
+
+  function resolveConfiguredDevice(deviceId: string): TuyaConfiguredDevice | undefined {
+    const rawDeviceId = fromOmniVendorDeviceId("tuya", deviceId);
+    if (!rawDeviceId) {
+      return undefined;
+    }
+    return config.devices.find((device) => device.id === rawDeviceId);
+  }
+
+  function translateTuyaCommand(
+    configured: TuyaConfiguredDevice,
+    command: DeviceCommand,
+  ): TuyaCommand[] {
+    const kind: TuyaDeviceKind = configured.kind;
+    if (kind === "light") {
+      return translateTuyaLightCommand(command);
+    }
+
+    if (kind === "air-conditioner") {
+      return translateTuyaAirConditionerCommand(command);
+    }
+
+    if (kind === "door-lock") {
+      return translateTuyaLockCommand(command);
+    }
+
+    throw new Error(`Unsupported Tuya command target kind: ${configured.kind}`);
+  }
+
+  async function refreshConfiguredDevice(
+    configured: TuyaConfiguredDevice,
+  ) {
+    const refreshed = await loadConfiguredDevice(configured);
+    if (!refreshed) {
+      throw new Error(`Unsupported Tuya device kind: ${configured.kind}`);
+    }
+    return refreshed;
   }
 
   return {
     providerId: "tuya",
-    ownsDevice: (deviceId) =>
-      fromOmniVendorDeviceId("tuya", deviceId) === config.lightDeviceId,
-    listDevices: async () => [await loadLight()],
+    ownsDevice: (deviceId) => resolveConfiguredDevice(deviceId) !== undefined,
+    listDevices: async () => {
+      const devices = await Promise.all(
+        config.devices.map((configured) => loadConfiguredDevice(configured)),
+      );
+      return devices.filter((device) => device !== undefined);
+    },
     getDevice: async (deviceId) => {
-      if (fromOmniVendorDeviceId("tuya", deviceId) !== config.lightDeviceId) {
+      const configured = resolveConfiguredDevice(deviceId);
+      if (!configured) {
         return undefined;
       }
-      return await loadLight();
+      return await loadConfiguredDevice(configured);
     },
     executeCommand: async (command: DeviceCommand): Promise<VendorExecutionResult> => {
-      const rawDeviceId = fromOmniVendorDeviceId("tuya", command.deviceId);
-      if (rawDeviceId !== config.lightDeviceId) {
+      const configured = resolveConfiguredDevice(command.deviceId);
+      if (!configured) {
         return {
           ok: false,
           code: "DEVICE_NOT_FOUND",
@@ -99,9 +197,9 @@ export function createTuyaProvider(
       }
 
       try {
-        const commands = translateTuyaLightCommand(command);
-        await client.sendCommands(rawDeviceId, commands);
-        const refreshed = await loadLight();
+        const commands = translateTuyaCommand(configured, command);
+        await client.sendCommands(configured.id, commands);
+        const refreshed = await refreshConfiguredDevice(configured);
         return {
           ok: true,
           status: CommandStatus.Success,
