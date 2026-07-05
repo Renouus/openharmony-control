@@ -31,17 +31,49 @@ export function createTuyaProvider(
 ): VendorDeviceProvider {
   const { config } = input;
   const client = input.client ?? new TuyaConnectorClient(config);
+  let lastSnapshotSignature: string | undefined;
+  let lastSnapshotVersion = 0;
+
+  function createSnapshotSignature(
+    detail: TuyaDeviceDetail,
+    status: TuyaStatusItem[],
+  ): string {
+    const stableStatus = [...status].sort((left, right) =>
+      left.code.localeCompare(right.code),
+    );
+    return JSON.stringify({
+      name: detail.name || config.lightName,
+      online: detail.online,
+      status: stableStatus,
+    });
+  }
+
+  function resolveSnapshotVersion(
+    detail: TuyaDeviceDetail,
+    status: TuyaStatusItem[],
+  ): number {
+    const signature = createSnapshotSignature(detail, status);
+    if (signature === lastSnapshotSignature && lastSnapshotVersion > 0) {
+      return lastSnapshotVersion;
+    }
+
+    const nextVersion = Math.max(Date.now(), lastSnapshotVersion + 1);
+    lastSnapshotSignature = signature;
+    lastSnapshotVersion = nextVersion;
+    return nextVersion;
+  }
 
   async function loadLight() {
     const detail = await client.getDeviceDetail(config.lightDeviceId);
     const status = await client.getDeviceStatus(config.lightDeviceId);
+    const updatedAt = resolveSnapshotVersion(detail, status);
     return mapTuyaLightDevice({
       rawDeviceId: config.lightDeviceId,
       name: detail.name || config.lightName,
       room: config.lightRoom,
       online: detail.online,
       status,
-      updatedAt: detail.update_time ? detail.update_time * 1000 : Date.now(),
+      updatedAt,
     });
   }
 

@@ -1,8 +1,44 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-contract';
 import { buildApp } from '../../src/app';
 import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
+import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { clientConnections } from '../../src/routes/websocket';
+
+function fakeVendorProvider(updatedAt = 1720100000000): VendorDeviceProvider {
+  return {
+    providerId: 'fake',
+    ownsDevice: (deviceId: string) => deviceId === 'tuya-vdevo178318782505115',
+    listDevices: async () => [{
+      id: 'tuya-vdevo178318782505115',
+      name: 'Ceiling lighting',
+      brand: 'tuya',
+      kind: DeviceKind.Light,
+      capabilities: [
+        DeviceCapability.Switch,
+        DeviceCapability.Brightness,
+        DeviceCapability.ColorTemperature,
+      ],
+      state: {
+        power: true,
+        brightness: 50,
+        colorTemperature: 4350,
+        online: true,
+        updatedAt,
+      },
+      room: 'living-room',
+      displayOrder: 80,
+      health: DeviceHealth.Online,
+    }],
+    getDevice: async () => undefined,
+    executeCommand: async () => ({
+      ok: false,
+      code: 'COMMAND_INVALID',
+      message: 'not used in sync route tests',
+    }),
+  };
+}
 
 describe('GET /api/sync', () => {
   let app: FastifyInstance;
@@ -157,5 +193,44 @@ describe('GET /api/sync', () => {
     } finally {
       clientConnections.delete('test-client');
     }
+  });
+
+  it('returns vendor devices through /api/sync when a provider is configured', async () => {
+    await app.close();
+    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider(1720100000000) });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/sync?lastVersion=0',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = JSON.parse(response.payload);
+    expect(payload.currentVersion).toBe(1720100000000);
+    expect(payload.devices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'tuya-vdevo178318782505115',
+          type: 'light',
+          roomId: 'living-room',
+          version: 1720100000000,
+        }),
+      ]),
+    );
+  });
+
+  it('does not repeat vendor devices when lastVersion already matches their sync version', async () => {
+    await app.close();
+    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider(1720100000000) });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/sync?lastVersion=1720100000000',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = JSON.parse(response.payload);
+    expect(payload.currentVersion).toBe(1720100000000);
+    expect(payload.devices.find((device: { id: string }) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
   });
 });

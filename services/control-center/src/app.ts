@@ -180,7 +180,7 @@ export function buildApp(
       sensorEventTriggerAdapter,
     );
     await registerRoomRoutes(scope, roomRegistry, registry);
-    await syncRoutes(scope);
+    await syncRoutes(scope, { vendorProvider });
     await websocketRoutes(scope);
   });
 

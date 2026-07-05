@@ -1,3 +1,5 @@
+import type { EnhancedDeviceDescriptor } from "@smart-home/device-contract";
+
 export type DeviceSyncRow = {
   id: string;
   name: string;
@@ -30,5 +32,20 @@ export function mapDeviceRowToSyncDto(row: DeviceSyncRow): DeviceSyncDto {
     updatedAt: row.updated_at,
     version: row.version,
     isDeleted: row.is_deleted === 1,
+  };
+}
+
+export function mapVendorDeviceToSyncDto(device: EnhancedDeviceDescriptor): DeviceSyncDto {
+  const updatedAt = device.state.updatedAt;
+
+  return {
+    id: device.id,
+    name: device.name,
+    type: device.kind,
+    roomId: device.room,
+    payload: device.state as Record<string, unknown>,
+    updatedAt,
+    version: updatedAt,
+    isDeleted: false,
   };
 }
