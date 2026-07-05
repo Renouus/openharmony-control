@@ -13,22 +13,22 @@ describe("tuya config", () => {
     expect(loadTuyaConfig({ DEVICE_PROVIDER: "simulator" })).toBeUndefined();
   });
 
-  it("loads required tuya settings when provider mode is enabled", () => {
+  it("loads multiple configured Tuya devices from TUYA_DEVICE_CONFIG", () => {
     expect(loadTuyaConfig({
       DEVICE_PROVIDER: "tuya",
       TUYA_BASE_URL: "https://openapi.tuyacn.com",
       TUYA_ACCESS_ID: "access-id",
       TUYA_ACCESS_SECRET: "secret",
-      TUYA_LIGHT_DEVICE_ID: "vdevo178318782505115",
-      TUYA_LIGHT_NAME: "Ceiling lighting",
-      TUYA_LIGHT_ROOM: "bedroom",
+      TUYA_DEVICE_CONFIG:
+        '[{"id":"light-1","name":"Ceiling lighting","room":"living-room","kind":"light"},{"id":"ac-1","name":"Bedroom AC","room":"bedroom","kind":"air-conditioner"}]',
     })).toEqual({
       baseUrl: "https://openapi.tuyacn.com",
       accessId: "access-id",
       accessSecret: "secret",
-      lightDeviceId: "vdevo178318782505115",
-      lightName: "Ceiling lighting",
-      lightRoom: "bedroom",
+      devices: [
+        { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
+        { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
+      ],
     });
   });
 
@@ -37,7 +37,16 @@ describe("tuya config", () => {
       DEVICE_PROVIDER: "tuya",
       TUYA_ACCESS_ID: "access-id",
       TUYA_ACCESS_SECRET: "secret",
-      TUYA_LIGHT_DEVICE_ID: "vdevo178318782505115",
     })).toThrow("TUYA_BASE_URL is required when DEVICE_PROVIDER=tuya");
+  });
+
+  it("throws a clear error when TUYA_DEVICE_CONFIG is not a non-empty array", () => {
+    expect(() => loadTuyaConfig({
+      DEVICE_PROVIDER: "tuya",
+      TUYA_BASE_URL: "https://openapi.tuyacn.com",
+      TUYA_ACCESS_ID: "access-id",
+      TUYA_ACCESS_SECRET: "secret",
+      TUYA_DEVICE_CONFIG: "[]",
+    })).toThrow("TUYA_DEVICE_CONFIG must contain at least one configured device");
   });
 });
