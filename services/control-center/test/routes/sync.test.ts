@@ -6,31 +6,49 @@ import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { clientConnections } from '../../src/routes/websocket';
 
-function fakeVendorProvider(updatedAt = 1720100000000): VendorDeviceProvider {
+function fakeVendorProvider(): VendorDeviceProvider {
   return {
     providerId: 'fake',
-    ownsDevice: (deviceId: string) => deviceId === 'tuya-vdevo178318782505115',
-    listDevices: async () => [{
-      id: 'tuya-vdevo178318782505115',
-      name: 'Ceiling lighting',
-      brand: 'tuya',
-      kind: DeviceKind.Light,
-      capabilities: [
-        DeviceCapability.Switch,
-        DeviceCapability.Brightness,
-        DeviceCapability.ColorTemperature,
-      ],
-      state: {
-        power: true,
-        brightness: 50,
-        colorTemperature: 4350,
-        online: true,
-        updatedAt,
+    ownsDevice: (deviceId: string) => deviceId.startsWith('tuya-'),
+    listDevices: async () => [
+      {
+        id: 'tuya-light-1',
+        name: 'Ceiling lighting',
+        brand: 'tuya',
+        kind: DeviceKind.Light,
+        capabilities: [
+          DeviceCapability.Switch,
+          DeviceCapability.Brightness,
+          DeviceCapability.ColorTemperature,
+        ],
+        state: {
+          power: true,
+          brightness: 50,
+          colorTemperature: 4350,
+          online: true,
+          updatedAt: 40,
+        },
+        room: 'living-room',
+        displayOrder: 80,
+        health: DeviceHealth.Online,
       },
-      room: 'living-room',
-      displayOrder: 80,
-      health: DeviceHealth.Online,
-    }],
+      {
+        id: 'tuya-ac-1',
+        name: 'Bedroom AC',
+        brand: 'tuya',
+        kind: DeviceKind.AirConditioner,
+        capabilities: [DeviceCapability.Switch, DeviceCapability.TargetTemperature],
+        state: {
+          power: true,
+          targetTemperature: 26,
+          online: true,
+          updatedAt: 60,
+        },
+        room: 'bedroom',
+        displayOrder: 90,
+        health: DeviceHealth.Online,
+      },
+    ],
     getDevice: async () => undefined,
     executeCommand: async () => ({
       ok: false,
@@ -197,7 +215,7 @@ describe('GET /api/sync', () => {
 
   it('returns vendor devices through /api/sync when a provider is configured', async () => {
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider(1720100000000) });
+    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
 
     const response = await app.inject({
       method: 'GET',
@@ -206,31 +224,42 @@ describe('GET /api/sync', () => {
 
     expect(response.statusCode).toBe(200);
     const payload = JSON.parse(response.payload);
-    expect(payload.currentVersion).toBe(1720100000000);
+    expect(payload.currentVersion).toBe(60);
     expect(payload.devices).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'tuya-vdevo178318782505115',
+          id: 'tuya-light-1',
           type: 'light',
           roomId: 'living-room',
-          version: 1720100000000,
+          version: 40,
+        }),
+        expect.objectContaining({
+          id: 'tuya-ac-1',
+          type: 'air-conditioner',
+          roomId: 'bedroom',
+          version: 60,
         }),
       ]),
     );
   });
 
-  it('does not repeat vendor devices when lastVersion already matches their sync version', async () => {
+  it('returns only vendor devices whose version is newer than lastVersion', async () => {
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider(1720100000000) });
+    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/sync?lastVersion=1720100000000',
+      url: '/api/sync?lastVersion=50',
     });
 
     expect(response.statusCode).toBe(200);
     const payload = JSON.parse(response.payload);
-    expect(payload.currentVersion).toBe(1720100000000);
-    expect(payload.devices.find((device: { id: string }) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
+    expect(payload.currentVersion).toBe(60);
+    expect(payload.devices).toEqual([
+      expect.objectContaining({
+        id: 'tuya-ac-1',
+        version: 60,
+      }),
+    ]);
   });
 });

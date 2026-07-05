@@ -16,7 +16,9 @@
 
 ## Current Automated Result
 
-- `npm.cmd test`: 9 contract tests passed in `@smart-home/device-contract`; 106 service tests passed in `@smart-home/control-center` for 115 passing tests total on 2026-07-05.
-- `npm.cmd run typecheck`: TypeScript checks passed for `@smart-home/device-contract` and `@smart-home/control-center` on 2026-07-05.
-- Tuya virtual-device verification is a manual cloud integration check. Automated tests use a fake vendor provider and do not call Tuya Cloud.
+- `npm.cmd run test --workspace @smart-home/control-center`: 36 test files and 136 tests passed on 2026-07-05.
+- `npm.cmd run typecheck --workspace @smart-home/control-center`: TypeScript checks passed on 2026-07-05.
+- Automated tests now cover fake multi-device vendor providers plus per-kind Tuya adapters for lights, air conditioners, door locks, and environment sensors.
+- Manual Tuya cloud verification remains a separate proof layer. It confirms real-device list/control behavior without changing the automated contract tests.
+- Environment-sensor vendor devices are expected to reject control commands with `COMMAND_INVALID`.
 - ArkTS/HAP packaging was not re-verified in this pass. DevEco SDK repair is still required before making any packaging claim.

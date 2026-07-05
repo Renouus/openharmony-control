@@ -5,6 +5,7 @@
 - ArkTS control app: dashboard, device controls, current status, and visible error feedback.
 - Control-center service: signed command API, device registry, current-state cache, and demo fault hooks.
 - Simulation layer: door lock, light, environment sensor snapshot, and air-conditioner adapter abstraction.
+- Vendor integration layer: provider-backed devices that enter through shared vendor APIs and are normalized into the same OmniHome device contract.
 
 ## Device Contract
 
@@ -59,5 +60,7 @@ Enhanced device snapshots also expose `room`, `displayOrder`, `health`, and opti
 - Replay protection: command nonces are accepted only once within the configured time window.
 
 ## Extension Notes
+
+Vendor-backed devices now enter through a platform provider plus per-kind adapters. The current Tuya integration uses one provider that classifies configured devices and maps them through light, air-conditioner, door-lock, and environment-sensor adapters while preserving the shared OmniHome contract, `/api/sync` DTO shape, and signed `/api/commands` flow.
 
 Add a new home device by introducing a descriptor, simulator or adapter, route coverage, ArkTS card state, and tests.

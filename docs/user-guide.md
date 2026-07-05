@@ -10,7 +10,7 @@
 
 The ArkTS app currently calls `http://10.0.2.2:3443`. For a physical device, replace that base URL in `apps/openharmony-control/entry/src/main/ets/pages/Index.ets` with the host LAN address.
 
-## Tuya Virtual Device Mode
+## Tuya Multi-Device Mode
 
 The default control center still runs with local simulator devices. The backend now loads `services/control-center/.env` automatically at startup, so you can keep your Tuya settings in one place.
 
@@ -21,9 +21,7 @@ DEVICE_PROVIDER=tuya
 TUYA_BASE_URL=https://openapi.tuyacn.com
 TUYA_ACCESS_ID=<Access ID / Client ID>
 TUYA_ACCESS_SECRET=<Access Secret / Client Secret>
-TUYA_LIGHT_DEVICE_ID=vdevo178318782505115
-TUYA_LIGHT_NAME=Ceiling lighting
-TUYA_LIGHT_ROOM=living-room
+TUYA_DEVICE_CONFIG=[{"id":"vdevo178318782505115","name":"Ceiling lighting","room":"living-room","kind":"light"},{"id":"ac-demo-1","name":"Bedroom AC","room":"bedroom","kind":"air-conditioner"},{"id":"lock-demo-1","name":"Front Door Lock","room":"entry","kind":"door-lock"},{"id":"sensor-demo-1","name":"Living Sensor","room":"living-room","kind":"environment-sensor"}]
 ```
 
 After that, start the backend normally:
@@ -32,7 +30,22 @@ After that, start the backend normally:
 npm.cmd run dev:control-center
 ```
 
-Do not commit or screenshot the real `TUYA_ACCESS_SECRET`. In Tuya mode, the backend maps `switch_led`, `bright_value`, and `temp_value` to the existing OmniHome light controls.
+Do not commit or screenshot the real `TUYA_ACCESS_SECRET`.
+
+Supported kinds in this rollout:
+
+- `light`
+- `air-conditioner`
+- `door-lock`
+- `environment-sensor` (read-only sync)
+
+In Tuya mode, the backend keeps the existing OmniHome contract and maps:
+
+- light DPs such as `switch_led`, `bright_value`, and `temp_value`
+- air-conditioner DPs such as `switch` and `temp_set`
+- door-lock DP `closed_opened`
+
+Environment sensors are synchronized into the App cache through `/api/sync`, but control commands against them are expected to fail with `COMMAND_INVALID`.
 
 ## DevEco Notes
 
