@@ -6,6 +6,7 @@ export type TuyaDeviceDetail = {
   id: string;
   name: string;
   online: boolean;
+  category?: string;
   update_time?: number;
 };
 

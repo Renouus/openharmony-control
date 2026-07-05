@@ -11,36 +11,68 @@ describe("tuya provider", () => {
     accessSecret: "secret",
   } as const;
 
-  it("lists the configured light as an OmniHome device", async () => {
+  function createClient() {
+    return {
+      getDeviceDetail: vi.fn(async (deviceId: string) => ({
+        id: deviceId,
+        name:
+          deviceId === "light-1"
+            ? "Ceiling lighting"
+            : deviceId === "ac-1"
+              ? "Bedroom AC"
+              : deviceId === "lock-1"
+                ? "Front Door Lock"
+                : "Living Sensor",
+        online: true,
+        category:
+          deviceId === "light-1"
+            ? "xdd"
+            : deviceId === "ac-1"
+              ? "kt"
+              : deviceId === "lock-1"
+                ? "ms"
+                : "wsdcg",
+        update_time: 1_720_100_000,
+      })),
+      getDeviceStatus: vi.fn(async (deviceId: string) => {
+        switch (deviceId) {
+          case "light-1":
+            return [
+              { code: "switch_led", value: true },
+              { code: "bright_value", value: 505 },
+              { code: "temp_value", value: 500 },
+            ];
+          case "ac-1":
+            return [
+              { code: "switch", value: true },
+              { code: "temp_set", value: 26 },
+            ];
+          case "lock-1":
+            return [{ code: "closed_opened", value: "closed" }];
+          default:
+            return [
+              { code: "va_temperature", value: 235 },
+              { code: "va_humidity", value: 48 },
+            ];
+        }
+      }),
+      sendCommands: vi.fn(async () => true),
+    } satisfies TuyaApiClient;
+  }
+
+  it("lists every configured Tuya device through the matching adapter", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
 
-    const client: TuyaApiClient = {
-      getDeviceDetail: vi.fn(async () => ({
-        id: "vdevo178318782505115",
-        name: "Ceiling lighting",
-        online: true,
-        update_time: 1_720_100_000,
-      })),
-      getDeviceStatus: vi.fn(async () => [
-        { code: "switch_led", value: true },
-        { code: "bright_value", value: 505 },
-        { code: "temp_value", value: 500 },
-      ]),
-      sendCommands: vi.fn(async () => true),
-    };
-
+    const client = createClient();
     const provider = createTuyaProvider({
       config: {
         ...baseConfig,
         devices: [
+          { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
           { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
-          {
-            id: "vdevo178318782505115",
-            name: "Ceiling lighting",
-            room: "living-room",
-            kind: "light",
-          },
+          { id: "lock-1", name: "Front Door Lock", room: "entry", kind: "door-lock" },
+          { id: "sensor-1", name: "Living Sensor", room: "living-room", kind: "environment-sensor" },
         ],
       },
       client,
@@ -49,12 +81,24 @@ describe("tuya provider", () => {
     try {
       await expect(provider.listDevices()).resolves.toEqual([
         expect.objectContaining({
-          id: "tuya-vdevo178318782505115",
+          id: "tuya-light-1",
           kind: "light",
-          state: expect.objectContaining({
-            power: true,
-            updatedAt: Date.parse("2026-07-05T02:30:00.000Z"),
-          }),
+          state: expect.objectContaining({ power: true, updatedAt: Date.parse("2026-07-05T02:30:00.000Z") }),
+        }),
+        expect.objectContaining({
+          id: "tuya-ac-1",
+          kind: "air-conditioner",
+          state: expect.objectContaining({ power: true, targetTemperature: 26 }),
+        }),
+        expect.objectContaining({
+          id: "tuya-lock-1",
+          kind: "door-lock",
+          state: expect.objectContaining({ locked: true }),
+        }),
+        expect.objectContaining({
+          id: "tuya-sensor-1",
+          kind: "environment-sensor",
+          state: expect.objectContaining({ temperature: 23.5, humidity: 48 }),
         }),
       ]);
     } finally {
@@ -62,32 +106,13 @@ describe("tuya provider", () => {
     }
   });
 
-  it("executes supported light commands through Tuya", async () => {
-    const client: TuyaApiClient = {
-      getDeviceDetail: vi.fn(async () => ({
-        id: "vdevo178318782505115",
-        name: "Ceiling lighting",
-        online: true,
-        update_time: 1_720_100_000,
-      })),
-      getDeviceStatus: vi.fn(async () => [
-        { code: "switch_led", value: true },
-        { code: "bright_value", value: 505 },
-        { code: "temp_value", value: 500 },
-      ]),
-      sendCommands: vi.fn(async () => true),
-    };
-
+  it("routes light commands through the light adapter", async () => {
+    const client = createClient();
     const provider = createTuyaProvider({
       config: {
         ...baseConfig,
         devices: [
-          {
-            id: "vdevo178318782505115",
-            name: "Ceiling lighting",
-            room: "living-room",
-            kind: "light",
-          },
+          { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
         ],
       },
       client,
@@ -96,157 +121,154 @@ describe("tuya provider", () => {
     const result = await provider.executeCommand({
       requestId: "cmd-tuya-switch",
       timestamp: 1,
-      deviceId: "tuya-vdevo178318782505115",
+      deviceId: "tuya-light-1",
       name: "switch",
       payload: { on: true },
     });
 
-    expect(client.sendCommands).toHaveBeenCalledWith("vdevo178318782505115", [
+    expect(client.sendCommands).toHaveBeenCalledWith("light-1", [
       { code: "switch_led", value: true },
     ]);
-    expect(result).toMatchObject({ ok: true, deviceId: "tuya-vdevo178318782505115" });
+    expect(result).toMatchObject({ ok: true, deviceId: "tuya-light-1" });
   });
 
-  it("keeps the sync version stable when Tuya state has not changed", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
-
-    const client: TuyaApiClient = {
-      getDeviceDetail: vi.fn(async () => ({
-        id: "vdevo178318782505115",
-        name: "Ceiling lighting",
-        online: true,
-        update_time: 1_720_100_000,
-      })),
-      getDeviceStatus: vi.fn(async () => [
-        { code: "switch_led", value: true },
-        { code: "bright_value", value: 505 },
-        { code: "temp_value", value: 500 },
-      ]),
-      sendCommands: vi.fn(async () => true),
-    };
-
+  it("routes air-conditioner commands through the climate adapter", async () => {
+    const client = createClient();
     const provider = createTuyaProvider({
-      config: {
-        ...baseConfig,
-        devices: [
-          {
-            id: "vdevo178318782505115",
-            name: "Ceiling lighting",
-            room: "living-room",
-            kind: "light",
-          },
-        ],
-      },
-      client,
-    });
-
-    try {
-      const [first] = await provider.listDevices();
-      vi.setSystemTime(new Date("2026-07-05T02:31:00.000Z"));
-      const [second] = await provider.listDevices();
-
-      expect(second.state.updatedAt).toBe(first.state.updatedAt);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("bumps the sync version when Tuya state changes", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
-
-    let power = false;
-    const client: TuyaApiClient = {
-      getDeviceDetail: vi.fn(async () => ({
-        id: "vdevo178318782505115",
-        name: "Ceiling lighting",
-        online: true,
-        update_time: 1_720_100_000,
-      })),
-      getDeviceStatus: vi.fn(async () => [
-        { code: "switch_led", value: power },
-        { code: "bright_value", value: 505 },
-        { code: "temp_value", value: 500 },
-      ]),
-      sendCommands: vi.fn(async () => true),
-    };
-
-    const provider = createTuyaProvider({
-      config: {
-        ...baseConfig,
-        devices: [
-          {
-            id: "vdevo178318782505115",
-            name: "Ceiling lighting",
-            room: "living-room",
-            kind: "light",
-          },
-        ],
-      },
-      client,
-    });
-
-    try {
-      const [first] = await provider.listDevices();
-      power = true;
-      vi.setSystemTime(new Date("2026-07-05T02:30:01.000Z"));
-      const [second] = await provider.listDevices();
-
-      expect(second.state.power).toBe(true);
-      expect(second.state.updatedAt).toBeGreaterThan(first.state.updatedAt);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("accepts provider config with exactly one light device", async () => {
-    const client: TuyaApiClient = {
-      getDeviceDetail: vi.fn(async () => ({
-        id: "light-1",
-        name: "Ceiling lighting",
-        online: true,
-      })),
-      getDeviceStatus: vi.fn(async () => [{ code: "switch_led", value: true }]),
-      sendCommands: vi.fn(async () => true),
-    };
-
-    const provider = createTuyaProvider({
-      config: {
-        ...baseConfig,
-        devices: [
-          { id: "sensor-1", name: "Living Sensor", room: "living-room", kind: "environment-sensor" },
-          { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
-        ],
-      },
-      client,
-    });
-
-    await expect(provider.getDevice("tuya-light-1")).resolves.toEqual(
-      expect.objectContaining({ id: "tuya-light-1", kind: "light" }),
-    );
-  });
-
-  it("rejects provider config when no light device is configured", () => {
-    expect(() => createTuyaProvider({
       config: {
         ...baseConfig,
         devices: [
           { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
         ],
       },
-    })).toThrow("Single-light Tuya provider requires exactly one configured light device, found 0");
+      client,
+    });
+
+    const result = await provider.executeCommand({
+      requestId: "cmd-tuya-ac",
+      timestamp: 1,
+      deviceId: "tuya-ac-1",
+      name: "set-target-temperature",
+      payload: { targetTemperature: 24 },
+    });
+
+    expect(client.sendCommands).toHaveBeenCalledWith("ac-1", [
+      { code: "temp_set", value: 24 },
+    ]);
+    expect(result).toMatchObject({ ok: true, deviceId: "tuya-ac-1" });
   });
 
-  it("rejects provider config when multiple light devices are configured", () => {
-    expect(() => createTuyaProvider({
+  it("keeps each device sync version stable when Tuya state has not changed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
+
+    const client = createClient();
+    const provider = createTuyaProvider({
       config: {
         ...baseConfig,
         devices: [
           { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
-          { id: "light-2", name: "Desk lamp", room: "study", kind: "light" },
+          { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
         ],
       },
-    })).toThrow("Single-light Tuya provider requires exactly one configured light device, found 2");
+      client,
+    });
+
+    try {
+      const first = await provider.listDevices();
+      vi.setSystemTime(new Date("2026-07-05T02:31:00.000Z"));
+      const second = await provider.listDevices();
+
+      const firstLight = first.find((device) => device.id === "tuya-light-1");
+      const secondLight = second.find((device) => device.id === "tuya-light-1");
+      const firstAc = first.find((device) => device.id === "tuya-ac-1");
+      const secondAc = second.find((device) => device.id === "tuya-ac-1");
+
+      expect(secondLight?.state.updatedAt).toBe(firstLight?.state.updatedAt);
+      expect(secondAc?.state.updatedAt).toBe(firstAc?.state.updatedAt);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bumps only the changed device sync version when Tuya state changes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-05T02:30:00.000Z"));
+
+    let acTargetTemperature = 26;
+    const client: TuyaApiClient = {
+      getDeviceDetail: vi.fn(async (deviceId: string) => ({
+        id: deviceId,
+        name: deviceId === "light-1" ? "Ceiling lighting" : "Bedroom AC",
+        online: true,
+        category: deviceId === "light-1" ? "xdd" : "kt",
+        update_time: 1_720_100_000,
+      })),
+      getDeviceStatus: vi.fn(async (deviceId: string) =>
+        deviceId === "light-1"
+          ? [
+              { code: "switch_led", value: true },
+              { code: "bright_value", value: 505 },
+              { code: "temp_value", value: 500 },
+            ]
+          : [
+              { code: "switch", value: true },
+              { code: "temp_set", value: acTargetTemperature },
+            ]),
+      sendCommands: vi.fn(async () => true),
+    };
+
+    const provider = createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "light-1", name: "Ceiling lighting", room: "living-room", kind: "light" },
+          { id: "ac-1", name: "Bedroom AC", room: "bedroom", kind: "air-conditioner" },
+        ],
+      },
+      client,
+    });
+
+    try {
+      const first = await provider.listDevices();
+      acTargetTemperature = 24;
+      vi.setSystemTime(new Date("2026-07-05T02:30:01.000Z"));
+      const second = await provider.listDevices();
+
+      const firstLight = first.find((device) => device.id === "tuya-light-1");
+      const secondLight = second.find((device) => device.id === "tuya-light-1");
+      const firstAc = first.find((device) => device.id === "tuya-ac-1");
+      const secondAc = second.find((device) => device.id === "tuya-ac-1");
+
+      expect(secondLight?.state.updatedAt).toBe(firstLight?.state.updatedAt);
+      expect(secondAc?.state.targetTemperature).toBe(24);
+      expect(secondAc?.state.updatedAt).toBeGreaterThan(firstAc?.state.updatedAt ?? 0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects commands for unsupported Tuya kinds such as sensors", async () => {
+    const client = createClient();
+    const provider = createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "sensor-1", name: "Living Sensor", room: "living-room", kind: "environment-sensor" },
+        ],
+      },
+      client,
+    });
+
+    await expect(provider.executeCommand({
+      requestId: "cmd-tuya-sensor",
+      timestamp: 1,
+      deviceId: "tuya-sensor-1",
+      name: "switch",
+      payload: { on: true },
+    })).resolves.toMatchObject({
+      ok: false,
+      code: "COMMAND_INVALID",
+    });
   });
 });
