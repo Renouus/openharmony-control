@@ -22,6 +22,7 @@ import type { DeviceRegistry } from "../registry/device-registry";
 type DeviceRow = {
   id: string;
   name: string;
+  custom_name: string | null;
   type: string;
   room_id: string | null;
   state_json: string;
@@ -33,6 +34,10 @@ type DeviceRow = {
 type CreateDeviceRequest = {
   deviceCode?: string;
   roomId?: string;
+};
+
+type UpdateDeviceRequest = {
+  customName?: string;
 };
 
 type DeviceRouteOptions = {
@@ -147,6 +152,26 @@ export async function registerDeviceRoutes(
     return { success: true };
   });
 
+  app.put("/api/devices/:deviceId", async (request, reply) => {
+    const { deviceId } = request.params as { deviceId: string };
+    const body = request.body as UpdateDeviceRequest;
+
+    if (body.customName !== undefined && typeof body.customName !== "string") {
+      return reply.code(400).send({ code: "BAD_REQUEST", message: "customName must be a string" });
+    }
+
+    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    if (!device) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
+    }
+
+    const customName = normalizeCustomName(body.customName);
+    upsertDeviceCustomName(device, customName);
+
+    const updatedDevice = await loadDevice(deviceId, registry, options.vendorProvider);
+    return reply.send({ device: updatedDevice });
+  });
+
   app.post("/api/devices", async (request, reply) => {
     const body = request.body as CreateDeviceRequest;
     const deviceCode = body.deviceCode?.trim() ?? "";
@@ -183,12 +208,13 @@ async function loadDevices(
   registry: DeviceRegistry,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor[]> {
-  const dbDevices = loadDevicesFromDb();
+  const dbDevices = loadDevicesFromDb(vendorProvider);
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
   const vendorDevices = vendorProvider ? await vendorProvider.listDevices() : [];
-  return [...baseDevices, ...vendorDevices].sort(
-    (left, right) => left.displayOrder - right.displayOrder,
-  );
+  return [...baseDevices, ...vendorDevices]
+    .map(applyStoredCustomName)
+    .filter((device): device is EnhancedDeviceDescriptor => device !== undefined)
+    .sort((left, right) => left.displayOrder - right.displayOrder);
 }
 
 async function loadDevice(
@@ -197,14 +223,14 @@ async function loadDevice(
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (vendorProvider?.ownsDevice(deviceId)) {
-    return await vendorProvider.getDevice(deviceId);
+    return applyStoredCustomName(await vendorProvider.getDevice(deviceId));
   }
 
-  const dbDevices = loadDevicesFromDb();
+  const dbDevices = loadDevicesFromDb(vendorProvider);
   if (dbDevices.length > 0) {
     return findLoadedDevice(dbDevices, deviceId);
   }
-  return registry.find(deviceId);
+  return applyStoredCustomName(registry.find(deviceId));
 }
 
 function findLoadedDevice(
@@ -214,19 +240,21 @@ function findLoadedDevice(
   return devices.find((device) => device.id === deviceId);
 }
 
-function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
+function loadDevicesFromDb(vendorProvider?: VendorDeviceProvider): EnhancedDeviceDescriptor[] {
   try {
     const db = getDb();
     const rows = db
       .prepare(`
-        SELECT id, name, type, room_id, state_json, updated_at, version, is_deleted
+        SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE is_deleted = 0
         ORDER BY room_id ASC, id ASC
       `)
       .all() as DeviceRow[];
 
-    return rows.map(mapDeviceRow);
+    return rows
+      .filter((row) => !vendorProvider?.ownsDevice(row.id))
+      .map(mapDeviceRow);
   } catch {
     return [];
   }
@@ -245,8 +273,8 @@ function ensureRegistryDevicesPersisted(registry: DeviceRegistry): void {
   }
 
   const insertDevice = db.prepare(`
-    INSERT OR IGNORE INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
-    VALUES (?, ?, ?, ?, ?, ?, 0, 0)
+    INSERT OR IGNORE INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
+    VALUES (?, ?, NULL, ?, ?, ?, ?, 0, 0)
   `);
 
   db.transaction(() => {
@@ -286,8 +314,8 @@ function createDevice(
 
   const db = getDb();
   db.prepare(`
-    INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
+    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0)
   `).run(
     device.id,
     device.name,
@@ -301,6 +329,7 @@ function createDevice(
   return mapDeviceRow({
     id: device.id,
     name: device.name,
+    custom_name: null,
     type: device.kind,
     room_id: device.room,
     state_json: JSON.stringify(device.state),
@@ -362,6 +391,7 @@ function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
   const descriptor: DeviceDescriptor = {
     id: row.id,
     name: row.name,
+    customName: row.custom_name ?? undefined,
     kind,
     capabilities: capabilitiesForKind(kind),
     state,
@@ -373,6 +403,74 @@ function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
     displayOrder: 100,
     health: toHealth(descriptor),
   };
+}
+
+function normalizeCustomName(value: string | undefined): string | null {
+  if (value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed.slice(0, 30);
+}
+
+function applyStoredCustomName(
+  device: EnhancedDeviceDescriptor | undefined,
+): EnhancedDeviceDescriptor | undefined {
+  if (!device) {
+    return undefined;
+  }
+  const customName = lookupStoredCustomName(device.id);
+  if (!customName) {
+    return device;
+  }
+  return {
+    ...device,
+    customName,
+  };
+}
+
+function lookupStoredCustomName(deviceId: string): string | undefined {
+  try {
+    const row = getDb().prepare(`
+      SELECT custom_name
+      FROM devices
+      WHERE id = ? AND is_deleted = 0
+    `).get(deviceId) as { custom_name?: string | null } | undefined;
+    return row?.custom_name ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function upsertDeviceCustomName(device: EnhancedDeviceDescriptor, customName: string | null): void {
+  const db = getDb();
+  const now = Date.now();
+  const version = incrementGlobalVersion();
+  db.prepare(`
+    INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      custom_name = excluded.custom_name,
+      type = excluded.type,
+      room_id = excluded.room_id,
+      state_json = excluded.state_json,
+      updated_at = excluded.updated_at,
+      version = excluded.version,
+      is_deleted = 0
+  `).run(
+    device.id,
+    device.name,
+    customName,
+    device.kind,
+    device.room,
+    JSON.stringify(device.state),
+    now,
+    version,
+  );
 }
 
 function parseDeviceState(rawState: string, updatedAt: number): DeviceState {

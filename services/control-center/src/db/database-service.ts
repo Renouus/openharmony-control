@@ -118,7 +118,9 @@ export class DatabaseService {
   public async getSyncData(lastVersion: number): Promise<SyncResponse> {
     this.ensureBuiltInScenesPersisted();
     const devicesRaw = this.db.prepare("SELECT * FROM devices WHERE version > ?").all(lastVersion) as DeviceSyncRow[];
-    const dbDevices = devicesRaw.map(mapDeviceRowToSyncDto);
+    const dbDevices = devicesRaw
+      .filter((row: DeviceSyncRow) => !this.vendorProvider?.ownsDevice(row.id))
+      .map(mapDeviceRowToSyncDto);
     const vendorDevices = await this.loadAllVendorSyncDevices();
     const devices = [
       ...dbDevices,
@@ -215,7 +217,17 @@ export class DatabaseService {
     }
 
     const devices = await this.vendorProvider.listDevices();
-    return devices.map(mapVendorDeviceToSyncDto);
+    const lookupCustomName = this.db.prepare(`
+      SELECT custom_name
+      FROM devices
+      WHERE id = ? AND is_deleted = 0
+    `);
+
+    return devices.map((device) => {
+      const row = lookupCustomName.get(device.id) as { custom_name?: string | null } | undefined;
+      const customName = row?.custom_name ?? undefined;
+      return mapVendorDeviceToSyncDto(customName ? { ...device, customName } : device);
+    });
   }
 
   private ensureBuiltInScenesPersisted(): void {

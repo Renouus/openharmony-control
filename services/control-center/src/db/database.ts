@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
   dbInstance = new Database(dbPath);
@@ -18,6 +18,7 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
     CREATE TABLE IF NOT EXISTS devices (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      custom_name TEXT,
       type TEXT NOT NULL,
       room_id TEXT,
       state_json TEXT NOT NULL,
@@ -69,6 +70,18 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       command_name TEXT NOT NULL,
       status TEXT NOT NULL,
       message TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS automation_execution_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      execution_id TEXT NOT NULL,
+      automation_id TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      action_index INTEGER,
+      action_type TEXT,
       created_at INTEGER NOT NULL
     );
   `);
@@ -155,6 +168,13 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     nextVersion = 4;
     setSchemaVersion(db, nextVersion);
   }
+
+  if (nextVersion < 5) {
+    ensureColumn(db, "devices", "custom_name", "ALTER TABLE devices ADD COLUMN custom_name TEXT");
+    nextVersion = 5;
+    setSchemaVersion(db, nextVersion);
+  }
+
 }
 
 function reconcileCriticalSchema(db: Database.Database): void {
@@ -165,6 +185,20 @@ function reconcileCriticalSchema(db: Database.Database): void {
   ensureColumn(db, "scenes", "icon", "ALTER TABLE scenes ADD COLUMN icon TEXT");
   ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scenes", "sort_order", "ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "devices", "custom_name", "ALTER TABLE devices ADD COLUMN custom_name TEXT");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS automation_execution_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      execution_id TEXT NOT NULL,
+      automation_id TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      action_index INTEGER,
+      action_type TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
 }
 
 type LegacySceneOrderingRow = {

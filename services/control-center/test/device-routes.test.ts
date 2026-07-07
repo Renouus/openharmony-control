@@ -1,6 +1,51 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import {
+  DeviceCapability,
+  DeviceHealth,
+  DeviceKind,
+} from "@smart-home/device-contract";
+import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
+
+function fakeVendorProvider(): VendorDeviceProvider {
+  return {
+    providerId: "fake",
+    ownsDevice: (deviceId: string) => deviceId.startsWith("tuya-"),
+    listDevices: async () => [
+      {
+        id: "tuya-light-1",
+        name: "Ceiling lighting",
+        brand: "tuya",
+        kind: DeviceKind.Light,
+        capabilities: [
+          DeviceCapability.Switch,
+          DeviceCapability.Brightness,
+          DeviceCapability.ColorTemperature,
+        ],
+        state: {
+          power: true,
+          brightness: 50,
+          colorTemperature: 4350,
+          online: true,
+          updatedAt: 40,
+        },
+        room: "living-room",
+        displayOrder: 80,
+        health: DeviceHealth.Online,
+      },
+    ],
+    getDevice: async (deviceId: string) => {
+      const devices = await fakeVendorProvider().listDevices();
+      return devices.find((device) => device.id === deviceId);
+    },
+    executeCommand: async () => ({
+      ok: false,
+      code: "COMMAND_INVALID",
+      message: "not used in device route tests",
+    }),
+  };
+}
 
 describe("device snapshot routes", () => {
   beforeEach(() => {
@@ -176,6 +221,147 @@ describe("device snapshot routes", () => {
       device: {
         id: "movable-light",
         room: "study",
+      },
+    });
+  });
+
+  it("updates a persisted device custom name and returns the updated device", async () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      "rename-light",
+      "Reading Lamp",
+      null,
+      "light",
+      "bedroom",
+      JSON.stringify({
+        power: true,
+        brightness: 70,
+        colorTemperature: 3000,
+        updatedAt: 1718600000000,
+        online: true,
+      }),
+      1718600000000,
+      2,
+    );
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/devices/rename-light",
+      payload: { customName: "Bedside Lamp" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      device: {
+        id: "rename-light",
+        name: "Reading Lamp",
+        customName: "Bedside Lamp",
+      },
+    });
+  });
+
+  it("clears a custom name when an empty trimmed value is submitted", async () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      "rename-light",
+      "Reading Lamp",
+      "Old Alias",
+      "light",
+      "bedroom",
+      JSON.stringify({
+        power: true,
+        brightness: 70,
+        colorTemperature: 3000,
+        updatedAt: 1718600000000,
+        online: true,
+      }),
+      1718600000000,
+      2,
+    );
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/devices/rename-light",
+      payload: { customName: "   " },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().device.id).toBe("rename-light");
+    expect(response.json().device.customName).toBeUndefined();
+  });
+
+  it("returns 404 when renaming an unknown device", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/devices/missing-device",
+      payload: { customName: "Ghost" },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: "DEVICE_NOT_FOUND" });
+  });
+
+  it("overlays a stored custom name onto a vendor-backed device detail response", async () => {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      "tuya-light-1",
+      "Ceiling lighting",
+      "Hall Light",
+      "light",
+      "living-room",
+      JSON.stringify({
+        power: true,
+        brightness: 50,
+        colorTemperature: 4350,
+        updatedAt: 40,
+        online: true,
+      }),
+      40,
+      40,
+    );
+
+    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/devices/tuya-light-1",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      device: {
+        id: "tuya-light-1",
+        name: "Ceiling lighting",
+        customName: "Hall Light",
+      },
+    });
+  });
+
+  it("updates a vendor-backed device custom name without changing the upstream name", async () => {
+    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/devices/tuya-light-1",
+      payload: { customName: "Hall Accent" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      device: {
+        id: "tuya-light-1",
+        name: "Ceiling lighting",
+        customName: "Hall Accent",
       },
     });
   });

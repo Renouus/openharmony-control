@@ -58,6 +58,18 @@ function fakeVendorProvider(): VendorDeviceProvider {
   };
 }
 
+function fakeVendorProviderWithAlias(customName: string): VendorDeviceProvider {
+  return {
+    ...fakeVendorProvider(),
+    listDevices: async () => {
+      const devices = await fakeVendorProvider().listDevices();
+      return devices.map((device) => (
+        device.id === 'tuya-light-1' ? { ...device, customName } : device
+      ));
+    },
+  };
+}
+
 describe('GET /api/sync', () => {
   let app: FastifyInstance;
 
@@ -132,6 +144,52 @@ describe('GET /api/sync', () => {
     expect(payload.currentVersion).toBe(8);
     expect(payload.devices).toHaveLength(1);
     expect(payload.devices[0].id).toBe('dev-sync');
+  });
+
+  it('includes customName in db-backed and vendor-backed sync payloads', async () => {
+    const db = getDb();
+    db.prepare(
+      "INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      'db-light',
+      'Database Light',
+      'Desk Lamp',
+      'light',
+      'study',
+      JSON.stringify({
+        power: true,
+        brightness: 55,
+        colorTemperature: 3200,
+        updatedAt: 10,
+        online: true,
+      }),
+      10,
+      10,
+      0,
+    );
+
+    await app.close();
+    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/sync?lastVersion=0',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = JSON.parse(response.payload);
+    expect(payload.devices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'db-light',
+          customName: 'Desk Lamp',
+        }),
+        expect.objectContaining({
+          id: 'tuya-light-1',
+          customName: 'Hall Light',
+        }),
+      ]),
+    );
   });
 
   it('should emit the same device dto shape for sync and websocket command updates', async () => {
@@ -238,6 +296,49 @@ describe('GET /api/sync', () => {
           type: 'air-conditioner',
           roomId: 'bedroom',
           version: 60,
+        }),
+      ]),
+    );
+  });
+
+  it('overlays a locally stored customName onto vendor sync payloads', async () => {
+    const db = getDb();
+    db.prepare(
+      "INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      'tuya-light-1',
+      'Ceiling lighting',
+      'Hall Light',
+      'light',
+      'living-room',
+      JSON.stringify({
+        power: true,
+        brightness: 50,
+        colorTemperature: 4350,
+        online: true,
+        updatedAt: 40,
+      }),
+      40,
+      40,
+      0,
+    );
+
+    await app.close();
+    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/sync?lastVersion=0',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = JSON.parse(response.payload);
+    expect(payload.devices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'tuya-light-1',
+          name: 'Ceiling lighting',
+          customName: 'Hall Light',
         }),
       ]),
     );

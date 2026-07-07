@@ -61,6 +61,7 @@ export type DeviceState = {
 export type DeviceDescriptor = {
   id: string;
   name: string;
+  customName?: string;
   kind: DeviceKindName;
   brand?: string;
   capabilities: DeviceCapabilityName[];

@@ -9,6 +9,7 @@ describe("device sync mapper", () => {
     const row: DeviceSyncRow = {
       id: "dev-1",
       name: "Desk Light",
+      custom_name: null,
       type: "light",
       room_id: "study",
       state_json: JSON.stringify({
