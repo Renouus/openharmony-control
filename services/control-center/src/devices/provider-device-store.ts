@@ -53,6 +53,7 @@ type DeviceRow = {
   id: string;
   name: string;
   custom_name: string | null;
+  provider: string | null;
   type: string;
   room_id: string | null;
   state_json: string;
@@ -60,6 +61,7 @@ type DeviceRow = {
   version: number;
   lifecycle_state: DeviceLifecycleState;
   sort_order: number;
+  source_capabilities_json: string | null;
 };
 
 export class ProviderDeviceStore {
@@ -96,16 +98,17 @@ export class ProviderDeviceStore {
           .prepare(`
             INSERT INTO device_provider_sources (
               id, provider, external_device_id, external_product_id, external_category, original_name, original_icon,
-              online, source_status_json, source_functions_json, raw_json, last_discovered_at, source_missing_since,
+              online, source_capabilities_json, source_status_json, source_functions_json, raw_json, last_discovered_at, source_missing_since,
               created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
             ON CONFLICT(provider, external_device_id) DO UPDATE SET
               external_product_id = excluded.external_product_id,
               external_category = excluded.external_category,
               original_name = excluded.original_name,
               original_icon = excluded.original_icon,
               online = excluded.online,
+              source_capabilities_json = excluded.source_capabilities_json,
               source_status_json = excluded.source_status_json,
               source_functions_json = excluded.source_functions_json,
               raw_json = excluded.raw_json,
@@ -122,6 +125,7 @@ export class ProviderDeviceStore {
             device.originalName,
             device.originalIcon ?? null,
             device.online ? 1 : 0,
+            JSON.stringify(device.capabilities),
             JSON.stringify(device.status),
             JSON.stringify(device.functions),
             JSON.stringify(device.raw),
@@ -183,7 +187,7 @@ export class ProviderDeviceStore {
   public listPendingDevices(): PendingDeviceDto[] {
     const rows = this.db
       .prepare(`
-        SELECT d.id, s.provider, s.original_name, d.custom_name, d.device_type, s.online, s.source_functions_json
+        SELECT d.id, s.provider, s.original_name, d.custom_name, d.device_type, s.online, s.source_capabilities_json
         FROM devices d
         JOIN device_provider_sources s ON s.id = d.provider_source_id
         WHERE d.lifecycle_state = 'pending' AND d.is_deleted = 0
@@ -196,7 +200,7 @@ export class ProviderDeviceStore {
       custom_name: string | null;
       device_type: string;
       online: number;
-      source_functions_json: string;
+      source_capabilities_json: string;
     }>;
 
     return rows.map((row) => ({
@@ -206,17 +210,18 @@ export class ProviderDeviceStore {
       displayName: row.custom_name ?? row.original_name,
       deviceType: row.device_type,
       online: row.online === 1,
-      capabilities: parseCapabilities(row.source_functions_json),
+      capabilities: parseCapabilities(row.source_capabilities_json),
     }));
   }
 
   public listActiveDevices(): EnhancedDeviceDescriptor[] {
     const rows = this.db
       .prepare(`
-        SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, lifecycle_state, sort_order
-        FROM devices
-        WHERE lifecycle_state = 'active' AND is_deleted = 0
-        ORDER BY room_id ASC, sort_order ASC, id ASC
+        SELECT d.id, d.name, d.custom_name, s.provider, d.type, d.room_id, d.state_json, d.updated_at, d.version, d.lifecycle_state, d.sort_order, s.source_capabilities_json
+        FROM devices d
+        LEFT JOIN device_provider_sources s ON s.id = d.provider_source_id
+        WHERE d.lifecycle_state = 'active' AND d.is_deleted = 0
+        ORDER BY d.room_id ASC, d.sort_order ASC, d.id ASC
       `)
       .all() as DeviceRow[];
 
@@ -281,12 +286,13 @@ export class ProviderDeviceStore {
   }
 }
 
-function parseCapabilities(raw: string): string[] {
+function parseCapabilities(raw: string | null): string[] {
   try {
-    const parsed = JSON.parse(raw) as Array<{ code?: string }>;
-    return parsed
-      .map((item) => item.code)
-      .filter((code): code is string => typeof code === "string");
+    const parsed = JSON.parse(raw ?? "[]") as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((item): item is string => typeof item === "string");
   } catch {
     return [];
   }
@@ -294,6 +300,7 @@ function parseCapabilities(raw: string): string[] {
 
 function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
   const kind = toDeviceKind(row.type);
+  const capabilities = parseCapabilities(row.source_capabilities_json);
   const parsed = JSON.parse(row.state_json) as Partial<DeviceState>;
   const state: DeviceState = {
     ...parsed,
@@ -305,9 +312,9 @@ function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
     id: row.id,
     name: row.name,
     customName: row.custom_name ?? undefined,
-    brand: row.id.startsWith("tuya-") ? "tuya" : "omnihome",
+    brand: row.provider ?? "omnihome",
     kind,
-    capabilities: capabilitiesForKind(kind),
+    capabilities: capabilities.length > 0 ? capabilities : capabilitiesForKind(kind),
     state,
     room: row.room_id ?? "living-room",
     displayOrder: row.sort_order,

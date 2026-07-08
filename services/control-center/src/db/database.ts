@@ -41,6 +41,7 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       original_name TEXT NOT NULL,
       original_icon TEXT,
       online INTEGER NOT NULL DEFAULT 0,
+      source_capabilities_json TEXT NOT NULL DEFAULT '[]',
       source_status_json TEXT NOT NULL DEFAULT '[]',
       source_functions_json TEXT NOT NULL DEFAULT '[]',
       raw_json TEXT NOT NULL DEFAULT '{}',
@@ -205,6 +206,12 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     ensureColumn(db, "devices", "lifecycle_state", "ALTER TABLE devices ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'");
     ensureColumn(db, "devices", "sort_order", "ALTER TABLE devices ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 100");
     ensureColumn(db, "devices", "confirmed_at", "ALTER TABLE devices ADD COLUMN confirmed_at INTEGER");
+    ensureColumn(
+      db,
+      "device_provider_sources",
+      "source_capabilities_json",
+      "ALTER TABLE device_provider_sources ADD COLUMN source_capabilities_json TEXT NOT NULL DEFAULT '[]'",
+    );
     db.exec(`
       CREATE TABLE IF NOT EXISTS device_provider_sources (
         id TEXT PRIMARY KEY,
@@ -215,6 +222,7 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
         original_name TEXT NOT NULL,
         original_icon TEXT,
         online INTEGER NOT NULL DEFAULT 0,
+        source_capabilities_json TEXT NOT NULL DEFAULT '[]',
         source_status_json TEXT NOT NULL DEFAULT '[]',
         source_functions_json TEXT NOT NULL DEFAULT '[]',
         raw_json TEXT NOT NULL DEFAULT '{}',
@@ -245,6 +253,12 @@ function reconcileCriticalSchema(db: Database.Database): void {
   ensureColumn(db, "devices", "lifecycle_state", "ALTER TABLE devices ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'");
   ensureColumn(db, "devices", "sort_order", "ALTER TABLE devices ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 100");
   ensureColumn(db, "devices", "confirmed_at", "ALTER TABLE devices ADD COLUMN confirmed_at INTEGER");
+  ensureColumn(
+    db,
+    "device_provider_sources",
+    "source_capabilities_json",
+    "ALTER TABLE device_provider_sources ADD COLUMN source_capabilities_json TEXT NOT NULL DEFAULT '[]'",
+  );
   db.exec(`
     CREATE TABLE IF NOT EXISTS device_provider_sources (
       id TEXT PRIMARY KEY,
@@ -255,6 +269,7 @@ function reconcileCriticalSchema(db: Database.Database): void {
       original_name TEXT NOT NULL,
       original_icon TEXT,
       online INTEGER NOT NULL DEFAULT 0,
+      source_capabilities_json TEXT NOT NULL DEFAULT '[]',
       source_status_json TEXT NOT NULL DEFAULT '[]',
       source_functions_json TEXT NOT NULL DEFAULT '[]',
       raw_json TEXT NOT NULL DEFAULT '{}',

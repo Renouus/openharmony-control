@@ -109,6 +109,7 @@ describe('database init migrations', () => {
       expect(providerSourceColumns.some((column) => column.name === 'provider')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'external_device_id')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'original_name')).toBe(true);
+      expect(providerSourceColumns.some((column) => column.name === 'source_capabilities_json')).toBe(true);
       expect(schemaVersion.value).toBe('6');
     } finally {
       if (!legacyClosed) {

@@ -28,6 +28,27 @@ const discoveredLight: DiscoveredProviderDevice = {
   raw: { id: "light-1", name: "Smart Light" },
 };
 
+const discoveredThirdPartySensor: DiscoveredProviderDevice = {
+  provider: "acme",
+  externalDeviceId: "tuya-sensor-9",
+  externalProductId: "prod-sensor",
+  externalCategory: "pir",
+  originalName: "Entry Sensor",
+  originalIcon: "sensor",
+  online: false,
+  deviceType: "motion-sensor",
+  roomHint: "entry",
+  state: {
+    motionDetected: false,
+    online: false,
+    updatedAt: 200,
+  },
+  capabilities: ["motion-detection"],
+  status: [{ code: "pir", value: false }],
+  functions: [{ code: "pir", type: "Boolean" }],
+  raw: { id: "tuya-sensor-9", name: "Entry Sensor" },
+};
+
 describe("ProviderDeviceStore", () => {
   beforeEach(() => initDatabase(":memory:"));
   afterEach(() => closeDatabase());
@@ -50,6 +71,7 @@ describe("ProviderDeviceStore", () => {
         displayName: "Smart Light",
         deviceType: "light",
         online: true,
+        capabilities: ["switch", "brightness", "colorTemperature"],
       }),
     ]);
     expect(getDb().prepare("SELECT id FROM devices").all()).toHaveLength(1);
@@ -97,5 +119,23 @@ describe("ProviderDeviceStore", () => {
 
     expect(result.ignoredRejected).toBe(1);
     expect(store.listPendingDevices()).toEqual([]);
+  });
+
+  it("uses persisted provider metadata for active device brand", () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredThirdPartySensor]);
+    store.joinHome("acme-tuya-sensor-9", {
+      displayName: "Entry Motion Sensor",
+      roomId: "hallway",
+      deviceType: "motion-sensor",
+    });
+
+    expect(store.listActiveDevices()).toEqual([
+      expect.objectContaining({
+        id: "acme-tuya-sensor-9",
+        brand: "acme",
+        kind: "motion-sensor",
+      }),
+    ]);
   });
 });
