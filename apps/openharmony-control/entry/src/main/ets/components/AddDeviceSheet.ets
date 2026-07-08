@@ -219,15 +219,6 @@ export struct AddDeviceSheet {
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .layoutWeight(1)
-
-        Button('关闭')
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_PRIMARY)
-          .backgroundColor('#00000000')
-          .padding({ left: 0, right: 0 })
-          .height(32)
-          .onClick(() => this.onClose())
       }
       .width('100%')
 
@@ -406,6 +397,14 @@ export struct AddDeviceSheet {
   .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
   .borderRadius(32)
   .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
+  .parallelGesture(
+    PanGesture({ direction: PanDirection.Vertical })
+      .onActionUpdate((event: GestureEvent | undefined) => {
+        if (event && event.offsetY > 100) {
+          this.onClose();
+        }
+      })
+  )
   .onClick(() => {})
 } // Closes build()
 
