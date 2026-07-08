@@ -32,9 +32,9 @@ class RecommendedDeviceCode {
 }
 
 const RECOMMENDED_DEVICE_CODES: RecommendedDeviceCode[] = [
-  new RecommendedDeviceCode('lightbulb', 'Reading Lamp', 'LIGHT-READING', 'Dimmable light'),
-  new RecommendedDeviceCode('lock', 'Patio Lock', 'LOCK-PATIO', 'Outdoor door lock'),
-  new RecommendedDeviceCode('thermostat', 'Study AC', 'AC-STUDY', 'Cooling and heating'),
+  new RecommendedDeviceCode('lightbulb', '阅读灯', 'LIGHT-READING', '可调光灯具'),
+  new RecommendedDeviceCode('lock', '庭院门锁', 'LOCK-PATIO', '户外安全门锁'),
+  new RecommendedDeviceCode('thermostat', '书房空调', 'AC-STUDY', '冷暖空调设备'),
 ];
 
 @Component
@@ -210,15 +210,17 @@ export struct AddDeviceSheet {
         .backgroundColor(COLOR_OUTLINE_VARIANT)
         .margin({ top: 6 })
 
-      Row() {
-        Text('Add Device')
+      Scroll() {
+        Column({ space: 22 }) {
+          Row() {
+            Text('添加设备')
           .fontSize(28)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .fontFamily('serif')
           .layoutWeight(1)
 
-        Button('Close')
+        Button('关闭')
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_PRIMARY)
@@ -229,7 +231,7 @@ export struct AddDeviceSheet {
       }
       .width('100%')
 
-      Text('Scan is still a visual preview in this build. Use a supported device code below to finish setup.')
+      Text('扫描功能当前为视觉预览版。请于下方手动输入支持的设备码以完成设置。')
         .fontSize(13)
         .fontColor(COLOR_TEXT_MUTED)
         .width('100%')
@@ -255,12 +257,12 @@ export struct AddDeviceSheet {
             .backgroundColor(COLOR_PRIMARY + '12')
             .justifyContent(FlexAlign.Center)
 
-            Text('Camera Preview')
+            Text('相机预览')
               .fontSize(18)
               .fontWeight(FontWeight.Medium)
               .fontColor(COLOR_ON_SURFACE)
 
-            Text('Grant camera access if you want the visual pairing preview. Manual entry below is fully functional.')
+            Text('如需体验视觉配网预览，请授权相机访问。下方的设备码手动录入功能已完全就绪。')
               .fontSize(12)
               .fontColor(COLOR_TEXT_MUTED)
               .textAlign(TextAlign.Center)
@@ -282,13 +284,13 @@ export struct AddDeviceSheet {
       .padding(this.hasCameraPermission ? 0 : 24)
 
       Column({ space: 14 }) {
-        Text('Manual Entry')
+        Text('手动输入')
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .width('100%')
 
-        TextInput({ placeholder: 'Enter a supported device code', text: this.deviceCode })
+        TextInput({ placeholder: '请输入设备码', text: this.deviceCode })
           .height(52)
           .fontSize(15)
           .borderRadius(16)
@@ -300,7 +302,7 @@ export struct AddDeviceSheet {
             this.successMessage = '';
           })
 
-        Text(`Selected room: ${this.roomLabel(this.selectedRoomId)}`)
+        Text(`所属房间: ${this.roomLabel(this.selectedRoomId)}`)
           .fontSize(12)
           .fontColor(COLOR_TEXT_MUTED)
           .width('100%')
@@ -337,7 +339,7 @@ export struct AddDeviceSheet {
             .width('100%')
         }
 
-        Button(this.isSubmitting ? 'Adding...' : 'Add Device')
+        Button(this.isSubmitting ? '正在添加...' : '添加设备')
           .width('100%')
           .height(52)
           .fontSize(16)
@@ -354,13 +356,13 @@ export struct AddDeviceSheet {
 
       if (this.appState.home.pendingDevices.length > 0) {
         Column({ space: 12 }) {
-          Text('Pending Review')
+          Text('待审设备')
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
             .width('100%')
 
-          Text(`Assign these devices to ${this.roomLabel(this.selectedRoomId)} or ignore them for now.`)
+          Text(`将这些设备分配至${this.roomLabel(this.selectedRoomId)}，或者暂不处理。`)
             .fontSize(12)
             .fontColor(COLOR_TEXT_MUTED)
             .width('100%')
@@ -376,7 +378,7 @@ export struct AddDeviceSheet {
       }
 
       Column({ space: 12 }) {
-        Text('Recommended Device Codes')
+        Text('推荐设备码')
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -390,14 +392,22 @@ export struct AddDeviceSheet {
         .width('100%')
       }
       .width('100%')
-    }
+      } // Closes inner Column 
+      .width('100%')      
+    } // Closes Scroll
+    .scrollBar(BarState.Auto)
+    .scrollable(ScrollDirection.Vertical)
+    .layoutWeight(1)
     .width('100%')
-    .padding({ left: 24, right: 24, top: 14, bottom: 28 })
-    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-    .borderRadius(32)
-    .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
-    .onClick(() => {})
-  }
+  } // Closes outer root Column
+  .width('100%')
+  .height('100%')
+  .padding({ left: 24, right: 24, top: 14, bottom: 28 })
+  .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+  .borderRadius(32)
+  .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
+  .onClick(() => {})
+} // Closes build()
 
   @Builder
   private RoomChip(room: RoomItemState) {
@@ -487,7 +497,7 @@ export struct AddDeviceSheet {
       .width('100%')
 
       Row({ space: 10 }) {
-        Button(this.isSubmitting ? 'Joining...' : 'Join Home')
+        Button(this.isSubmitting ? '正在加入...' : '添加到房间')
           .layoutWeight(1)
           .height(42)
           .fontSize(14)
@@ -500,7 +510,7 @@ export struct AddDeviceSheet {
             await this.submitJoinPendingDevice(device);
           })
 
-        Button('Ignore')
+        Button('忽略')
           .layoutWeight(1)
           .height(42)
           .fontSize(14)
