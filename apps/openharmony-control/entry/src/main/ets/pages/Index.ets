@@ -26,6 +26,7 @@ import { LightControlView } from '../views/LightControlView';
 import { ScenesListView } from '../views/ScenesListView';
 import { CreateAutomationView } from '../views/CreateAutomationView';
 import { FamilySettingsUpdateRequest } from '../services/device-api';
+import promptAction from '@ohos.promptAction';
 import {
   COLOR_BG,
   COLOR_BORDER,
@@ -176,6 +177,22 @@ struct Index {
             const roomId = this.subPageParam as string;
             await this.controller.handleDeleteRoom(this.appState, roomId);
             this.popSubPage();
+          }
+        }
+      ];
+    }
+    if (!this.isOnSubPage() && this.currentTab === 0) {
+      return [
+        {
+          value: '同步第三方设备',
+          action: async () => {
+            promptAction.showToast({ message: '开始同步设备...' });
+            const success = await this.controller.syncProviderDevices();
+            if (success) {
+              promptAction.showToast({ message: '同步完成，请查看顶部横幅的状态。' });
+            } else {
+              promptAction.showToast({ message: '同步失败，请检查网络或提供商设置。' });
+            }
           }
         }
       ];
