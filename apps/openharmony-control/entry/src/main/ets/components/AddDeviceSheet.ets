@@ -203,24 +203,36 @@ export struct AddDeviceSheet {
 
   build() {
     Column({ space: 22 }) {
-      Row()
-        .width(48)
-        .height(5)
-        .borderRadius(3)
-        .backgroundColor(COLOR_OUTLINE_VARIANT)
-        .margin({ top: 6 })
+      Column({ space: 6 }) {
+        Row()
+          .width(48)
+          .height(5)
+          .borderRadius(3)
+          .backgroundColor(COLOR_OUTLINE_VARIANT)
+          .margin({ top: 6 })
+
+        Row() {
+          Text('添加设备')
+            .fontSize(28)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(COLOR_ON_SURFACE)
+            .fontFamily('serif')
+            .layoutWeight(1)
+        }
+        .width('100%')
+      }
+      .width('100%')
+      .parallelGesture(
+        PanGesture({ direction: PanDirection.Vertical })
+          .onActionUpdate((event: GestureEvent | undefined) => {
+            if (event && event.offsetY > 150) {
+              this.onClose();
+            }
+          })
+      )
 
       Scroll() {
         Column({ space: 22 }) {
-          Row() {
-            Text('添加设备')
-          .fontSize(28)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_SURFACE)
-          .fontFamily('serif')
-          .layoutWeight(1)
-      }
-      .width('100%')
 
       Text('扫描功能当前为视觉预览版。请于下方手动输入支持的设备码以完成设置。')
         .fontSize(13)
@@ -386,25 +398,16 @@ export struct AddDeviceSheet {
       } // Closes inner Column 
       .width('100%')      
     } // Closes Scroll
-    .scrollBar(BarState.Auto)
+    .scrollBar(BarState.Off)
     .scrollable(ScrollDirection.Vertical)
     .layoutWeight(1)
     .width('100%')
   } // Closes outer root Column
   .width('100%')
-  .height('100%')
   .padding({ left: 24, right: 24, top: 14, bottom: 28 })
   .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
   .borderRadius(32)
   .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
-  .parallelGesture(
-    PanGesture({ direction: PanDirection.Vertical })
-      .onActionUpdate((event: GestureEvent | undefined) => {
-        if (event && event.offsetY > 100) {
-          this.onClose();
-        }
-      })
-  )
   .onClick(() => {})
 } // Closes build()
 
