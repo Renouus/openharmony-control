@@ -449,11 +449,16 @@ struct Index {
         Column() {
           Blank()
           AddDeviceSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+            .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({
+              duration: 300,
+              curve: Curve.Friction
+            }))
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.End)
         .backgroundColor('#201B142E')
+        .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
         .onClick(() => this.closeTransientUi())
       }
 
@@ -461,11 +466,16 @@ struct Index {
         Column() {
           Blank()
           AddRoomSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+            .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({
+              duration: 300,
+              curve: Curve.Friction
+            }))
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.End)
         .backgroundColor('#201B142E')
+        .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
         .onClick(() => this.closeTransientUi())
       }
 
