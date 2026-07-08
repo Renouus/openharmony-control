@@ -475,6 +475,7 @@ export class DeviceApi {
       const response = await client.request(`${this.baseUrl}/api/providers/${providerId}/discover`, {
         method: http.RequestMethod.POST,
         header: { 'content-type': 'application/json' },
+        extraData: '{}',
         readTimeout: 10000,
         connectTimeout: 10000
       });

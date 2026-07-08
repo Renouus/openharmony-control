@@ -445,22 +445,23 @@ struct Index {
         .onClick(() => this.closeTransientUi())
       }
 
-      if (this.isAddSheetOpen) {
-        Column() {
-          Blank()
-          AddDeviceSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
-            .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({
-              duration: 300,
-              curve: Curve.Friction
-            }))
+        if (this.isAddSheetOpen) {
+          Column() {
+            Blank()
+              .onClick(() => this.closeTransientUi())
+            AddDeviceSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+              .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({
+                duration: 300,
+                curve: Curve.Friction
+              }))
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.End)
+          .backgroundColor('#201B142E')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
+          .onClick(() => this.closeTransientUi()) // catch taps on generic column padded background if Blank isn't pressed
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.End)
-        .backgroundColor('#201B142E')
-        .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
-        .onClick(() => this.closeTransientUi())
-      }
 
       if (this.isAddRoomSheetOpen) {
         Column() {

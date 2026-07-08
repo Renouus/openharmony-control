@@ -1,8 +1,9 @@
-import { tuyaConfig } from "./tuya-config";
-import { TuyaResolvedDeviceContext, TuyaStatusItem } from "./tuya-types";
-import { TuyaConnectorClient, TuyaDeviceDetail } from "./tuya-client";
-import { parseTuyaOmniId } from "./tuya-id-parser";
+// import removed since tuyaConfig is dynamically resolved
+import type { TuyaResolvedDeviceContext, TuyaStatusItem } from "./tuya-types";
+import type { TuyaConnectorClient, TuyaDeviceDetail } from "./tuya-client";
+import { parseTuyaDeviceId } from "./tuya-id-parser";
 import { classifyTuyaDevice } from "./tuya-device-classifier";
+import { loadTuyaConfig } from "./tuya-config";
 
 // TTL in ms
 const CACHE_DETAIL_TTL = 10 * 60 * 1000; // 10m
@@ -22,10 +23,9 @@ export async function resolveTuyaDeviceContext(
   omniDeviceId: string,
   tuyaClient: TuyaConnectorClient
 ): Promise<TuyaResolvedDeviceContext | undefined> {
-  const parsedId = parseTuyaOmniId(omniDeviceId);
-  if (!parsedId) return undefined;
+  const tuyaId = parseTuyaDeviceId(omniDeviceId);
+  if (!tuyaId) return undefined;
 
-  const tuyaId = parsedId.rawTuyaId;
   const now = Date.now();
 
   // 1. Check negative cache
@@ -35,18 +35,18 @@ export async function resolveTuyaDeviceContext(
   }
 
   try {
+    const tuyaConfigInstance = loadTuyaConfig();
+    
     // 2. Resolve or Fetch Detail
     let detail: TuyaDeviceDetail;
     const detailEntry = detailCache.get(tuyaId);
     if (detailEntry && detailEntry.expiresAt > now) {
       detail = detailEntry.data;
     } else {
-        // Find config (if any)
-      const configItem = tuyaConfig.devices?.find(d => d.id === tuyaId);
+      const configItem = tuyaConfigInstance?.devices.find(d => d.id === tuyaId);
       
       detail = await tuyaClient.getDeviceDetail(tuyaId);
       
-      // Merge config with detail names etc if we wanted, but detail has name/category
       if (configItem && configItem.name) {
           detail.name = configItem.name;
       }
@@ -70,8 +70,7 @@ export async function resolveTuyaDeviceContext(
       });
     }
 
-    // Find configured info
-    const configDesc = tuyaConfig.devices?.find((d) => d.id === tuyaId);
+    const configDesc = tuyaConfigInstance?.devices.find((d) => d.id === tuyaId);
 
     // 4. Classify device kind
     const kind = classifyTuyaDevice({
@@ -81,7 +80,6 @@ export async function resolveTuyaDeviceContext(
     });
 
     if (!kind) {
-      // Cannot handle this device
       return undefined;
     }
 
@@ -96,7 +94,6 @@ export async function resolveTuyaDeviceContext(
       capabilities: [],
     };
     } catch (error: unknown) {
-    // Basic rate limit handling / error fast-failure cache
     const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
     if (errorMessage.includes("limit") || errorMessage.includes("failed")) {
         negativeLimitCache.set(tuyaId, {

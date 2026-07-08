@@ -14,7 +14,7 @@ export struct BottomSheet {
           .height(5)
           .borderRadius(3)
           .backgroundColor(COLOR_OUTLINE_VARIANT)
-          .margin({ top: 6 })
+          .margin({ top: 6, bottom: 12 }) // Added bottom margin to push text away
       }
       .width('100%')
       .justifyContent(FlexAlign.Center)

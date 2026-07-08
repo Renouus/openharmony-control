@@ -104,7 +104,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     this.wsClient.connect();
   }
 
-  async handleWebSocketEvent(event: string, payload: Object): void {
+  async handleWebSocketEvent(event: string, payload: Object): Promise<void> {
     const domainEvent = DomainEventAdapter.fromWebSocketEvent(event, payload);
     if (domainEvent) {
       DatabaseEventProcessor.getInstance().pushEvent(domainEvent);
