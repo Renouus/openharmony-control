@@ -9,6 +9,7 @@ import {
   COLOR_SURFACE_CONTAINER_LOW,
   COLOR_TEXT_MUTED,
 } from '../theme/smart-home-theme';
+import { BottomSheet } from './BottomSheet';
 import { AppSymbol } from './AppSymbol';
 import camera from '@ohos.multimedia.camera';
 import abilityAccessCtrl from '@ohos.abilityAccessCtrl';
@@ -202,214 +203,173 @@ export struct AddDeviceSheet {
   }
 
   build() {
-    Column({ space: 22 }) {
-      Column({ space: 6 }) {
-        Row()
-          .width(48)
-          .height(5)
-          .borderRadius(3)
-          .backgroundColor(COLOR_OUTLINE_VARIANT)
-          .margin({ top: 6 })
-
-        Row() {
-          Text('添加设备')
-            .fontSize(28)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(COLOR_ON_SURFACE)
-            .fontFamily('serif')
-            .layoutWeight(1)
-        }
-        .width('100%')
-      }
-      .width('100%')
-      .parallelGesture(
-        PanGesture({ direction: PanDirection.Vertical })
-          .onActionUpdate((event: GestureEvent | undefined) => {
-            if (event && event.offsetY > 150) {
-              this.onClose();
-            }
-          })
-      )
-
-      Scroll() {
-        Column({ space: 22 }) {
-
-      Text('扫描功能当前为视觉预览版。请于下方手动输入支持的设备码以完成设置。')
-        .fontSize(13)
-        .fontColor(COLOR_TEXT_MUTED)
-        .width('100%')
-
-      Stack({ alignContent: Alignment.Center }) {
-        if (this.hasCameraPermission) {
-          XComponent({ id: 'add_device_camera', type: XComponentType.SURFACE, controller: this.xComponentController })
-            .onLoad(() => {
-              const surfaceId = this.xComponentController.getXComponentSurfaceId();
-              this.initCamera(surfaceId);
-            })
-            .width('100%')
-            .height('100%')
-            .borderRadius(32)
-        } else {
-          Column({ space: 18 }) {
-            Row() {
-              AppSymbol({ name: 'qr_code_scanner', glyphSize: 42, color: COLOR_PRIMARY })
-            }
-            .width(88)
-            .height(88)
-            .borderRadius(44)
-            .backgroundColor(COLOR_PRIMARY + '12')
-            .justifyContent(FlexAlign.Center)
-
-            Text('相机预览')
-              .fontSize(18)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(COLOR_ON_SURFACE)
-
-            Text('如需体验视觉配网预览，请授权相机访问。下方的设备码手动录入功能已完全就绪。')
-              .fontSize(12)
-              .fontColor(COLOR_TEXT_MUTED)
-              .textAlign(TextAlign.Center)
-          }
-          .alignItems(HorizontalAlign.Center)
-        }
-
-        Row()
-          .width('78%')
-          .height('78%')
-          .borderRadius(28)
-          .border({ width: 2, color: COLOR_PRIMARY + '40' })
-      }
-      .width('100%')
-      .height(248)
-      .borderRadius(32)
-      .clip(true)
-      .backgroundColor(COLOR_SURFACE_CONTAINER_HIGHEST)
-      .padding(this.hasCameraPermission ? 0 : 24)
-
-      Column({ space: 14 }) {
-        Text('手动输入')
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_SURFACE)
-          .width('100%')
-
-        TextInput({ placeholder: '请输入设备码', text: this.deviceCode })
-          .height(52)
-          .fontSize(15)
-          .borderRadius(16)
-          .backgroundColor('#FFFFFF')
-          .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' })
-          .onChange((value: string) => {
-            this.deviceCode = value;
-            this.errorMessage = '';
-            this.successMessage = '';
-          })
-
-        Text(`所属房间: ${this.roomLabel(this.selectedRoomId)}`)
-          .fontSize(12)
+    BottomSheet({ onClose: () => this.onClose() }) {
+      Column({ space: 22 }) {
+        Text('扫描功能当前为视觉预览版。请于下方手动输入支持的设备码以完成设置。')
+          .fontSize(13)
           .fontColor(COLOR_TEXT_MUTED)
           .width('100%')
 
-        Scroll() {
-          Row({ space: 10 }) {
-            ForEach(this.appState.roomList.rooms, (room: RoomItemState) => {
-              this.RoomChip(room)
-            }, (room: RoomItemState) => room.id)
+        Stack({ alignContent: Alignment.Center }) {
+          if (this.hasCameraPermission) {
+            XComponent({ id: 'add_device_camera', type: XComponentType.SURFACE, controller: this.xComponentController })
+              .onLoad(() => {
+                const surfaceId = this.xComponentController.getXComponentSurfaceId();
+                this.initCamera(surfaceId);
+              })
+              .width('100%')
+              .height('100%')
+              .borderRadius(32)
+          } else {
+            Column({ space: 18 }) {
+              Row() {
+                AppSymbol({ name: 'qr_code_scanner', glyphSize: 42, color: COLOR_PRIMARY })
+              }
+              .width(88)
+              .height(88)
+              .borderRadius(44)
+              .backgroundColor(COLOR_PRIMARY + '12')
+              .justifyContent(FlexAlign.Center)
+
+              Text('相机预览')
+                .fontSize(18)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(COLOR_ON_SURFACE)
+
+              Text('如需体验视觉配网预览，请授权相机访问。下方的设备码手动录入功能已完全就绪。')
+                .fontSize(12)
+                .fontColor(COLOR_TEXT_MUTED)
+                .textAlign(TextAlign.Center)
+            }
+            .alignItems(HorizontalAlign.Center)
           }
-          .padding({ right: 4 })
+
+          Row()
+            .width('78%')
+            .height('78%')
+            .borderRadius(28)
+            .border({ width: 2, color: COLOR_PRIMARY + '40' })
         }
-        .scrollable(ScrollDirection.Horizontal)
-        .scrollBar(BarState.Off)
         .width('100%')
+        .height(248)
+        .borderRadius(32)
+        .clip(true)
+        .backgroundColor(COLOR_SURFACE_CONTAINER_HIGHEST)
+        .padding(this.hasCameraPermission ? 0 : 24)
 
-        if (this.errorMessage.length > 0) {
-          Text(this.errorMessage)
-            .fontSize(12)
-            .fontColor('#B42318')
-            .padding(12)
-            .borderRadius(14)
-            .backgroundColor('#FEF3F2')
-            .width('100%')
-        }
-
-        if (this.successMessage.length > 0) {
-          Text(this.successMessage)
-            .fontSize(12)
-            .fontColor(COLOR_PRIMARY)
-            .padding(12)
-            .borderRadius(14)
-            .backgroundColor(COLOR_PRIMARY_SOFT)
-            .width('100%')
-        }
-
-        Button(this.isSubmitting ? '正在添加...' : '添加设备')
-          .width('100%')
-          .height(52)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_PRIMARY)
-          .backgroundColor(this.deviceCode.trim().length === 0 ? COLOR_OUTLINE_VARIANT : COLOR_PRIMARY)
-          .borderRadius(26)
-          .enabled(this.deviceCode.trim().length > 0 && !this.isSubmitting)
-          .onClick(async () => {
-            await this.submitCreateDevice();
-          })
-      }
-      .width('100%')
-
-      if (this.appState.home.pendingDevices.length > 0) {
-        Column({ space: 12 }) {
-          Text('待审设备')
+        Column({ space: 14 }) {
+          Text('手动输入')
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_ON_SURFACE)
             .width('100%')
 
-          Text(`将这些设备分配至${this.roomLabel(this.selectedRoomId)}，或者暂不处理。`)
+          TextInput({ placeholder: '请输入设备码', text: this.deviceCode })
+            .height(52)
+            .fontSize(15)
+            .borderRadius(16)
+            .backgroundColor('#FFFFFF')
+            .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' })
+            .onChange((value: string) => {
+              this.deviceCode = value;
+              this.errorMessage = '';
+              this.successMessage = '';
+            })
+
+          Text(`所属房间: ${this.roomLabel(this.selectedRoomId)}`)
             .fontSize(12)
             .fontColor(COLOR_TEXT_MUTED)
             .width('100%')
 
-          Column({ space: 10 }) {
-            ForEach(this.appState.home.pendingDevices, (device: PendingDeviceState) => {
-              this.PendingDeviceCard(device)
-            }, (device: PendingDeviceState) => device.id)
+          Scroll() {
+            Row({ space: 10 }) {
+              ForEach(this.appState.roomList.rooms, (room: RoomItemState) => {
+                this.RoomChip(room)
+              }, (room: RoomItemState) => room.id)
+            }
+            .padding({ right: 4 })
+          }
+          .scrollable(ScrollDirection.Horizontal)
+          .scrollBar(BarState.Off)
+          .width('100%')
+
+          if (this.errorMessage.length > 0) {
+            Text(this.errorMessage)
+              .fontSize(12)
+              .fontColor('#B42318')
+              .padding(12)
+              .borderRadius(14)
+              .backgroundColor('#FEF3F2')
+              .width('100%')
+          }
+
+          if (this.successMessage.length > 0) {
+            Text(this.successMessage)
+              .fontSize(12)
+              .fontColor(COLOR_PRIMARY)
+              .padding(12)
+              .borderRadius(14)
+              .backgroundColor(COLOR_PRIMARY_SOFT)
+              .width('100%')
+          }
+
+          Button(this.isSubmitting ? '正在添加...' : '添加设备')
+            .width('100%')
+            .height(52)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(COLOR_ON_PRIMARY)
+            .backgroundColor(this.deviceCode.trim().length === 0 ? COLOR_OUTLINE_VARIANT : COLOR_PRIMARY)
+            .borderRadius(26)
+            .enabled(this.deviceCode.trim().length > 0 && !this.isSubmitting)
+            .onClick(async () => {
+              await this.submitCreateDevice();
+            })
+        }
+        .width('100%')
+
+        if (this.appState.home.pendingDevices.length > 0) {
+          Column({ space: 12 }) {
+            Text('待审设备')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(COLOR_ON_SURFACE)
+              .width('100%')
+
+            Text(`将这些设备分配至${this.roomLabel(this.selectedRoomId)}，或者暂不处理。`)
+              .fontSize(12)
+              .fontColor(COLOR_TEXT_MUTED)
+              .width('100%')
+
+            Column({ space: 10 }) {
+              ForEach(this.appState.home.pendingDevices, (device: PendingDeviceState) => {
+                this.PendingDeviceCard(device)
+              }, (device: PendingDeviceState) => device.id)
+            }
+            .width('100%')
+          }
+          .width('100%')
+        }
+
+        Column({ space: 12 }) {
+          Text('推荐设备码')
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(COLOR_ON_SURFACE)
+            .width('100%')
+
+          Row({ space: 12 }) {
+            ForEach(RECOMMENDED_DEVICE_CODES, (item: RecommendedDeviceCode) => {
+              this.RecommendedCodeCard(item)
+            }, (item: RecommendedDeviceCode) => item.deviceCode)
           }
           .width('100%')
         }
         .width('100%')
       }
-
-      Column({ space: 12 }) {
-        Text('推荐设备码')
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_SURFACE)
-          .width('100%')
-
-        Row({ space: 12 }) {
-          ForEach(RECOMMENDED_DEVICE_CODES, (item: RecommendedDeviceCode) => {
-            this.RecommendedCodeCard(item)
-          }, (item: RecommendedDeviceCode) => item.deviceCode)
-        }
-        .width('100%')
-      }
-      .width('100%')
-      } // Closes inner Column 
       .width('100%')      
-    } // Closes Scroll
-    .scrollBar(BarState.Off)
-    .scrollable(ScrollDirection.Vertical)
-    .layoutWeight(1)
-    .width('100%')
-  } // Closes outer root Column
-  .width('100%')
-  .padding({ left: 24, right: 24, top: 14, bottom: 28 })
-  .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-  .borderRadius(32)
-  .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
-  .onClick(() => {})
-} // Closes build()
+    }
+  }
 
   @Builder
   private RoomChip(room: RoomItemState) {
