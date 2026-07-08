@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
   dbInstance = new Database(dbPath);
@@ -20,11 +20,35 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       name TEXT NOT NULL,
       custom_name TEXT,
       type TEXT NOT NULL,
+      provider_source_id TEXT,
+      device_type TEXT,
       room_id TEXT,
       state_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL,
       version INTEGER NOT NULL,
-      is_deleted INTEGER DEFAULT 0
+      is_deleted INTEGER DEFAULT 0,
+      lifecycle_state TEXT NOT NULL DEFAULT 'active',
+      sort_order INTEGER NOT NULL DEFAULT 100,
+      confirmed_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS device_provider_sources (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      external_device_id TEXT NOT NULL,
+      external_product_id TEXT,
+      external_category TEXT,
+      original_name TEXT NOT NULL,
+      original_icon TEXT,
+      online INTEGER NOT NULL DEFAULT 0,
+      source_status_json TEXT NOT NULL DEFAULT '[]',
+      source_functions_json TEXT NOT NULL DEFAULT '[]',
+      raw_json TEXT NOT NULL DEFAULT '{}',
+      last_discovered_at INTEGER NOT NULL,
+      source_missing_since INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(provider, external_device_id)
     );
 
     CREATE TABLE IF NOT EXISTS rooms (
@@ -175,6 +199,36 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     setSchemaVersion(db, nextVersion);
   }
 
+  if (nextVersion < SCHEMA_VERSION) {
+    ensureColumn(db, "devices", "provider_source_id", "ALTER TABLE devices ADD COLUMN provider_source_id TEXT");
+    ensureColumn(db, "devices", "device_type", "ALTER TABLE devices ADD COLUMN device_type TEXT");
+    ensureColumn(db, "devices", "lifecycle_state", "ALTER TABLE devices ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'");
+    ensureColumn(db, "devices", "sort_order", "ALTER TABLE devices ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 100");
+    ensureColumn(db, "devices", "confirmed_at", "ALTER TABLE devices ADD COLUMN confirmed_at INTEGER");
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS device_provider_sources (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        external_device_id TEXT NOT NULL,
+        external_product_id TEXT,
+        external_category TEXT,
+        original_name TEXT NOT NULL,
+        original_icon TEXT,
+        online INTEGER NOT NULL DEFAULT 0,
+        source_status_json TEXT NOT NULL DEFAULT '[]',
+        source_functions_json TEXT NOT NULL DEFAULT '[]',
+        raw_json TEXT NOT NULL DEFAULT '{}',
+        last_discovered_at INTEGER NOT NULL,
+        source_missing_since INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(provider, external_device_id)
+      );
+    `);
+    db.prepare("UPDATE devices SET device_type = type WHERE device_type IS NULL").run();
+    nextVersion = SCHEMA_VERSION;
+    setSchemaVersion(db, nextVersion);
+  }
 }
 
 function reconcileCriticalSchema(db: Database.Database): void {
@@ -186,7 +240,31 @@ function reconcileCriticalSchema(db: Database.Database): void {
   ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scenes", "sort_order", "ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "devices", "custom_name", "ALTER TABLE devices ADD COLUMN custom_name TEXT");
+  ensureColumn(db, "devices", "provider_source_id", "ALTER TABLE devices ADD COLUMN provider_source_id TEXT");
+  ensureColumn(db, "devices", "device_type", "ALTER TABLE devices ADD COLUMN device_type TEXT");
+  ensureColumn(db, "devices", "lifecycle_state", "ALTER TABLE devices ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'");
+  ensureColumn(db, "devices", "sort_order", "ALTER TABLE devices ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 100");
+  ensureColumn(db, "devices", "confirmed_at", "ALTER TABLE devices ADD COLUMN confirmed_at INTEGER");
   db.exec(`
+    CREATE TABLE IF NOT EXISTS device_provider_sources (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      external_device_id TEXT NOT NULL,
+      external_product_id TEXT,
+      external_category TEXT,
+      original_name TEXT NOT NULL,
+      original_icon TEXT,
+      online INTEGER NOT NULL DEFAULT 0,
+      source_status_json TEXT NOT NULL DEFAULT '[]',
+      source_functions_json TEXT NOT NULL DEFAULT '[]',
+      raw_json TEXT NOT NULL DEFAULT '{}',
+      last_discovered_at INTEGER NOT NULL,
+      source_missing_since INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(provider, external_device_id)
+    );
+
     CREATE TABLE IF NOT EXISTS automation_execution_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       execution_id TEXT NOT NULL,
@@ -199,6 +277,7 @@ function reconcileCriticalSchema(db: Database.Database): void {
       created_at INTEGER NOT NULL
     );
   `);
+  db.prepare("UPDATE devices SET device_type = type WHERE device_type IS NULL").run();
 }
 
 type LegacySceneOrderingRow = {

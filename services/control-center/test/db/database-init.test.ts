@@ -84,6 +84,10 @@ describe('database init migrations', () => {
 
       const historyColumns = db.prepare('PRAGMA table_info(history)').all() as Array<{ name: string }>;
       const sceneColumns = db.prepare('PRAGMA table_info(scenes)').all() as Array<{ name: string }>;
+      const deviceColumns = db.prepare('PRAGMA table_info(devices)').all() as Array<{ name: string }>;
+      const providerSourceColumns = db
+        .prepare('PRAGMA table_info(device_provider_sources)')
+        .all() as Array<{ name: string }>;
       const schemaVersion = db
         .prepare("SELECT value FROM metadata WHERE key = 'schema_version'")
         .get() as { value: string };
@@ -96,7 +100,16 @@ describe('database init migrations', () => {
       expect(sceneColumns.some((column) => column.name === 'icon')).toBe(true);
       expect(sceneColumns.some((column) => column.name === 'created_at')).toBe(true);
       expect(sceneColumns.some((column) => column.name === 'sort_order')).toBe(true);
-      expect(schemaVersion.value).toBe('4');
+      expect(deviceColumns.some((column) => column.name === 'custom_name')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'provider_source_id')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'device_type')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'lifecycle_state')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'sort_order')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'confirmed_at')).toBe(true);
+      expect(providerSourceColumns.some((column) => column.name === 'provider')).toBe(true);
+      expect(providerSourceColumns.some((column) => column.name === 'external_device_id')).toBe(true);
+      expect(providerSourceColumns.some((column) => column.name === 'original_name')).toBe(true);
+      expect(schemaVersion.value).toBe('6');
     } finally {
       if (!legacyClosed) {
         legacyDb.close();
