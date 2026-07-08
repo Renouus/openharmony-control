@@ -8,12 +8,12 @@ export class AutomationViewModel {
         this.repository = repository;
     }
     async load(feedback: string = ''): Promise<AutomationViewStateData> {
-        const scenes = await this.repository.listScenes();
-        return mapAutomationViewState(scenes, feedback);
+        const automations = await this.repository.listAutomations();
+        return mapAutomationViewState(automations, feedback);
     }
     async toggleScene(sceneId: string, enabled: boolean): Promise<string> {
         try {
-            await this.repository.updateScene(sceneId, enabled);
+            await this.repository.updateAutomation(sceneId, { enabled });
             return enabled ? 'Automation enabled' : 'Automation paused';
         }
         catch (error) {
@@ -22,8 +22,8 @@ export class AutomationViewModel {
     }
     async runScene(sceneId: string): Promise<string> {
         try {
-            await this.repository.runScene(sceneId);
-            return 'Automation executed';
+            await this.repository.updateAutomation(sceneId, { enabled: true });
+            return 'Automation updated';
         }
         catch (error) {
             return normalizeRepositoryError(error as Object);

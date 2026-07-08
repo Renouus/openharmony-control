@@ -3,6 +3,70 @@ import type { DeviceSnapshot } from '../model/device-view-model';
 export interface DeviceListResponse {
     devices: DeviceSnapshot[];
 }
+export interface SyncDevicePayload {
+    id: string;
+    name: string;
+    type: string;
+    roomId?: string | null;
+    payload: Object;
+    updatedAt: number;
+    version: number;
+    isDeleted?: boolean;
+}
+export interface SyncRoomPayload {
+    id: string;
+    name: string;
+    icon: string;
+    builtIn: boolean;
+    updatedAt: number;
+    version: number;
+    isDeleted?: boolean;
+}
+export interface SyncScenePayload {
+    id: string;
+    name: string;
+    icon?: string;
+    description: string;
+    enabled: boolean;
+    trigger: SceneTrigger;
+    repeat: string[];
+    actionsLabel: string[];
+    commands: SceneCommand[];
+    updatedAt: number;
+    version: number;
+    isDeleted?: boolean;
+}
+// Transport placeholder only for this iteration.
+// Automation entities are not yet projected into a dedicated local DAO/repository flow.
+export interface SyncAutomationPayload {
+    id: string;
+    icon?: string;
+    name: string;
+    triggerType: string;
+    triggerJson: string;
+    actionJson: string;
+    enabled: boolean;
+    updatedAt: number;
+    version: number;
+    isDeleted?: boolean;
+}
+export interface SyncResponse {
+    currentVersion: number;
+    devices: SyncDevicePayload[];
+    rooms: SyncRoomPayload[];
+    scenes: SyncScenePayload[];
+    automations: SyncAutomationPayload[];
+}
+export interface RoomItem {
+    id: string;
+    name: string;
+    icon: string;
+    builtIn: boolean;
+    createdAt: number;
+}
+export interface RoomListResponse {
+    rooms: RoomItem[];
+}
 export interface HomeSummary {
     mode: string;
     security: SummarySecurity;
@@ -62,17 +126,47 @@ export interface SummaryAlert {
 export interface SceneCommand {
     deviceId: string;
     name: string;
-    payload: object;
+    payload: SceneCommandPayload;
 }
 export interface SceneSnapshot {
     id: string;
     name: string;
+    icon?: string;
     description: string;
     enabled: boolean;
     trigger: SceneTrigger;
     repeat: string[];
     actionsLabel: string[];
     commands: SceneCommand[];
+}
+export class SceneCommandPayload {
+    on?: boolean;
+    locked?: boolean;
+    targetTemperature?: number;
+    brightness?: number;
+    colorTemperature?: number;
+}
+export class SceneCommandDraft {
+    deviceId: string = '';
+    name: string = '';
+    payload: SceneCommandPayload = new SceneCommandPayload();
+}
+export class SceneTriggerDraft {
+    type: string = '';
+    label: string = '';
+}
+export class ScenePayloadDraft {
+    name: string = '';
+    icon?: string;
+    enabled: boolean = true;
+    description: string = '';
+    trigger: SceneTriggerDraft = new SceneTriggerDraft();
+    repeat: string[] = [];
+    actionsLabel: string[] = [];
+    commands: SceneCommandDraft[] = [];
+}
+export class SceneEnablePayload {
+    enabled: boolean = false;
 }
 export interface SceneTrigger {
     type: string;
@@ -81,6 +175,47 @@ export interface SceneTrigger {
 }
 export interface SceneListResponse {
     scenes: SceneSnapshot[];
+}
+export interface AutomationSnapshot {
+    id: string;
+    icon?: string;
+    name: string;
+    triggerType: string;
+    triggerJson: string;
+    actionJson: string;
+    enabled: boolean;
+}
+export class AutomationTriggerDraftItem {
+    id: string = '';
+    type: string = '';
+    time?: string;
+    deviceId?: string;
+    property?: string;
+    operator?: string;
+    threshold?: string;
+    label: string = '';
+}
+export class AutomationActionDraftItem {
+    id: string = '';
+    type: string = '';
+    deviceId?: string;
+    command?: string;
+    sceneId?: string;
+    label: string = '';
+}
+export class AutomationPayloadDraft {
+    name: string = '';
+    icon?: string;
+    enabled: boolean = true;
+    triggerType: string = '';
+    triggerJson: string = '[]';
+    actionJson: string = '[]';
+}
+export class AutomationEnablePayload {
+    enabled: boolean = false;
+}
+export interface AutomationListResponse {
+    automations: AutomationSnapshot[];
 }
 export interface CommandHistoryEntry {
     id: string;
@@ -200,15 +335,114 @@ export class DeviceApi {
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
     }
+    async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
+        const client = http.createHttp();
+        try {
+            console.info('OmniHomeLog', `fetchSyncUpdates starting from version: ${lastVersion}`);
+            const response = await client.request(`${this.baseUrl}/api/sync?lastVersion=${lastVersion}`, {
+                method: http.RequestMethod.GET,
+                expectDataType: http.HttpDataType.STRING,
+            });
+            console.info('OmniHomeLog', `fetchSyncUpdates HTTP Code: ${response.responseCode}`);
+            console.info('OmniHomeLog', `fetchSyncUpdates raw result: ${response.result.toString().substring(0, 100)}...`);
+            return JSON.parse(response.result as string) as SyncResponse;
+        }
+        catch (e) {
+            console.error('OmniHomeLog', `fetchSyncUpdates failed heavily: ${e}`);
+            return { currentVersion: 0, devices: [], rooms: [], scenes: [], automations: [] };
+        }
+        finally {
+            client.destroy();
+        }
+    }
     async listDevices(): Promise<DeviceSnapshot[]> {
         const client = http.createHttp();
         try {
+            console.info('OmniHomeLog', `Fetching devices from API: ${this.baseUrl}/api/devices`);
             const response = await client.request(`${this.baseUrl}/api/devices`, {
                 method: http.RequestMethod.GET,
                 expectDataType: http.HttpDataType.STRING,
             });
+            console.info('OmniHomeLog', `Device API response code: ${response.responseCode}`);
             const body = JSON.parse(response.result as string) as DeviceListResponse;
             return body.devices;
+        }
+        catch (e) {
+            console.error('OmniHomeLog', `Device API failed: ${e}`);
+            return [];
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async listRooms(): Promise<RoomItem[]> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/rooms`, {
+                method: http.RequestMethod.GET,
+                expectDataType: http.HttpDataType.STRING,
+            });
+            const body = JSON.parse(response.result as string) as RoomListResponse;
+            return body.rooms;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async createRoom(name: string, icon: string): Promise<RoomItem> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/rooms`, {
+                method: http.RequestMethod.POST,
+                header: { 'Content-Type': 'application/json' },
+                extraData: JSON.stringify({ name, icon }),
+                expectDataType: http.HttpDataType.STRING,
+            });
+            return JSON.parse(response.result as string) as RoomItem;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async updateRoom(id: string, name?: string, icon?: string): Promise<RoomItem> {
+        const client = http.createHttp();
+        try {
+            const payload: Record<string, string> = {};
+            if (name !== undefined)
+                payload.name = name;
+            if (icon !== undefined)
+                payload.icon = icon;
+            const response = await client.request(`${this.baseUrl}/api/rooms/${id}`, {
+                method: http.RequestMethod.PUT,
+                header: { 'Content-Type': 'application/json' },
+                extraData: JSON.stringify(payload),
+                expectDataType: http.HttpDataType.STRING,
+            });
+            return JSON.parse(response.result as string) as RoomItem;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async deleteRoom(id: string): Promise<void> {
+        const client = http.createHttp();
+        try {
+            await client.request(`${this.baseUrl}/api/rooms/${id}`, {
+                method: http.RequestMethod.DELETE,
+            });
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async updateDeviceRoom(deviceId: string, roomId: string): Promise<void> {
+        const client = http.createHttp();
+        try {
+            await client.request(`${this.baseUrl}/api/devices/${deviceId}/room`, {
+                method: http.RequestMethod.PUT,
+                header: { 'Content-Type': 'application/json' },
+                extraData: JSON.stringify({ roomId }),
+            });
         }
         finally {
             client.destroy();
@@ -241,6 +475,20 @@ export class DeviceApi {
             client.destroy();
         }
     }
+    async listAutomations(): Promise<AutomationSnapshot[]> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/automations`, {
+                method: http.RequestMethod.GET,
+                expectDataType: http.HttpDataType.STRING,
+            });
+            const body = JSON.parse(response.result as string) as AutomationListResponse;
+            return body.automations;
+        }
+        finally {
+            client.destroy();
+        }
+    }
     async runScene(sceneId: string): Promise<void> {
         const client = http.createHttp();
         try {
@@ -256,13 +504,102 @@ export class DeviceApi {
             client.destroy();
         }
     }
-    async updateScene(sceneId: string, enabled: boolean): Promise<void> {
+    async createScene(payload: ScenePayloadDraft): Promise<SceneSnapshot> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/scenes`, {
+                method: http.RequestMethod.POST,
+                header: { 'content-type': 'application/json' },
+                extraData: JSON.stringify(payload),
+                expectDataType: http.HttpDataType.STRING,
+            });
+            if (response.responseCode < 200 || response.responseCode >= 300) {
+                throw new Error(response.result as string);
+            }
+            const data = JSON.parse(response.result as string) as Record<string, Object>;
+            return data.scene as SceneSnapshot;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<SceneSnapshot> {
         const client = http.createHttp();
         try {
             const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
                 method: http.RequestMethod.PUT,
                 header: { 'content-type': 'application/json' },
-                extraData: JSON.stringify({ enabled }),
+                extraData: JSON.stringify(payload),
+                expectDataType: http.HttpDataType.STRING,
+            });
+            if (response.responseCode < 200 || response.responseCode >= 300) {
+                throw new Error(response.result as string);
+            }
+            const data = JSON.parse(response.result as string) as Record<string, Object>;
+            return data.scene as SceneSnapshot;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async deleteScene(sceneId: string): Promise<void> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
+                method: http.RequestMethod.DELETE,
+                expectDataType: http.HttpDataType.STRING,
+            });
+            if (response.responseCode < 200 || response.responseCode >= 300) {
+                throw new Error(response.result as string);
+            }
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/automations`, {
+                method: http.RequestMethod.POST,
+                header: { 'content-type': 'application/json' },
+                extraData: JSON.stringify(payload),
+                expectDataType: http.HttpDataType.STRING,
+            });
+            if (response.responseCode < 200 || response.responseCode >= 300) {
+                throw new Error(response.result as string);
+            }
+            const data = JSON.parse(response.result as string) as Record<string, Object>;
+            return data.automation as AutomationSnapshot;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/automations/${automationId}`, {
+                method: http.RequestMethod.PUT,
+                header: { 'content-type': 'application/json' },
+                extraData: JSON.stringify(payload),
+                expectDataType: http.HttpDataType.STRING,
+            });
+            if (response.responseCode < 200 || response.responseCode >= 300) {
+                throw new Error(response.result as string);
+            }
+            const data = JSON.parse(response.result as string) as Record<string, Object>;
+            return data.automation as AutomationSnapshot;
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async deleteAutomation(automationId: string): Promise<void> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/automations/${automationId}`, {
+                method: http.RequestMethod.DELETE,
                 expectDataType: http.HttpDataType.STRING,
             });
             if (response.responseCode < 200 || response.responseCode >= 300) {
@@ -426,6 +763,23 @@ export class DeviceApi {
                 method: http.RequestMethod.POST,
                 header: { 'content-type': 'application/json' },
                 extraData: signed.result as string,
+                expectDataType: http.HttpDataType.STRING,
+            });
+            if (response.responseCode < 200 || response.responseCode >= 300) {
+                throw new Error(response.result as string);
+            }
+        }
+        finally {
+            client.destroy();
+        }
+    }
+    async postDemoMotion(deviceId: string, motionDetected: boolean): Promise<void> {
+        const client = http.createHttp();
+        try {
+            const response = await client.request(`${this.baseUrl}/api/demo/motion`, {
+                method: http.RequestMethod.POST,
+                header: { 'content-type': 'application/json' },
+                extraData: JSON.stringify({ deviceId, motionDetected }),
                 expectDataType: http.HttpDataType.STRING,
             });
             if (response.responseCode < 200 || response.responseCode >= 300) {

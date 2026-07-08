@@ -2,19 +2,26 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
     Reflect.set(ViewPU.prototype, "finalizeConstruction", () => { });
 }
 interface ClimateView_Params {
+    appState?: AppStateSnapshot;
+    onBack?: () => void;
+    onSelectMode?: (mode: string) => void;
+    onAdjustTarget?: (delta: number) => void;
+    onPowerToggle?: () => void;
 }
 interface ClimateContent_Params {
-    appState?: AppStateSnapshot;
-    controller?: AppController;
-    navStack?: NavPathStack;
+    climate?: ClimateViewState;
+    onBack?: () => void;
+    onSelectMode?: (mode: string) => void;
+    onAdjustTarget?: (delta: number) => void;
+    onPowerToggle?: () => void;
 }
 interface ClimateModeButton_Params {
     mode?: ClimateModeState;
     onTap?: () => void;
 }
-import type { ClimateModeState, ClimateUsageBarState } from '../model/page-view-state';
+import type { ClimateModeState, ClimateUsageBarState, ClimateViewState } from '../model/page-view-state';
 import type { AppStateSnapshot } from '../model/app-state-snapshot';
-import type { AppController } from '../controllers/AppController';
+import { FeatureHeader } from "@bundle:com.example.smarthomecontrol/entry/ets/components/FeatureHeader";
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 import { COLOR_BG, COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_SURFACE_CONTAINER_LOWEST, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
 class ClimateModeButton extends ViewPU {
@@ -56,13 +63,22 @@ class ClimateModeButton extends ViewPU {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 6 });
             Column.debugLine("entry/src/main/ets/views/ClimateView.ets(22:5)", "entry");
+            globalThis.Context.animation({ duration: 300 });
             Column.layoutWeight(1);
             Column.height(84);
             Column.justifyContent(FlexAlign.Center);
             Column.alignItems(HorizontalAlign.Center);
             Column.borderRadius(18);
             Column.backgroundColor(this.mode.active ? COLOR_PRIMARY : '#00000000');
+            globalThis.Context.animation(null);
             Column.onClick(() => this.onTap());
+            ViewStackProcessor.visualState("pressed");
+            Column.opacity(0.7);
+            Column.scale({ x: 0.95, y: 0.95 });
+            ViewStackProcessor.visualState("normal");
+            Column.opacity(1);
+            Column.scale({ x: 1, y: 1 });
+            ViewStackProcessor.visualState();
         }, Column);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
@@ -111,173 +127,96 @@ class ClimateContent extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.__appState = this.initializeConsume('appState', "appState");
-        this.__controller = this.initializeConsume('controller', "controller");
-        this.__navStack = this.initializeConsume('navStack', "navStack");
+        this.__climate = new SynchedPropertyNesedObjectPU(params.climate, this, "climate");
+        this.onBack = () => { };
+        this.onSelectMode = () => { };
+        this.onAdjustTarget = () => { };
+        this.onPowerToggle = () => { };
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: ClimateContent_Params) {
+        this.__climate.set(params.climate);
+        if (params.onBack !== undefined) {
+            this.onBack = params.onBack;
+        }
+        if (params.onSelectMode !== undefined) {
+            this.onSelectMode = params.onSelectMode;
+        }
+        if (params.onAdjustTarget !== undefined) {
+            this.onAdjustTarget = params.onAdjustTarget;
+        }
+        if (params.onPowerToggle !== undefined) {
+            this.onPowerToggle = params.onPowerToggle;
+        }
     }
     updateStateVars(params: ClimateContent_Params) {
+        this.__climate.set(params.climate);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
-        this.__appState.purgeDependencyOnElmtId(rmElmtId);
-        this.__controller.purgeDependencyOnElmtId(rmElmtId);
-        this.__navStack.purgeDependencyOnElmtId(rmElmtId);
+        this.__climate.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
-        this.__appState.aboutToBeDeleted();
-        this.__controller.aboutToBeDeleted();
-        this.__navStack.aboutToBeDeleted();
+        this.__climate.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private __appState: ObservedPropertyAbstractPU<AppStateSnapshot>;
-    get appState() {
-        return this.__appState.get();
+    private __climate: SynchedPropertyNesedObjectPU<ClimateViewState>;
+    get climate() {
+        return this.__climate.get();
     }
-    set appState(newValue: AppStateSnapshot) {
-        this.__appState.set(newValue);
-    }
-    private __controller: ObservedPropertyAbstractPU<AppController>;
-    get controller() {
-        return this.__controller.get();
-    }
-    set controller(newValue: AppController) {
-        this.__controller.set(newValue);
-    }
-    private __navStack: ObservedPropertyAbstractPU<NavPathStack>;
-    get navStack() {
-        return this.__navStack.get();
-    }
-    set navStack(newValue: NavPathStack) {
-        this.__navStack.set(newValue);
-    }
+    private onBack: () => void;
+    private onSelectMode: (mode: string) => void;
+    private onAdjustTarget: (delta: number) => void;
+    private onPowerToggle: () => void;
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 0 });
-            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(52:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(57:5)", "entry");
             Column.width('100%');
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(53:7)", "entry");
-            Row.width('100%');
-            Row.padding({ bottom: 24 });
-        }, Row);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(54:9)", "entry");
-        }, Row);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(55:11)", "entry");
-            Row.width(44);
-            Row.height(44);
-            Row.borderRadius(22);
-            Row.justifyContent(FlexAlign.Center);
-            Row.onClick(() => this.navStack.pop());
-        }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'arrow_back', glyphSize: 24, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 56, col: 13 });
+                    let componentCall = new FeatureHeader(this, {
+                        title: '环境控制',
+                        subtitle: '全屋温控系统',
+                        onBack: this.onBack,
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 58, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
-                            name: 'arrow_back',
-                            glyphSize: 24,
-                            color: COLOR_PRIMARY
+                            title: '环境控制',
+                            subtitle: '全屋温控系统',
+                            onBack: this.onBack
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
                 }
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: 'arrow_back', glyphSize: 24, color: COLOR_PRIMARY
+                        title: '环境控制',
+                        subtitle: '全屋温控系统'
                     });
                 }
-            }, { name: "AppSymbol" });
+            }, { name: "FeatureHeader" });
         }
-        Row.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create({ space: 2 });
-            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(64:11)", "entry");
-            Column.alignItems(HorizontalAlign.Start);
-        }, Column);
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('OmniHome');
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(65:13)", "entry");
-            Text.fontSize(10);
-            Text.fontWeight(FontWeight.Bold);
-            Text.fontColor(COLOR_PRIMARY + 'CC');
-            Text.letterSpacing(2);
-        }, Text);
-        Text.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Climate Control');
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(70:13)", "entry");
-            Text.fontSize(28);
-            Text.fontWeight(FontWeight.Bold);
-            Text.fontColor(COLOR_ON_SURFACE);
-            Text.fontFamily('serif');
-        }, Text);
-        Text.pop();
-        Column.pop();
-        Row.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/ClimateView.ets(79:9)", "entry");
-        }, Blank);
-        Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(81:9)", "entry");
-            Row.width(40);
-            Row.height(40);
-            Row.borderRadius(20);
-            Row.justifyContent(FlexAlign.Center);
-        }, Row);
-        {
-            this.observeComponentCreation2((elmtId, isInitialRender) => {
-                if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'more_vert', glyphSize: 20, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 82, col: 11 });
-                    ViewPU.create(componentCall);
-                    let paramsLambda = () => {
-                        return {
-                            name: 'more_vert',
-                            glyphSize: 20,
-                            color: COLOR_TEXT_MUTED
-                        };
-                    };
-                    componentCall.paramsGenerator_ = paramsLambda;
-                }
-                else {
-                    this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: 'more_vert', glyphSize: 20, color: COLOR_TEXT_MUTED
-                    });
-                }
-            }, { name: "AppSymbol" });
-        }
-        Row.pop();
-        Row.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(92:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(64:7)", "entry");
             Row.width('100%');
             Row.margin({ bottom: 28 });
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 2 });
-            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(93:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(65:9)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.climate.roomLabel);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(94:11)", "entry");
+            Text.create(this.climate.roomLabel);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(66:11)", "entry");
             Text.fontSize(12);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_TEXT_MUTED);
@@ -286,11 +225,11 @@ class ClimateContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(99:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(71:11)", "entry");
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(`${this.appState.climate.indoorTemperature}\u00B0`);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(100:13)", "entry");
+            Text.create(`${this.climate.indoorTemperature}\u00B0`);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(72:13)", "entry");
             Text.fontSize(64);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -298,8 +237,8 @@ class ClimateContent extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Indoor');
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(105:13)", "entry");
+            Text.create('室内');
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(77:13)", "entry");
             Text.fontSize(22);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
@@ -308,19 +247,19 @@ class ClimateContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 6 });
-            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(113:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(85:9)", "entry");
             Column.alignItems(HorizontalAlign.End);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 4 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(114:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(86:11)", "entry");
             Row.justifyContent(FlexAlign.End);
             Row.width('100%');
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'water_drop', glyphSize: 14, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 115, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'water_drop', glyphSize: 14, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 87, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -340,7 +279,7 @@ class ClimateContent extends ViewPU {
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Humidity');
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(116:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(88:13)", "entry");
             Text.fontSize(12);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_TEXT_MUTED);
@@ -349,8 +288,8 @@ class ClimateContent extends ViewPU {
         Text.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(`${this.appState.climate.humidity}%`);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(125:11)", "entry");
+            Text.create(`${this.climate.humidity}%`);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(97:11)", "entry");
             Text.fontSize(34);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -361,14 +300,14 @@ class ClimateContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Stack.create({ alignContent: Alignment.Center });
-            Stack.debugLine("entry/src/main/ets/views/ClimateView.ets(136:7)", "entry");
+            Stack.debugLine("entry/src/main/ets/views/ClimateView.ets(108:7)", "entry");
             Stack.width('100%');
             Stack.height(340);
             Stack.margin({ bottom: 18 });
         }, Stack);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(137:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(109:9)", "entry");
             Row.width(320);
             Row.height(320);
             Row.borderRadius(160);
@@ -377,7 +316,7 @@ class ClimateContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(143:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(115:9)", "entry");
             Row.width(280);
             Row.height(280);
             Row.borderRadius(140);
@@ -386,25 +325,29 @@ class ClimateContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(149:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(121:9)", "entry");
+            globalThis.Context.animation({ duration: 400 });
             Row.width(244);
             Row.height(244);
             Row.borderRadius(122);
-            Row.backgroundColor(COLOR_PRIMARY + '14');
+            Row.backgroundColor(this.climate.isPowered ? COLOR_PRIMARY + '14' : COLOR_SURFACE_CONTAINER_HIGH);
+            globalThis.Context.animation(null);
         }, Row);
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(155:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(128:9)", "entry");
+            globalThis.Context.animation({ duration: 400 });
             Row.width(240);
             Row.height(240);
             Row.borderRadius(120);
-            Row.backgroundColor(COLOR_PRIMARY);
+            Row.backgroundColor(this.climate.isPowered ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_HIGH);
+            globalThis.Context.animation(null);
         }, Row);
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(161:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(135:9)", "entry");
             Row.width(94);
             Row.height(94);
             Row.borderRadius(47);
@@ -414,7 +357,7 @@ class ClimateContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(168:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(142:9)", "entry");
             Column.width(240);
             Column.height(240);
             Column.borderRadius(120);
@@ -426,24 +369,31 @@ class ClimateContent extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 12 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(169:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(143:11)", "entry");
             Row.justifyContent(FlexAlign.Center);
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Button.createWithLabel('-');
-            Button.debugLine("entry/src/main/ets/views/ClimateView.ets(170:13)", "entry");
+            Button.debugLine("entry/src/main/ets/views/ClimateView.ets(144:13)", "entry");
             Button.fontSize(22);
             Button.fontColor(COLOR_TEXT_MUTED);
             Button.width(40);
             Button.height(40);
             Button.borderRadius(20);
             Button.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
-            Button.onClick(() => this.controller.handleClimateTarget(ObservedObject.GetRawObject(this.appState), -1));
+            Button.onClick(() => this.onAdjustTarget(-1));
+            ViewStackProcessor.visualState("pressed");
+            Button.opacity(0.7);
+            Button.scale({ x: 0.9, y: 0.9 });
+            ViewStackProcessor.visualState("normal");
+            Button.opacity(1);
+            Button.scale({ x: 1, y: 1 });
+            ViewStackProcessor.visualState();
         }, Button);
         Button.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(`Current ${this.appState.climate.currentTemperature}\u00B0`);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(178:13)", "entry");
+            Text.create(`Current ${this.climate.currentTemperature}\u00B0`);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(156:13)", "entry");
             Text.fontSize(11);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_TEXT_MUTED);
@@ -452,20 +402,27 @@ class ClimateContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Button.createWithLabel('+');
-            Button.debugLine("entry/src/main/ets/views/ClimateView.ets(183:13)", "entry");
+            Button.debugLine("entry/src/main/ets/views/ClimateView.ets(161:13)", "entry");
             Button.fontSize(22);
             Button.fontColor(COLOR_TEXT_MUTED);
             Button.width(40);
             Button.height(40);
             Button.borderRadius(20);
             Button.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
-            Button.onClick(() => this.controller.handleClimateTarget(ObservedObject.GetRawObject(this.appState), 1));
+            Button.onClick(() => this.onAdjustTarget(1));
+            ViewStackProcessor.visualState("pressed");
+            Button.opacity(0.7);
+            Button.scale({ x: 0.9, y: 0.9 });
+            ViewStackProcessor.visualState("normal");
+            Button.opacity(1);
+            Button.scale({ x: 1, y: 1 });
+            ViewStackProcessor.visualState();
         }, Button);
         Button.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(`${this.appState.climate.targetTemperature}\u00B0`);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(194:11)", "entry");
+            Text.create(`${this.climate.targetTemperature}\u00B0`);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(176:11)", "entry");
             Text.fontSize(62);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_PRIMARY);
@@ -473,8 +430,8 @@ class ClimateContent extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Target');
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(200:11)", "entry");
+            Text.create('目标');
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(182:11)", "entry");
             Text.fontSize(11);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_TEXT_MUTED);
@@ -483,21 +440,21 @@ class ClimateContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(206:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(188:11)", "entry");
             Row.justifyContent(FlexAlign.Center);
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
                     let componentCall = new AppSymbol(this, {
-                        name: this.appState.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
+                        name: this.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
                         glyphSize: 16,
                         color: COLOR_PRIMARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 207, col: 13 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 189, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
-                            name: this.appState.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
+                            name: this.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
                             glyphSize: 16,
                             color: COLOR_PRIMARY
                         };
@@ -506,7 +463,7 @@ class ClimateContent extends ViewPU {
                 }
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: this.appState.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
+                        name: this.climate.modeLabel === 'Heat' ? 'mode_heat' : 'thermostat',
                         glyphSize: 16,
                         color: COLOR_PRIMARY
                     });
@@ -514,8 +471,8 @@ class ClimateContent extends ViewPU {
             }, { name: "AppSymbol" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.climate.modeLabel);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(212:13)", "entry");
+            Text.create(this.climate.modeLabel);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(194:13)", "entry");
             Text.fontSize(12);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_PRIMARY);
@@ -525,31 +482,40 @@ class ClimateContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(220:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(202:11)", "entry");
+            globalThis.Context.animation({ duration: 300 });
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
-            Row.backgroundColor(COLOR_SURFACE_CONTAINER_HIGH);
+            Row.backgroundColor(this.climate.isPowered ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_HIGH);
+            globalThis.Context.animation(null);
             Row.justifyContent(FlexAlign.Center);
-            Row.onClick(() => this.controller.handleClimatePowerToggle(ObservedObject.GetRawObject(this.appState)));
+            Row.onClick(() => this.onPowerToggle());
+            ViewStackProcessor.visualState("pressed");
+            Row.opacity(0.7);
+            Row.scale({ x: 0.9, y: 0.9 });
+            ViewStackProcessor.visualState("normal");
+            Row.opacity(1);
+            Row.scale({ x: 1, y: 1 });
+            ViewStackProcessor.visualState();
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'power_settings_new', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 221, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'power_settings_new', glyphSize: 18, color: this.climate.isPowered ? '#FFFFFF' : COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 203, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             name: 'power_settings_new',
                             glyphSize: 18,
-                            color: COLOR_TEXT_MUTED
+                            color: this.climate.isPowered ? '#FFFFFF' : COLOR_TEXT_MUTED
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
                 }
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: 'power_settings_new', glyphSize: 18, color: COLOR_TEXT_MUTED
+                        name: 'power_settings_new', glyphSize: 18, color: this.climate.isPowered ? '#FFFFFF' : COLOR_TEXT_MUTED
                     });
                 }
             }, { name: "AppSymbol" });
@@ -558,19 +524,21 @@ class ClimateContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(239:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(226:9)", "entry");
+            globalThis.Context.animation({ duration: 400 });
             Row.width(16);
             Row.height(16);
             Row.borderRadius(8);
-            Row.backgroundColor(COLOR_PRIMARY);
+            Row.backgroundColor(this.climate.isPowered ? COLOR_PRIMARY : COLOR_TEXT_MUTED);
+            globalThis.Context.animation(null);
             Row.border({ width: 3, color: COLOR_SURFACE_CONTAINER_LOWEST });
             Row.position({ x: '71%', y: '12%' });
         }, Row);
         Row.pop();
         Stack.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.climate.statusLabel);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(251:7)", "entry");
+            Text.create(this.climate.statusLabel);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(239:7)", "entry");
             Text.fontSize(14);
             Text.fontStyle(FontStyle.Italic);
             Text.fontWeight(FontWeight.Medium);
@@ -582,7 +550,7 @@ class ClimateContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 8 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(260:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(248:7)", "entry");
             Row.padding(8);
             Row.borderRadius(24);
             Row.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -600,13 +568,13 @@ class ClimateContent extends ViewPU {
                         if (isInitialRender) {
                             let componentCall = new ClimateModeButton(this, {
                                 mode,
-                                onTap: () => this.controller.handleClimateMode(ObservedObject.GetRawObject(this.appState), mode.id),
-                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 262, col: 11 });
+                                onTap: () => this.onSelectMode(mode.id),
+                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 250, col: 11 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
                                     mode,
-                                    onTap: () => this.controller.handleClimateMode(ObservedObject.GetRawObject(this.appState), mode.id)
+                                    onTap: () => this.onSelectMode(mode.id)
                                 };
                             };
                             componentCall.paramsGenerator_ = paramsLambda;
@@ -619,13 +587,13 @@ class ClimateContent extends ViewPU {
                     }, { name: "ClimateModeButton" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.appState.climate.modes, forEachItemGenFunction, (mode: ClimateModeState) => mode.id, false, false);
+            this.forEachUpdateFunction(elmtId, this.climate.modes, forEachItemGenFunction, (mode: ClimateModeState) => mode.id + '_' + mode.active, false, false);
         }, ForEach);
         ForEach.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(276:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/ClimateView.ets(264:7)", "entry");
             Column.padding(24);
             Column.borderRadius(24);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
@@ -635,12 +603,12 @@ class ClimateContent extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(277:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(265:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('Weekly Usage');
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(278:11)", "entry");
+            Text.create('Weekly 能耗');
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(266:11)", "entry");
             Text.fontSize(22);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -649,8 +617,8 @@ class ClimateContent extends ViewPU {
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.climate.totalUsageLabel);
-            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(284:11)", "entry");
+            Text.create(this.climate.totalUsageLabel);
+            Text.debugLine("entry/src/main/ets/views/ClimateView.ets(272:11)", "entry");
             Text.fontSize(13);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_TEXT_MUTED);
@@ -659,7 +627,7 @@ class ClimateContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 10 });
-            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(291:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/ClimateView.ets(279:9)", "entry");
             Row.width('100%');
             Row.height(140);
         }, Row);
@@ -669,7 +637,7 @@ class ClimateContent extends ViewPU {
                 const bar = _item;
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Column.create({ space: 10 });
-                    Column.debugLine("entry/src/main/ets/views/ClimateView.ets(293:13)", "entry");
+                    Column.debugLine("entry/src/main/ets/views/ClimateView.ets(281:13)", "entry");
                     Column.layoutWeight(1);
                     Column.height(130);
                     Column.justifyContent(FlexAlign.End);
@@ -677,13 +645,13 @@ class ClimateContent extends ViewPU {
                 }, Column);
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Blank.create();
-                    Blank.debugLine("entry/src/main/ets/views/ClimateView.ets(294:15)", "entry");
+                    Blank.debugLine("entry/src/main/ets/views/ClimateView.ets(282:15)", "entry");
                     Blank.layoutWeight(1);
                 }, Blank);
                 Blank.pop();
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Row.create();
-                    Row.debugLine("entry/src/main/ets/views/ClimateView.ets(296:15)", "entry");
+                    Row.debugLine("entry/src/main/ets/views/ClimateView.ets(284:15)", "entry");
                     Row.width('100%');
                     Row.height(Math.max(24, Math.round(bar.value * 88)));
                     Row.borderRadius(6);
@@ -692,7 +660,7 @@ class ClimateContent extends ViewPU {
                 Row.pop();
                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                     Text.create(bar.dayLabel);
-                    Text.debugLine("entry/src/main/ets/views/ClimateView.ets(301:15)", "entry");
+                    Text.debugLine("entry/src/main/ets/views/ClimateView.ets(289:15)", "entry");
                     Text.fontSize(12);
                     Text.fontWeight(FontWeight.Bold);
                     Text.fontColor(bar.active ? COLOR_PRIMARY : COLOR_TEXT_MUTED);
@@ -700,18 +668,18 @@ class ClimateContent extends ViewPU {
                 Text.pop();
                 Column.pop();
             };
-            this.forEachUpdateFunction(elmtId, this.appState.climate.usageBars, forEachItemGenFunction, (bar: ClimateUsageBarState) => bar.dayLabel, false, false);
+            this.forEachUpdateFunction(elmtId, this.climate.usageBars, forEachItemGenFunction, (bar: ClimateUsageBarState) => bar.dayLabel, false, false);
         }, ForEach);
         ForEach.pop();
         Row.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.appState.climate.feedback.length > 0) {
+            if (this.climate.feedback.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.appState.climate.feedback);
-                        Text.debugLine("entry/src/main/ets/views/ClimateView.ets(323:9)", "entry");
+                        Text.create(this.climate.feedback);
+                        Text.debugLine("entry/src/main/ets/views/ClimateView.ets(311:9)", "entry");
                         Text.fontSize(13);
                         Text.fontColor(COLOR_PRIMARY);
                         Text.padding(12);
@@ -741,55 +709,78 @@ export class ClimateView extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
+        this.__appState = new SynchedPropertyNesedObjectPU(params.appState, this, "appState");
+        this.onBack = () => { };
+        this.onSelectMode = () => { };
+        this.onAdjustTarget = () => { };
+        this.onPowerToggle = () => { };
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: ClimateView_Params) {
+        this.__appState.set(params.appState);
+        if (params.onBack !== undefined) {
+            this.onBack = params.onBack;
+        }
+        if (params.onSelectMode !== undefined) {
+            this.onSelectMode = params.onSelectMode;
+        }
+        if (params.onAdjustTarget !== undefined) {
+            this.onAdjustTarget = params.onAdjustTarget;
+        }
+        if (params.onPowerToggle !== undefined) {
+            this.onPowerToggle = params.onPowerToggle;
+        }
     }
     updateStateVars(params: ClimateView_Params) {
+        this.__appState.set(params.appState);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
+        this.__appState.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
+        this.__appState.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
+    private __appState: SynchedPropertyNesedObjectPU<AppStateSnapshot>;
+    get appState() {
+        return this.__appState.get();
+    }
+    private onBack: () => void;
+    private onSelectMode: (mode: string) => void;
+    private onAdjustTarget: (delta: number) => void;
+    private onPowerToggle: () => void;
     initialRender() {
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            NavDestination.create(() => {
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    Scroll.create();
-                    Scroll.debugLine("entry/src/main/ets/views/ClimateView.ets(342:7)", "entry");
-                    Scroll.scrollBar(BarState.Off);
-                    Scroll.width('100%');
-                    Scroll.height('100%');
-                }, Scroll);
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    __Common__.create();
-                    __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
-                }, __Common__);
-                {
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        if (isInitialRender) {
-                            let componentCall = new ClimateContent(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 343, col: 9 });
-                            ViewPU.create(componentCall);
-                            let paramsLambda = () => {
-                                return {};
-                            };
-                            componentCall.paramsGenerator_ = paramsLambda;
-                        }
-                        else {
-                            this.updateStateVarsOfChildByElmtId(elmtId, {});
-                        }
-                    }, { name: "ClimateContent" });
+        {
+            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                if (isInitialRender) {
+                    let componentCall = new ClimateContent(this, {
+                        climate: this.appState.climate,
+                        onBack: this.onBack,
+                        onSelectMode: this.onSelectMode,
+                        onAdjustTarget: this.onAdjustTarget,
+                        onPowerToggle: this.onPowerToggle
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/ClimateView.ets", line: 336, col: 5 });
+                    ViewPU.create(componentCall);
+                    let paramsLambda = () => {
+                        return {
+                            climate: this.appState.climate,
+                            onBack: this.onBack,
+                            onSelectMode: this.onSelectMode,
+                            onAdjustTarget: this.onAdjustTarget,
+                            onPowerToggle: this.onPowerToggle
+                        };
+                    };
+                    componentCall.paramsGenerator_ = paramsLambda;
                 }
-                __Common__.pop();
-                Scroll.pop();
-            }, { moduleName: "entry", pagePath: "entry/src/main/ets/views/ClimateView" });
-            NavDestination.hideTitleBar(true);
-            NavDestination.debugLine("entry/src/main/ets/views/ClimateView.ets(341:5)", "entry");
-        }, NavDestination);
-        NavDestination.pop();
+                else {
+                    this.updateStateVarsOfChildByElmtId(elmtId, {
+                        climate: this.appState.climate
+                    });
+                }
+            }, { name: "ClimateContent" });
+        }
     }
     rerender() {
         this.updateDirtyElements();

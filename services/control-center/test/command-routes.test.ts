@@ -1,9 +1,16 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { CommandHistory } from "../src/history/command-history";
+import { DeviceRegistry } from "../src/registry/device-registry";
+import { ReplayGuard, signCommand } from "../src/security/envelope";
+import { DeviceCommandService } from "../src/services/device-command-service";
+import { LightDevice } from "../src/devices/light-device";
+import { CommandStatus, DeviceCapability, DeviceHealth, DeviceKind } from "@smart-home/device-contract";
+import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
@@ -17,6 +24,41 @@ async function sign(
 
   expect(signed.statusCode).toBe(200);
   return signed.json();
+}
+
+function fakeVendorProvider(): VendorDeviceProvider {
+  return {
+    providerId: "fake",
+    discoverDevices: async () => [],
+    getDiscoveredDeviceStatus: async () => [],
+    getDiscoveredDeviceCapabilities: async () => [],
+    ownsDevice: (deviceId) => deviceId.startsWith("tuya-"),
+    listDevices: async () => [
+      {
+        id: "tuya-sensor-1",
+        name: "Living Sensor",
+        brand: "tuya",
+        kind: DeviceKind.EnvironmentSensor,
+        capabilities: [DeviceCapability.EnvironmentReading],
+        state: {
+          temperature: 23.5,
+          humidity: 48,
+          online: true,
+          updatedAt: 60,
+        },
+        room: "living-room",
+        displayOrder: 100,
+        health: DeviceHealth.Online,
+      },
+    ],
+    getDevice: async () => undefined,
+    executeCommand: async () => ({
+      ok: false,
+      code: "COMMAND_INVALID",
+      status: CommandStatus.CommandInvalid,
+      message: "sensor is read-only",
+    }),
+  };
 }
 
 describe("secure device commands", () => {
@@ -79,6 +121,34 @@ describe("secure device commands", () => {
         requestId: "cmd-light-1",
         status: "SUCCESS",
       },
+    });
+  });
+
+  it("keeps POST /api/commands behavior stable through the extracted service boundary", async () => {
+    const app = buildApp();
+    const envelope = await sign(app, {
+      requestId: "svc-route-regression",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: "SUCCESS",
+      deviceId: "light-living-room",
+      state: expect.objectContaining({ power: true }),
+      historyEntry: expect.objectContaining({
+        requestId: "svc-route-regression",
+        status: "SUCCESS",
+      }),
     });
   });
 
@@ -338,6 +408,103 @@ describe("secure device commands", () => {
     expect(response.json()).toMatchObject({
       code: "COMMAND_UNAUTHORIZED",
       status: "COMMAND_UNAUTHORIZED",
+    });
+  });
+
+  it("preserves signed envelope metadata when security faults short-circuit commands", async () => {
+    const app = buildApp();
+    await app.inject({
+      method: "POST",
+      url: "/api/demo/faults/security",
+      payload: { forceUnauthorizedCommands: true },
+    });
+    const envelope = await sign(app, {
+      requestId: "cmd-security-envelope",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      code: "COMMAND_UNAUTHORIZED",
+      status: "COMMAND_UNAUTHORIZED",
+      historyEntry: expect.objectContaining({
+        requestId: "cmd-security-envelope",
+        deviceId: "light-living-room",
+        commandName: "switch",
+      }),
+    });
+  });
+
+  it("logs side-effect failures without changing successful command execution", async () => {
+    const logger = { error: vi.fn() };
+    const registry = new DeviceRegistry();
+    const history = new CommandHistory();
+    const service = new DeviceCommandService(
+      registry,
+      new Map([[ "light-living-room", new LightDevice() ]]),
+      history,
+      new ReplayGuard(),
+      "demo-shared-key",
+      logger,
+    );
+
+    getDb().prepare("DROP TABLE metadata").run();
+    const envelope = signCommand({
+      requestId: "cmd-side-effect-log",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    }, "demo-shared-key");
+
+    const result = await service.executeSignedCommand(envelope);
+
+    expect(result.ok).toBe(true);
+    expect(result.body).toMatchObject({
+      status: "SUCCESS",
+      deviceId: "light-living-room",
+      state: expect.objectContaining({ power: true }),
+      historyEntry: expect.objectContaining({
+        requestId: "cmd-side-effect-log",
+        status: "SUCCESS",
+      }),
+    });
+    expect(result.ok && result.body.syncedDevice).toBeUndefined();
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to update database or broadcast after command:"),
+    );
+  });
+
+  it("rejects commands for read-only Tuya sensor devices", async () => {
+    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const envelope = await sign(app, {
+      requestId: "cmd-sensor",
+      timestamp: Date.now(),
+      deviceId: "tuya-sensor-1",
+      name: "switch",
+      payload: { on: true },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/commands",
+      payload: envelope,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      code: "COMMAND_INVALID",
+      status: "COMMAND_INVALID",
     });
   });
 });

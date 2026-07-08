@@ -1,4 +1,5 @@
-export type AppPageId = 'home' | 'lighting' | 'access' | 'camera' | 'climate' | 'automation' | 'notifications' | 'family' | 'sceneEditor' | 'routineEditor' | 'bathroom' | 'kitchen' | 'livingRoom' | 'masterBedroom' | 'pendantLight' | 'familySettings';
+import type { SceneCommand } from '../services/device-api';
+export type AppPageId = 'home' | 'lighting' | 'access' | 'camera' | 'climate' | 'automation' | 'notifications' | 'family' | 'sceneEditor' | 'routineEditor' | 'bathroom' | 'kitchen' | 'createAutomation' | 'livingRoom' | 'masterBedroom' | 'pendantLight' | 'familySettings' | 'scenesList' | 'lightControl' | 'room';
 // ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
 export interface MetricPillState {
     label: string;
@@ -113,15 +114,22 @@ export interface CameraRowState {
     online: boolean;
     actionDisabled: boolean;
 }
+export interface DeviceActionState {
+    icon: string;
+    text: string;
+}
 export interface SceneCardState {
     id: string;
     name: string;
+    icon?: string;
     description: string;
     enabled: boolean;
     triggerLabel: string;
     triggerTypeLabel: string;
     actions: string[];
+    commands: SceneCommand[];
     repeatLabel: string;
+    deviceActions?: DeviceActionState[];
 }
 export interface HistoryRowState {
     id: string;
@@ -153,6 +161,13 @@ export interface ClimateUsageBarState {
     dayLabel: string;
     value: number;
     active: boolean;
+}
+export interface RoomItemState {
+    id: string;
+    name: string;
+    icon: string;
+    builtIn: boolean;
+    deviceCount: number;
 }
 // ── @Observed view-state classes ──────────────────────────────────────────────
 // Each class is the reactive counterpart consumed by views via @ObjectLink.
@@ -211,8 +226,13 @@ export class CameraViewState {
     feedback: string = '';
 }
 @Observed
+export class ScenesViewState {
+    items: SceneCardState[] = [];
+    feedback: string = '';
+}
+@Observed
 export class AutomationViewState {
-    scenes: SceneCardState[] = [];
+    items: SceneCardState[] = [];
     feedback: string = '';
 }
 @Observed
@@ -242,6 +262,10 @@ export class ClimateViewState {
     modes: ClimateModeState[] = [];
     usageBars: ClimateUsageBarState[] = [];
     feedback: string = '';
+}
+@Observed
+export class RoomListState {
+    rooms: RoomItemState[] = [];
 }
 // ── Plain-object factory helpers (still used by ViewModels & tests) ───────────
 export interface HomeViewStateData {
@@ -281,8 +305,12 @@ export interface CameraViewStateData {
     cameras: CameraRowState[];
     feedback: string;
 }
+export interface ScenesViewStateData {
+    items: SceneCardState[];
+    feedback: string;
+}
 export interface AutomationViewStateData {
-    scenes: SceneCardState[];
+    items: SceneCardState[];
     feedback: string;
 }
 export interface NotificationsViewStateData {
@@ -372,9 +400,15 @@ export function createEmptyCameraViewStateData(): CameraViewStateData {
         feedback: '',
     };
 }
+export function createEmptyScenesViewStateData(): ScenesViewStateData {
+    return {
+        items: [],
+        feedback: '',
+    };
+}
 export function createEmptyAutomationViewStateData(): AutomationViewStateData {
     return {
-        scenes: [],
+        items: [],
         feedback: '',
     };
 }
@@ -409,9 +443,13 @@ export function createEmptyClimateViewStateData(): ClimateViewStateData {
         feedback: '',
     };
 }
+export function createEmptyRoomListState(): RoomListState {
+    return new RoomListState();
+}
 // ── Legacy aliases kept for backward compatibility with ViewModels & tests ────
 // ViewModels return *Data types; callers that previously used the old names
 // still compile cleanly via these aliases.
+export { createEmptyScenesViewStateData as createEmptyScenesViewState };
 export { createEmptyHomeViewStateData as createEmptyHomeViewState };
 export { createEmptyLightingViewStateData as createEmptyLightingViewState };
 export { createEmptyAccessViewStateData as createEmptyAccessViewState };
@@ -420,3 +458,25 @@ export { createEmptyAutomationViewStateData as createEmptyAutomationViewState };
 export { createEmptyNotificationsViewStateData as createEmptyNotificationsViewState };
 export { createEmptyFamilyViewStateData as createEmptyFamilyViewState };
 export { createEmptyClimateViewStateData as createEmptyClimateViewState };
+export class RoutineDraft {
+    name: string = '';
+    icon?: string;
+    conditions: ConditionDraft[] = [];
+    actions: ActionDraft[] = [];
+}
+export class ConditionDraft {
+    id: string = '';
+    type: 'time' | 'device' = 'time';
+    time?: string;
+    deviceId?: string;
+    property?: string;
+    operator?: string;
+    threshold?: string;
+}
+export class ActionDraft {
+    id: string = '';
+    type: 'device' | 'scene' = 'device';
+    deviceId?: string;
+    command?: string;
+    sceneId?: string;
+}

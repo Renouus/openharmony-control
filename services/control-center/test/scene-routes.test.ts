@@ -1,9 +1,17 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app";
-import { closeDatabase, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { DoorLockDevice } from "../src/devices/door-lock-device";
+import { AirConditionerDevice } from "../src/devices/air-conditioner-device";
+import { ProviderDeviceStore } from "../src/devices/provider-device-store";
+import { LightDevice } from "../src/devices/light-device";
+import { CommandHistory } from "../src/history/command-history";
+import { DeviceRegistry } from "../src/registry/device-registry";
+import { SceneRegistry } from "../src/scenes/scene-registry";
+import { SceneService } from "../src/services/scene-service";
 
 describe("scene routes", () => {
   beforeEach(() => {
@@ -70,6 +78,32 @@ describe("scene routes", () => {
     expect(
       devices.json().devices.find((device: { id: string }) => device.id === "light-living-room").state.power,
     ).toBe(false);
+  });
+
+  it("keeps POST /api/scenes/:sceneId/run behavior stable through the extracted service boundary", async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/scenes/away/run",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      sceneId: "away",
+      status: "SUCCESS",
+      syncedDevices: expect.arrayContaining([
+        expect.objectContaining({
+          id: "door-front",
+          payload: expect.objectContaining({ locked: true }),
+        }),
+      ]),
+      results: expect.arrayContaining([
+        expect.objectContaining({
+          deviceId: "door-front",
+          status: "SUCCESS",
+        }),
+      ]),
+    });
   });
 
   it("persists scene-driven device state changes into sqlite sync data", async () => {
@@ -143,6 +177,75 @@ describe("scene routes", () => {
     expect(
       list.json().scenes.find((scene: { id: string }) => scene.id === "movie").enabled,
     ).toBe(false);
+  });
+
+  it("preserves omitted fields during scene PATCH updates", async () => {
+    const app = buildApp();
+    const before = await app.inject({ method: "GET", url: "/api/scenes" });
+    const original = before.json().scenes.find((scene: { id: string }) => scene.id === "movie");
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/scenes/movie",
+      payload: { enabled: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      scene: {
+        id: "movie",
+        enabled: true,
+        name: original.name,
+        trigger: original.trigger,
+        repeat: original.repeat,
+        actionsLabel: original.actionsLabel,
+        commands: original.commands,
+      },
+    });
+  });
+
+  it("preserves omitted fields during partial scene PUT updates", async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Reading",
+        description: "Reading mode",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: ["Mon"],
+        actionsLabel: ["Dim lights"],
+        commands: [
+          { deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 35 } },
+        ],
+      },
+    });
+
+    const createdScene = createResponse.json().scene;
+    const response = await app.inject({
+      method: "PUT",
+      url: `/api/scenes/${createdScene.id}`,
+      payload: {
+        description: "Reading mode updated",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      scene: {
+        id: createdScene.id,
+        name: "Reading",
+        description: "Reading mode updated",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: ["Mon"],
+        actionsLabel: ["Dim lights"],
+        commands: [
+          { deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 35 } },
+        ],
+      },
+    });
   });
 
   it("persists custom scenes across app instances when sqlite is reused", async () => {
@@ -331,5 +434,122 @@ describe("scene routes", () => {
 
     expect(updatedIndex).toBe(previousIndex);
     expect(scenesAfterUpdate[updatedIndex].name).toBe("Focus Plus");
+  });
+
+  it("lets SceneService own built-in scene read and mutation helpers", async () => {
+    const service = new SceneService(
+      new DeviceRegistry(),
+      new SceneRegistry(),
+      new CommandHistory(),
+      new Map<string, DoorLockDevice | LightDevice | AirConditionerDevice>([
+        ["door-front", new DoorLockDevice()],
+        ["light-living-room", new LightDevice()],
+        ["ac-living-room", new AirConditionerDevice()],
+      ]),
+    );
+
+    const before = service.listScenes();
+    const created = service.createScene({
+      name: "Service Owned",
+      description: "Created through SceneService",
+      enabled: true,
+      trigger: { type: "manual", label: "Run now" },
+      repeat: [],
+      actionsLabel: ["Turn on light"],
+      commands: [
+        { deviceId: "light-living-room", name: "switch", payload: { on: true } },
+      ],
+    });
+    const updated = service.updateScene(created.id, { enabled: false, name: "Service Owned Updated" });
+    const afterUpdate = service.listScenes();
+    const deleted = service.deleteScene(created.id);
+    const afterDelete = service.listScenes();
+
+    expect(before).toEqual(expect.arrayContaining([expect.objectContaining({ id: "away" })]));
+    expect(created).toMatchObject({ name: "Service Owned", enabled: true });
+    expect(updated).toMatchObject({ id: created.id, name: "Service Owned Updated", enabled: false });
+    expect(afterUpdate).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.id, enabled: false })]));
+    expect(deleted).toMatchObject({ id: created.id, isDeleted: true });
+    expect(afterDelete.find((scene) => scene.id === created.id)).toBeUndefined();
+  });
+
+  it("logs scene side-effect failures without changing successful scene execution", async () => {
+    const logger = { error: vi.fn() };
+    const service = new SceneService(
+      new DeviceRegistry(),
+      new SceneRegistry(),
+      new CommandHistory(),
+      new Map<string, DoorLockDevice | LightDevice | AirConditionerDevice>([
+        ["door-front", new DoorLockDevice()],
+        ["light-living-room", new LightDevice()],
+        ["ac-living-room", new AirConditionerDevice()],
+      ]),
+      logger,
+    );
+
+    getDb().prepare("DROP TABLE metadata").run();
+
+    const result = await service.runScene("away");
+
+    expect(result.ok).toBe(true);
+    expect(result.body).toMatchObject({
+      sceneId: "away",
+      status: "SUCCESS",
+      results: expect.arrayContaining([
+        expect.objectContaining({ deviceId: "door-front", status: "SUCCESS" }),
+      ]),
+    });
+    expect(result.ok && result.body.syncedDevices).toEqual([]);
+    expect(logger.error).toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to persist scene device update:"),
+    );
+  });
+
+  it("rejects pending devices when creating scenes", async () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([
+      {
+        provider: "tuya",
+        externalDeviceId: "light-1",
+        originalName: "Smart Light",
+        online: true,
+        deviceType: "light",
+        state: {
+          power: true,
+          brightness: 50,
+          colorTemperature: 4000,
+          online: true,
+          updatedAt: 100,
+        },
+        capabilities: ["switch", "brightness", "color-temperature"],
+        status: [],
+        functions: [],
+        raw: { id: "light-1" },
+      },
+    ]);
+
+    const app = buildApp();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Invalid Scene",
+        description: "Should fail",
+        enabled: true,
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Pending light on"],
+        commands: [
+          { deviceId: "tuya-light-1", name: "switch", payload: { on: true } },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      code: "PENDING_DEVICE_NOT_ALLOWED",
+      deviceId: "tuya-light-1",
+    });
   });
 });

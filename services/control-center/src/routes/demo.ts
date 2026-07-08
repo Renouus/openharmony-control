@@ -7,6 +7,8 @@
  */
 import type { FastifyInstance } from "fastify";
 import type { DeviceState } from "@smart-home/device-contract";
+import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
+import type { SensorEventTriggerAdapter } from "../automation/triggers/sensor-event-trigger-adapter";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { DemoFaultState } from "./demo-fault-state";
 import { getDb } from "../db/database";
@@ -35,6 +37,8 @@ export async function registerDemoRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
   faultState: DemoFaultState,
+  deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
+  sensorEventTriggerAdapter?: SensorEventTriggerAdapter,
 ): Promise<void> {
   /** 故障注入：切换设备在线/离线 */
   app.post("/api/demo/faults/offline", async (request, reply) => {
@@ -43,6 +47,7 @@ export async function registerDemoRoutes(
       return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
     }
 
+    const beforeState = { ...(registry.find(body.deviceId)?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update(body.deviceId, {
       online: body.offline !== true,
     });
@@ -66,6 +71,20 @@ export async function registerDemoRoutes(
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/offline: " + dbErr);
+    }
+
+    if (deviceStateTriggerAdapter) {
+      try {
+        await deviceStateTriggerAdapter.dispatchStateChange({
+          deviceId: body.deviceId,
+          source: "demo",
+          before: beforeState,
+          after: updated.state as Record<string, unknown>,
+          metadata: { chainDepth: 0, routeOrigin: "demo-offline" },
+        });
+      } catch (error) {
+        app.log.error("Failed to dispatch demo/offline event: " + String(error));
+      }
     }
 
     return {
@@ -94,6 +113,7 @@ export async function registerDemoRoutes(
     if (body.purifierActive !== undefined) {
       nextState.purifierActive = body.purifierActive;
     }
+    const beforeSensorState = { ...(registry.find("sensor-living-room")?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update("sensor-living-room", nextState);
 
     // 同步更新 SQLite 并广播
@@ -114,6 +134,20 @@ export async function registerDemoRoutes(
       app.log.error("Failed to update DB for demo/environment: " + dbErr);
     }
 
+    if (deviceStateTriggerAdapter && updated) {
+      try {
+        await deviceStateTriggerAdapter.dispatchStateChange({
+          deviceId: "sensor-living-room",
+          source: "demo",
+          before: beforeSensorState,
+          after: updated.state as Record<string, unknown>,
+          metadata: { chainDepth: 0, routeOrigin: "demo-environment" },
+        });
+      } catch (error) {
+        app.log.error("Failed to dispatch demo/environment event: " + String(error));
+      }
+    }
+
     return {
       deviceId: "sensor-living-room",
       state: updated?.state,
@@ -128,6 +162,7 @@ export async function registerDemoRoutes(
       return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
     }
 
+    const beforeMotionState = { ...(registry.find(body.deviceId)?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update(body.deviceId, {
       motionDetected: body.motionDetected === true,
     });
@@ -154,10 +189,33 @@ export async function registerDemoRoutes(
       app.log.error("Failed to update DB for demo/motion sensor: " + dbErr);
     }
 
+    if (deviceStateTriggerAdapter) {
+      try {
+        await deviceStateTriggerAdapter.dispatchStateChange({
+          deviceId: body.deviceId,
+          source: "demo",
+          before: beforeMotionState,
+          after: updated.state as Record<string, unknown>,
+          metadata: { chainDepth: 0, routeOrigin: "demo-motion-state" },
+        });
+      } catch (error) {
+        app.log.error("Failed to dispatch demo/motion state event: " + String(error));
+      }
+    }
+
+    if (sensorEventTriggerAdapter) {
+      try {
+        await sensorEventTriggerAdapter.dispatchMotion(body.deviceId, body.motionDetected === true);
+      } catch (error) {
+        app.log.error("Failed to dispatch demo/motion sensor event: " + String(error));
+      }
+    }
+
     // 简易自动化规则：客厅感应器触发时开灯，无人时关灯
     if (body.deviceId === "sensor-motion-living-room") {
       const light = registry.find("light-living-room");
       if (light && light.state.online) {
+        const beforeLightState = { ...light.state } as Record<string, unknown>;
         registry.update("light-living-room", {
           power: body.motionDetected === true,
         });
@@ -181,6 +239,23 @@ export async function registerDemoRoutes(
           }
         } catch (dbErr) {
           app.log.error("Failed to update DB for demo/motion light: " + dbErr);
+        }
+
+        if (deviceStateTriggerAdapter) {
+          const lightUpdated = registry.find("light-living-room");
+          if (lightUpdated) {
+            try {
+              await deviceStateTriggerAdapter.dispatchStateChange({
+                deviceId: "light-living-room",
+                source: "demo",
+                before: beforeLightState,
+                after: lightUpdated.state as Record<string, unknown>,
+                metadata: { chainDepth: 0, routeOrigin: "demo-motion-light" },
+              });
+            } catch (error) {
+              app.log.error("Failed to dispatch demo/motion light event: " + String(error));
+            }
+          }
         }
       }
     }

@@ -3,7 +3,6 @@ import { HomeDeviceCardState, HomeViewState } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
 import {
-  COLOR_BG,
   COLOR_PRIMARY,
   COLOR_ON_SURFACE,
   COLOR_SECONDARY,
@@ -11,7 +10,7 @@ import {
   COLOR_SURFACE_CONTAINER_HIGH,
   COLOR_OUTLINE_VARIANT,
   COLOR_ON_PRIMARY,
-  COLOR_PRIMARY_SOFT
+  COLOR_TEXT_MUTED,
 } from '../theme/smart-home-theme';
 
 @Component
@@ -21,38 +20,51 @@ export struct LightControlView {
   @ObjectLink home: HomeViewState;
   @Consume('controller') controller: AppController;
 
-  @State colorTemp: number = 4000; // 模拟色温，范围 2000K 到 6500K
+  @State colorTemp: number = 4000;
+  @State isRenameSheetOpen: boolean = false;
+  @State renameDraft: string = '';
+  @State isRenameSubmitting: boolean = false;
 
   private getDevice(): HomeDeviceCardState | undefined {
     for (const room of this.home.rooms) {
-      const dev = room.devices.find(d => d.id === this.deviceId);
-      if (dev) return dev;
+      const device = room.devices.find((item) => item.id === this.deviceId);
+      if (device !== undefined) {
+        return device;
+      }
     }
     return undefined;
   }
 
+  private openRenameSheet(): void {
+    this.renameDraft = this.getDevice()?.name ?? '';
+    this.isRenameSheetOpen = true;
+  }
+
   private getGradientColor(): string {
-    const dev = this.getDevice();
-    if (!dev || !dev.power) return '#00000000'; // 关闭时无光晕
-    
-    if (this.colorTemp < 3500) {
-      return '#26FF9800'; // 暖光光晕
-    } else if (this.colorTemp > 5000) {
-      return '#262196F3'; // 冷光光晕
-    } else {
-      return '#1AFFFFFF'; // 中性光晕
+    const device = this.getDevice();
+    if (device === undefined || !device.power) {
+      return '#00000000';
     }
+    if (this.colorTemp < 3500) {
+      return '#26FF9800';
+    }
+    if (this.colorTemp > 5000) {
+      return '#262196F3';
+    }
+    return '#1AFFFFFF';
   }
 
   build() {
     Column() {
       if (!this.getDevice()) {
-        Column() { 
-          Text('未找到该设备').fontColor(COLOR_SECONDARY) 
-        }.width('100%').height('100%').justifyContent(FlexAlign.Center)
+        Column() {
+          Text('Device not found').fontColor(COLOR_SECONDARY)
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
       } else {
         Stack({ alignContent: Alignment.Top }) {
-          // 背景环境光晕
           Row()
             .width('100%')
             .height(350)
@@ -66,32 +78,64 @@ export struct LightControlView {
             .animation({ duration: 600, curve: Curve.EaseInOut })
 
           Column({ space: 32 }) {
-            // 头部设备信息
             Column({ space: 8 }) {
-              Text(this.getDevice()?.name ?? '')
-                .fontSize(28)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(COLOR_ON_SURFACE)
+              Row({ space: 12 }) {
+                Text(this.getDevice()?.name ?? '')
+                  .fontSize(28)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(COLOR_ON_SURFACE)
+                  .layoutWeight(1)
+
+                Button() {
+                  AppSymbol({ name: 'edit', glyphSize: 18, color: COLOR_ON_SURFACE })
+                }
+                .width(40)
+                .height(40)
+                .padding(0)
+                .borderRadius(20)
+                .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+                .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '40' })
+                .onClick(() => {
+                  this.openRenameSheet();
+                })
+                .bindSheet($$this.isRenameSheetOpen, this.RenameSheetBuilder(), {
+                  height: 320,
+                  dragBar: true,
+                  backgroundColor: COLOR_SURFACE_CONTAINER_HIGH,
+                })
+              }
+              .width('100%')
+
               Text(this.getDevice()?.statusLabel ?? '')
                 .fontSize(14)
                 .fontColor(COLOR_SECONDARY)
             }
-            .alignItems(HorizontalAlign.Center)
+            .alignItems(HorizontalAlign.Start)
             .margin({ top: 16 })
 
-            // 中央亮度展示区（已优化）
             Stack() {
-              DataPanel({ values: [this.getDevice()?.power ? (this.getDevice()?.brightness ?? 0) : 0], max: 100, type: DataPanelType.Line })
+              DataPanel({
+                values: [this.getDevice()?.power ? (this.getDevice()?.brightness ?? 0) : 0],
+                max: 100,
+                type: DataPanelType.Line
+              })
                 .width(280)
                 .height(280)
                 .valueColors([this.getDevice()?.power ? COLOR_PRIMARY : COLOR_OUTLINE_VARIANT])
                 .trackBackgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
-                .shadow(this.getDevice()?.power ? { radius: 32, color: this.getGradientColor(), offsetY: 0 } : { radius: 0 })
+                .shadow(this.getDevice()?.power
+                  ? { radius: 32, color: this.getGradientColor(), offsetY: 0 }
+                  : { radius: 0 })
                 .animation({ duration: 400, curve: Curve.EaseOut })
-              
+
               Column({ space: 8 }) {
-                AppSymbol({ name: 'lightbulb', glyphSize: 32, color: this.getDevice()?.power ? COLOR_PRIMARY : COLOR_SECONDARY })
+                AppSymbol({
+                  name: 'lightbulb',
+                  glyphSize: 32,
+                  color: this.getDevice()?.power ? COLOR_PRIMARY : COLOR_SECONDARY
+                })
                   .animation({ duration: 400 })
+
                 Row({ space: 4 }) {
                   Text(`${this.getDevice()?.power ? (this.getDevice()?.brightness ?? 0) : 0}`)
                     .fontSize(72)
@@ -106,27 +150,30 @@ export struct LightControlView {
               }
             }
 
-            // 核心控制区（电源 & 亮度）
             Row({ space: 16 }) {
-              // 电源开关大按钮
               Column() {
-                AppSymbol({ name: 'power_settings_new', glyphSize: 32, color: this.getDevice()?.power ? COLOR_ON_PRIMARY : COLOR_SECONDARY })
+                AppSymbol({
+                  name: 'power_settings_new',
+                  glyphSize: 32,
+                  color: this.getDevice()?.power ? COLOR_ON_PRIMARY : COLOR_SECONDARY
+                })
               }
               .width(76)
               .height(76)
               .borderRadius(38)
               .backgroundColor(this.getDevice()?.power ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_HIGH)
               .justifyContent(FlexAlign.Center)
-              .shadow(this.getDevice()?.power ? { radius: 20, color: COLOR_PRIMARY + '66', offsetY: 8 } : { radius: 0, color: '#0000' })
+              .shadow(this.getDevice()?.power
+                ? { radius: 20, color: COLOR_PRIMARY + '66', offsetY: 8 }
+                : { radius: 0, color: '#0000' })
               .animation({ duration: 300 })
               .onClick(() => {
-                const dev = this.getDevice();
-                if (dev) {
-                  this.controller.handleHomeTogglePower(this.appState, dev.id, !dev.power);
+                const device = this.getDevice();
+                if (device !== undefined) {
+                  this.controller.handleHomeTogglePower(this.appState, device.id, !device.power);
                 }
               })
 
-              // 亮度滑块胶囊
               Row() {
                 AppSymbol({ name: 'brightness_low', glyphSize: 20, color: COLOR_SECONDARY })
                 Slider({ value: this.getDevice()?.brightness ?? 0, min: 1, max: 100, style: SliderStyle.OutSet })
@@ -136,9 +183,9 @@ export struct LightControlView {
                   .blockColor(this.getDevice()?.power ? COLOR_PRIMARY : COLOR_SECONDARY)
                   .onChange((value: number, mode: SliderChangeMode) => {
                     if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-                      const dev = this.getDevice();
-                      if (dev) {
-                        this.controller.handleHomeBrightness(this.appState, dev.id, Math.round(value));
+                      const device = this.getDevice();
+                      if (device !== undefined) {
+                        this.controller.handleHomeBrightness(this.appState, device.id, Math.round(value));
                       }
                     }
                   })
@@ -153,10 +200,9 @@ export struct LightControlView {
             }
             .width('100%')
 
-            // 色温调节卡片
             Column({ space: 16 }) {
               Row() {
-                Text('色温').fontSize(18).fontWeight(FontWeight.Medium).fontColor(COLOR_ON_SURFACE)
+                Text('Color temperature').fontSize(18).fontWeight(FontWeight.Medium).fontColor(COLOR_ON_SURFACE)
                 Blank()
                 Text(`${this.colorTemp}K`).fontSize(14).fontColor(COLOR_SECONDARY)
               }
@@ -170,10 +216,11 @@ export struct LightControlView {
                   .onChange((value: number) => {
                     this.colorTemp = Math.round(value);
                   })
+
                 Row() {
-                  Text('暖光').fontSize(12).fontColor(COLOR_SECONDARY)
+                  Text('Warm').fontSize(12).fontColor(COLOR_SECONDARY)
                   Blank()
-                  Text('冷光').fontSize(12).fontColor(COLOR_SECONDARY)
+                  Text('Cool').fontSize(12).fontColor(COLOR_SECONDARY)
                 }
                 .width('100%')
               }
@@ -183,20 +230,18 @@ export struct LightControlView {
             .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
             .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '33' })
             .width('100%')
-            
-            // 预设场景网格
+
             Column({ space: 16 }) {
-              Text('预设场景').fontSize(18).fontWeight(FontWeight.Medium).fontColor(COLOR_ON_SURFACE)
+              Text('Presets').fontSize(18).fontWeight(FontWeight.Medium).fontColor(COLOR_ON_SURFACE)
               GridRow({ columns: 2, gutter: 12 }) {
-                GridCol() { this.PresetCard('psychology', '专注', '冷光 • 100%', this.colorTemp >= 5000 && (this.getDevice()?.brightness ?? 0) > 80 && (this.getDevice()?.power ?? false)) }
-                GridCol() { this.PresetCard('self_care', '放松', '暖光 • 60%', this.colorTemp < 3500 && (this.getDevice()?.brightness ?? 0) <= 70 && (this.getDevice()?.power ?? false)) }
-                GridCol() { this.PresetCard('menu_book', '阅读', '中性 • 80%', this.colorTemp >= 3500 && this.colorTemp < 5000 && (this.getDevice()?.brightness ?? 0) > 70 && (this.getDevice()?.power ?? false)) }
-                GridCol() { this.PresetCard('bedtime', '夜间', '极暖 • 10%', this.colorTemp <= 2500 && (this.getDevice()?.brightness ?? 0) <= 20 && (this.getDevice()?.power ?? false)) }
+                GridCol() { this.PresetCard('psychology', 'Focus', 'Cool - 100%', this.colorTemp >= 5000 && (this.getDevice()?.brightness ?? 0) > 80 && (this.getDevice()?.power ?? false)) }
+                GridCol() { this.PresetCard('self_care', 'Relax', 'Warm - 60%', this.colorTemp < 3500 && (this.getDevice()?.brightness ?? 0) <= 70 && (this.getDevice()?.power ?? false)) }
+                GridCol() { this.PresetCard('menu_book', 'Read', 'Neutral - 80%', this.colorTemp >= 3500 && this.colorTemp < 5000 && (this.getDevice()?.brightness ?? 0) > 70 && (this.getDevice()?.power ?? false)) }
+                GridCol() { this.PresetCard('bedtime', 'Night', 'Amber - 10%', this.colorTemp <= 2500 && (this.getDevice()?.brightness ?? 0) <= 20 && (this.getDevice()?.power ?? false)) }
               }
             }
             .alignItems(HorizontalAlign.Start)
             .width('100%')
-
           }
           .width('100%')
         }
@@ -204,6 +249,81 @@ export struct LightControlView {
       }
     }
     .width('100%')
+  }
+
+  @Builder
+  private RenameSheetBuilder() {
+    Column({ space: 22 }) {
+      Row()
+        .width(48)
+        .height(5)
+        .borderRadius(3)
+        .backgroundColor(COLOR_OUTLINE_VARIANT)
+        .margin({ top: 6 })
+
+      Row() {
+        Text('Edit device name')
+          .fontSize(28)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_ON_SURFACE)
+          .fontFamily('serif')
+          .layoutWeight(1)
+
+        Button('Close')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_TEXT_MUTED)
+          .backgroundColor('#00000000')
+          .padding({ left: 0, right: 0 })
+          .height(32)
+          .onClick(() => {
+            this.isRenameSheetOpen = false;
+          })
+      }
+      .width('100%')
+
+      Column({ space: 14 }) {
+        Text('Device name')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_ON_SURFACE)
+          .width('100%')
+
+        TextInput({ placeholder: 'Enter a new name', text: this.renameDraft })
+          .height(52)
+          .fontSize(15)
+          .borderRadius(16)
+          .backgroundColor('#FFFFFF')
+          .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' })
+          .maxLength(30)
+          .onChange((value: string) => {
+            this.renameDraft = value;
+          })
+      }
+      .width('100%')
+
+      Button(this.isRenameSubmitting ? 'Saving...' : 'Save')
+        .width('100%')
+        .height(52)
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(COLOR_ON_PRIMARY)
+        .backgroundColor(this.renameDraft.trim().length === 0 ? COLOR_OUTLINE_VARIANT : COLOR_PRIMARY)
+        .borderRadius(26)
+        .margin({ top: 12 })
+        .enabled(this.renameDraft.trim().length > 0 && !this.isRenameSubmitting)
+        .onClick(async () => {
+          this.isRenameSubmitting = true;
+          await this.controller.handleUpdateDeviceName(this.appState, this.deviceId, this.renameDraft.trim());
+          this.isRenameSubmitting = false;
+          this.isRenameSheetOpen = false;
+        })
+    }
+    .width('100%')
+    .padding({ left: 24, right: 24, top: 14, bottom: 28 })
+    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+    .borderRadius({ topLeft: 32, topRight: 32 })
+    .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
   }
 
   @Builder
@@ -223,19 +343,20 @@ export struct LightControlView {
     .border({ width: 1, color: isActive ? COLOR_PRIMARY : COLOR_OUTLINE_VARIANT + '33' })
     .width('100%')
     .onClick(() => {
-      if (title === '专注') {
+      if (title === 'Focus') {
         this.colorTemp = 6000;
         this.controller.handleHomeBrightness(this.appState, this.deviceId, 100);
-      } else if (title === '放松') {
+      } else if (title === 'Relax') {
         this.colorTemp = 3000;
         this.controller.handleHomeBrightness(this.appState, this.deviceId, 60);
-      } else if (title === '阅读') {
+      } else if (title === 'Read') {
         this.colorTemp = 4000;
         this.controller.handleHomeBrightness(this.appState, this.deviceId, 80);
-      } else if (title === '夜间') {
+      } else if (title === 'Night') {
         this.colorTemp = 2000;
         this.controller.handleHomeBrightness(this.appState, this.deviceId, 10);
       }
+
       if (!this.getDevice()?.power) {
         this.controller.handleHomeTogglePower(this.appState, this.deviceId, true);
       }

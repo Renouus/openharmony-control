@@ -4,6 +4,7 @@ import {
   type DeviceState,
   type EnhancedDeviceDescriptor,
 } from "@smart-home/device-contract";
+import type { DeviceProviderDiscovery } from "../devices/provider-discovery";
 
 export type VendorExecutionSuccess = {
   ok: true;
@@ -22,7 +23,7 @@ export type VendorExecutionFailure = {
 
 export type VendorExecutionResult = VendorExecutionSuccess | VendorExecutionFailure;
 
-export interface VendorDeviceProvider {
+export interface VendorDeviceProvider extends DeviceProviderDiscovery {
   readonly providerId: string;
   ownsDevice(deviceId: string): boolean;
   listDevices(): Promise<EnhancedDeviceDescriptor[]>;

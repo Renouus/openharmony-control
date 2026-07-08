@@ -8,6 +8,7 @@ export interface DeviceListResponse {
 export interface SyncDevicePayload {
   id: string;
   name: string;
+  customName?: string | null;
   type: string;
   roomId?: string | null;
   payload: Object;
@@ -85,6 +86,30 @@ export class CreateDeviceRequest {
 
 export interface DeviceMutationResponse {
   device: DeviceSnapshot;
+}
+
+export interface PendingDeviceSnapshot {
+  id: string;
+  provider: string;
+  originalName: string;
+  displayName: string;
+  deviceType: string;
+  online: boolean;
+  capabilities: string[];
+}
+
+export interface PendingDeviceListResponse {
+  devices: PendingDeviceSnapshot[];
+}
+
+export class UpdateDeviceRequest {
+  customName?: string;
+}
+
+export class JoinPendingDeviceRequest {
+  displayName: string = '';
+  roomId: string = '';
+  deviceType: string = '';
 }
 
 export interface HomeSummary {
@@ -549,6 +574,81 @@ export class DeviceApi {
         header: { 'Content-Type': 'application/json' },
         extraData: JSON.stringify({ roomId }),
       });
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async updateDevice(deviceId: string, customName?: string): Promise<DeviceSnapshot> {
+    const client = http.createHttp();
+    try {
+      const payload: UpdateDeviceRequest = {};
+      payload.customName = customName;
+      const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
+        method: http.RequestMethod.PUT,
+        header: { 'Content-Type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const body = JSON.parse(response.result as string) as DeviceMutationResponse;
+      return body.device;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async listPendingDevices(): Promise<PendingDeviceSnapshot[]> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/devices/pending`, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      const body = JSON.parse(response.result as string) as PendingDeviceListResponse;
+      return body.devices;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async joinPendingDevice(
+    deviceId: string,
+    displayName: string,
+    roomId: string,
+    deviceType: string,
+  ): Promise<DeviceSnapshot> {
+    const client = http.createHttp();
+    try {
+      const payload: JoinPendingDeviceRequest = { displayName, roomId, deviceType };
+      const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}/join-home`, {
+        method: http.RequestMethod.POST,
+        header: { 'Content-Type': 'application/json' },
+        extraData: JSON.stringify(payload),
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+      const body = JSON.parse(response.result as string) as DeviceMutationResponse;
+      return body.device;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async rejectPendingDevice(deviceId: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}/reject`, {
+        method: http.RequestMethod.POST,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
     } finally {
       client.destroy();
     }

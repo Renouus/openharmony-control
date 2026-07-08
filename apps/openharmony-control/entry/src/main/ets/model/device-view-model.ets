@@ -16,6 +16,7 @@ export interface DeviceState {
 export interface DeviceSnapshot {
   id: string;
   name: string;
+  customName?: string;
   kind: string;
   brand?: string;
   capabilities: string[];
@@ -34,6 +35,14 @@ export interface DeviceCardState {
   enabled: boolean;
 }
 
+export function displayDeviceName(device: DeviceSnapshot): string {
+  const customName = device.customName?.trim();
+  if (customName !== undefined && customName.length > 0) {
+    return customName;
+  }
+  return device.name;
+}
+
 export function toDeviceCardState(device: DeviceSnapshot): DeviceCardState {
   let subtitle = device.kind;
   if (device.kind === 'environment-sensor') {
@@ -45,7 +54,7 @@ export function toDeviceCardState(device: DeviceSnapshot): DeviceCardState {
 
   return {
     id: device.id,
-    title: device.name,
+    title: displayDeviceName(device),
     subtitle,
     statusLabel: device.state.online ? 'Online' : 'Offline',
     enabled: device.state.online,

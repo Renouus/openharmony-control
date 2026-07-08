@@ -15,7 +15,11 @@ class AccessRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
+  async listPendingDevices() { return []; }
   async createDevice(_deviceCode: string, _roomId: string) { throw new Error('not used'); }
+  async joinPendingDevice(_deviceId: string, _displayName: string, _roomId: string, _deviceType: string) { throw new Error('not used'); }
+  async rejectPendingDevice(_deviceId: string) {}
+  async updateDeviceName(_deviceId: string, _customName: string) { throw new Error('not used'); }
   async listScenes() { return []; }
   async listAutomations() { return []; }
   async listRooms() { return []; }

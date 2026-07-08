@@ -3,9 +3,10 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
 }
 interface NotificationsView_Params {
     appState?: AppStateSnapshot;
+    notifications?: NotificationsViewState;
     activeFilter?: number;
 }
-import type { HistoryRowState } from '../model/page-view-state';
+import type { HistoryRowState, NotificationsViewState } from '../model/page-view-state';
 import type { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 import { HistoryRow } from "@bundle:com.example.smarthomecontrol/entry/ets/components/HistoryRow";
@@ -17,34 +18,42 @@ export class NotificationsView extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.__appState = this.initializeConsume('appState', "appState");
+        this.__appState = new SynchedPropertyNesedObjectPU(params.appState, this, "appState");
+        this.__notifications = new SynchedPropertyNesedObjectPU(params.notifications, this, "notifications");
         this.__activeFilter = new ObservedPropertySimplePU(0, this, "activeFilter");
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: NotificationsView_Params) {
+        this.__appState.set(params.appState);
+        this.__notifications.set(params.notifications);
         if (params.activeFilter !== undefined) {
             this.activeFilter = params.activeFilter;
         }
     }
     updateStateVars(params: NotificationsView_Params) {
+        this.__appState.set(params.appState);
+        this.__notifications.set(params.notifications);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
         this.__appState.purgeDependencyOnElmtId(rmElmtId);
+        this.__notifications.purgeDependencyOnElmtId(rmElmtId);
         this.__activeFilter.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
         this.__appState.aboutToBeDeleted();
+        this.__notifications.aboutToBeDeleted();
         this.__activeFilter.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private __appState: ObservedPropertyAbstractPU<AppStateSnapshot>;
+    private __appState: SynchedPropertyNesedObjectPU<AppStateSnapshot>;
     get appState() {
         return this.__appState.get();
     }
-    set appState(newValue: AppStateSnapshot) {
-        this.__appState.set(newValue);
+    private __notifications: SynchedPropertyNesedObjectPU<NotificationsViewState>;
+    get notifications() {
+        return this.__notifications.get();
     }
     private __activeFilter: ObservedPropertySimplePU<number>;
     get activeFilter() {
@@ -54,7 +63,7 @@ export class NotificationsView extends ViewPU {
         this.__activeFilter.set(newValue);
     }
     private visibleEntries(): HistoryRowState[] {
-        return filterNotificationEntries(this.appState.notifications.entries, this.activeFilter);
+        return filterNotificationEntries(this.notifications.entries, this.activeFilter);
     }
     private entriesForDay(dayLabel: string): HistoryRowState[] {
         return this.visibleEntries().filter((entry: HistoryRowState) => entry.dayLabel === dayLabel);
@@ -62,7 +71,7 @@ export class NotificationsView extends ViewPU {
     private buildFilterButton(label: string, index: number, parent = null): void {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Button.createWithLabel(label);
-            Button.debugLine("entry/src/main/ets/views/NotificationsView.ets(32:5)", "entry");
+            Button.debugLine("entry/src/main/ets/views/NotificationsView.ets(33:5)", "entry");
             Button.fontSize(13);
             Button.fontColor(this.activeFilter === index ? '#FFFFFF' : COLOR_ON_SURFACE_VARIANT);
             Button.height(38);
@@ -86,12 +95,12 @@ export class NotificationsView extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 16 });
-                        Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(51:7)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(52:7)", "entry");
                         Column.width('100%');
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create(dayLabel);
-                        Text.debugLine("entry/src/main/ets/views/NotificationsView.ets(52:9)", "entry");
+                        Text.debugLine("entry/src/main/ets/views/NotificationsView.ets(53:9)", "entry");
                         Text.fontSize(19);
                         Text.fontWeight(FontWeight.Medium);
                         Text.fontColor(COLOR_TEXT_MUTED);
@@ -101,7 +110,7 @@ export class NotificationsView extends ViewPU {
                     Text.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 14 });
-                        Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(59:9)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(60:9)", "entry");
                         Column.width('100%');
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
@@ -111,7 +120,7 @@ export class NotificationsView extends ViewPU {
                             {
                                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                                     if (isInitialRender) {
-                                        let componentCall = new HistoryRow(this, { entry }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 61, col: 13 });
+                                        let componentCall = new HistoryRow(this, { entry }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 62, col: 13 });
                                         ViewPU.create(componentCall);
                                         let paramsLambda = () => {
                                             return {
@@ -145,23 +154,23 @@ export class NotificationsView extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 24 });
-            Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(71:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(72:5)", "entry");
             Column.width('100%');
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Stack.create({ alignContent: Alignment.Center });
-            Stack.debugLine("entry/src/main/ets/views/NotificationsView.ets(72:7)", "entry");
+            Stack.debugLine("entry/src/main/ets/views/NotificationsView.ets(73:7)", "entry");
             Stack.width('100%');
         }, Stack);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(73:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(74:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(74:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(75:11)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -170,7 +179,7 @@ export class NotificationsView extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'menu', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 75, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'menu', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 76, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -191,12 +200,12 @@ export class NotificationsView extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/NotificationsView.ets(82:11)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/NotificationsView.ets(83:11)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(84:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(85:11)", "entry");
             Row.width(40);
             Row.height(40);
             Row.borderRadius(20);
@@ -205,7 +214,7 @@ export class NotificationsView extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'settings', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 85, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'settings', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 86, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -227,7 +236,7 @@ export class NotificationsView extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('通知');
-            Text.debugLine("entry/src/main/ets/views/NotificationsView.ets(94:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/NotificationsView.ets(95:9)", "entry");
             Text.fontSize(28);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_PRIMARY);
@@ -237,14 +246,14 @@ export class NotificationsView extends ViewPU {
         Stack.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Scroll.create();
-            Scroll.debugLine("entry/src/main/ets/views/NotificationsView.ets(102:7)", "entry");
+            Scroll.debugLine("entry/src/main/ets/views/NotificationsView.ets(103:7)", "entry");
             Scroll.scrollable(ScrollDirection.Horizontal);
             Scroll.scrollBar(BarState.Off);
             Scroll.width('100%');
         }, Scroll);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 10 });
-            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(103:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/NotificationsView.ets(104:9)", "entry");
             Row.padding({ right: 20 });
         }, Row);
         this.buildFilterButton.bind(this)('全部活动', 0);
@@ -258,7 +267,7 @@ export class NotificationsView extends ViewPU {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 10 });
-                        Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(115:9)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/NotificationsView.ets(116:9)", "entry");
                         Column.width('100%');
                         Column.padding({ top: 48, bottom: 48 });
                         Column.alignItems(HorizontalAlign.Center);
@@ -269,7 +278,7 @@ export class NotificationsView extends ViewPU {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AppSymbol(this, { name: 'notifications_off', glyphSize: 36, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 116, col: 11 });
+                                let componentCall = new AppSymbol(this, { name: 'notifications_off', glyphSize: 36, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/NotificationsView.ets", line: 117, col: 11 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -289,7 +298,7 @@ export class NotificationsView extends ViewPU {
                     }
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Text.create('暂无通知');
-                        Text.debugLine("entry/src/main/ets/views/NotificationsView.ets(117:11)", "entry");
+                        Text.debugLine("entry/src/main/ets/views/NotificationsView.ets(118:11)", "entry");
                         Text.fontSize(15);
                         Text.fontColor(COLOR_TEXT_MUTED);
                     }, Text);

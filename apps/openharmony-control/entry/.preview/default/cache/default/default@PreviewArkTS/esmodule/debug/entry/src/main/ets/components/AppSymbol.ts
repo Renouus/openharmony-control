@@ -25,10 +25,22 @@ function resolveSymbolResource(name: string): Resource {
             return { "id": 125832679, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         case 'refresh':
             return { "id": 125831551, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'xmark':
+            return { "id": 125831487, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         case 'add':
             return { "id": 125831481, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'edit':
+            return { "id": 125831624, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'delete':
+            return { "id": 125831542, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         case 'menu':
             return { "id": 125831425, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'more_horiz':
+            return { "id": 125831425, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'brightness_low':
+            return { "id": 125831495, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'brightness_high':
+            return { "id": 125831497, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         case 'lock':
             return { "id": 125832252, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         case 'lock_open':
@@ -103,6 +115,12 @@ function resolveSymbolResource(name: string): Resource {
             return { "id": 125831533, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         case 'self_care':
             return { "id": 125831520, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'meeting_room':
+            return { "id": 125831533, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'weekend':
+            return { "id": 125831533, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
+        case 'desk':
+            return { "id": 125831533, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
         default:
             return { "id": 125831533, "type": 40000, params: [], "bundleName": "com.example.smarthomecontrol", "moduleName": "entry" };
     }
@@ -179,7 +197,7 @@ export class AppSymbol extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             SymbolGlyph.create(resolveSymbolResource(this.name));
-            SymbolGlyph.debugLine("entry/src/main/ets/components/AppSymbol.ets(110:5)", "entry");
+            SymbolGlyph.debugLine("entry/src/main/ets/components/AppSymbol.ets(128:5)", "entry");
             SymbolGlyph.fontSize(this.glyphSize);
             SymbolGlyph.fontColor([this.color]);
             SymbolGlyph.fontWeight(this.weight);

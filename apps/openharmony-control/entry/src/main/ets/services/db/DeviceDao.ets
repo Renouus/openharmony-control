@@ -5,6 +5,7 @@ import { DomainEvent, DomainEventType } from '../../model/domain-event';
 export interface DeviceSyncItem {
   id: string;
   name: string;
+  customName?: string;
   type: string;
   roomId?: string;
   payload?: Object;
@@ -51,6 +52,7 @@ export class DeviceDao {
     const valueBucket: relationalStore.ValuesBucket = {
       id: device.id,
       name: device.name,
+      custom_name: device.customName ?? null,
       type: device.type,
       room_id: device.roomId || '',
       state_json: JSON.stringify(device.payload || {}),
@@ -78,6 +80,7 @@ export class DeviceDao {
     const valueBucket: relationalStore.ValuesBucket = {
       id: payload.id,
       name: payload.name,
+      custom_name: payload.customName ?? null,
       type: payload.type,
       room_id: payload.roomId || '',
       state_json: JSON.stringify(payload.payload || {}),
@@ -107,6 +110,7 @@ export class DeviceDao {
       const snapshot: DeviceSnapshot = {
         id: item.id,
         name: item.name,
+        customName: item.customName,
         kind: item.type,
         room: item.roomId || '',
         state: (item.payload || new Object()) as DeviceState,
@@ -129,6 +133,9 @@ export class DeviceDao {
       const snapshot: DeviceSyncItem = {
         id: resultSet.getString(resultSet.getColumnIndex('id')),
         name: resultSet.getString(resultSet.getColumnIndex('name')),
+        customName: resultSet.isColumnNull(resultSet.getColumnIndex('custom_name'))
+          ? undefined
+          : resultSet.getString(resultSet.getColumnIndex('custom_name')),
         type: resultSet.getString(resultSet.getColumnIndex('type')),
         roomId: resultSet.getString(resultSet.getColumnIndex('room_id')),
         payload: stateObj,

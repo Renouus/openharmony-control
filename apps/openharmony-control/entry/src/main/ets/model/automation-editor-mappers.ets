@@ -34,11 +34,13 @@ function normalizeOperator(operator?: string): ConditionOperator {
 }
 
 function isAutomationTriggerRecord(value: AutomationTriggerRecord): boolean {
-  return value.type === 'time' || value.type === 'device';
+  return value.type === 'time' || value.type === 'device' ||
+    value.type === 'device_state_changed' || value.type === 'sensor_event';
 }
 
 function isAutomationActionRecord(value: AutomationActionRecord): boolean {
-  return value.type === 'scene' || value.type === 'device';
+  return value.type === 'scene' || value.type === 'device' ||
+    value.type === 'scene_run' || value.type === 'device_command';
 }
 
 function parseTriggerRecords(rawJson: string): AutomationTriggerRecord[] {
@@ -77,7 +79,7 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
     .filter((trigger: AutomationTriggerRecord) => isAutomationTriggerRecord(trigger))
     .map((trigger: AutomationTriggerRecord, index: number): ConditionDraft => ({
       id: trigger.id || `condition-${index}`,
-      type: trigger.type === 'device' ? 'device' : 'time',
+      type: trigger.type === 'time' ? 'time' : 'device',
       time: typeof trigger.time === 'string' ? trigger.time : '',
       deviceId: typeof trigger.deviceId === 'string' ? trigger.deviceId : '',
       property: typeof trigger.property === 'string' ? trigger.property : '',
@@ -89,7 +91,7 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
     .filter((action: AutomationActionRecord) => isAutomationActionRecord(action))
     .map((action: AutomationActionRecord, index: number): ActionDraft => ({
       id: action.id || `action-${index}`,
-      type: action.type === 'scene' ? 'scene' : 'device',
+      type: action.type === 'scene' || action.type === 'scene_run' ? 'scene' : 'device',
       deviceId: typeof action.deviceId === 'string' ? action.deviceId : '',
       command: typeof action.command === 'string' ? action.command : '',
       sceneId: typeof action.sceneId === 'string' ? action.sceneId : '',
@@ -107,12 +109,12 @@ export function buildAutomationPayloadDraft(
   payload.name = draft.name;
   payload.icon = draft.icon;
   payload.enabled = true;
-  payload.triggerType = draft.conditions[0].type === 'time' ? 'time' : 'device';
+  payload.triggerType = draft.conditions.length > 0 ? inferRuntimeTriggerType(draft.conditions[0]) : 'time';
 
   const triggers: AutomationTriggerDraftItem[] = draft.conditions.map((condition: ConditionDraft) => {
     const trigger = new AutomationTriggerDraftItem();
     trigger.id = condition.id;
-    trigger.type = condition.type;
+    trigger.type = inferRuntimeTriggerType(condition);
     trigger.time = condition.time;
     trigger.deviceId = condition.deviceId;
     trigger.property = condition.property;
@@ -125,7 +127,7 @@ export function buildAutomationPayloadDraft(
   const actions: AutomationActionDraftItem[] = draft.actions.map((action: ActionDraft) => {
     const actionItem = new AutomationActionDraftItem();
     actionItem.id = action.id;
-    actionItem.type = action.type;
+    actionItem.type = action.type === 'scene' ? 'scene_run' : 'device_command';
     actionItem.deviceId = action.deviceId;
     actionItem.command = action.command;
     actionItem.sceneId = action.sceneId;
@@ -136,4 +138,17 @@ export function buildAutomationPayloadDraft(
   payload.triggerJson = JSON.stringify(triggers);
   payload.actionJson = JSON.stringify(actions);
   return payload;
+}
+
+function inferRuntimeTriggerType(condition: ConditionDraft): string {
+  if (condition.type === 'time') {
+    return 'time';
+  }
+  if (condition.property === 'motionDetected') {
+    return 'sensor_event';
+  }
+  if (typeof condition.deviceId === 'string' && condition.deviceId.indexOf('sensor-') === 0) {
+    return 'sensor_event';
+  }
+  return 'device_state_changed';
 }

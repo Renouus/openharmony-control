@@ -5,6 +5,7 @@ import {
   AutomationEnablePayload,
   AutomationPayloadDraft,
   DevicePayload,
+  PendingDeviceSnapshot,
   SceneEnablePayload,
   ScenePayloadDraft,
   SceneSnapshot,
@@ -13,6 +14,7 @@ import {
 class HomeRepositoryStub implements SmartHomeRepositoryPort {
   failCameras: boolean = false;
   scenes: SceneSnapshot[] = [];
+  pendingDevices: PendingDeviceSnapshot[] = [];
   listScenesCalls: number = 0;
 
   async getSummary() {
@@ -43,7 +45,11 @@ class HomeRepositoryStub implements SmartHomeRepositoryPort {
   }
 
   async listDevices() { return []; }
+  async listPendingDevices() { return this.pendingDevices; }
   async createDevice(_deviceCode: string, _roomId: string) { throw new Error('not used'); }
+  async joinPendingDevice(_deviceId: string, _displayName: string, _roomId: string, _deviceType: string) { throw new Error('not used'); }
+  async rejectPendingDevice(_deviceId: string) {}
+  async updateDeviceName(_deviceId: string, _customName: string) { throw new Error('not used'); }
 
   async listScenes() {
     this.listScenesCalls += 1;
@@ -196,6 +202,26 @@ export default function homeViewModelTest() {
       expect(state.quickScenes[4].label).assertEqual('Reading');
       expect(state.quickScenes[5].label).assertEqual('Cleaning');
       expect(repository.listScenesCalls).assertEqual(0);
+    });
+
+    it('surfaces pending device count in the home state', async () => {
+      const repository = new HomeRepositoryStub();
+      repository.pendingDevices = [{
+        id: 'tuya-light-1',
+        provider: 'tuya',
+        originalName: 'Smart Light',
+        displayName: 'Smart Light',
+        deviceType: 'light',
+        online: true,
+        capabilities: ['switch', 'brightness'],
+      }];
+      const viewModel: HomeViewModel = new HomeViewModel(repository);
+
+      const state = await viewModel.loadWithScenes([]);
+
+      expect(state.pendingCount).assertEqual(1);
+      expect(state.pendingDevices[0].id).assertEqual('tuya-light-1');
+      expect(state.pendingDevices[0].name).assertEqual('Smart Light');
     });
   });
 }

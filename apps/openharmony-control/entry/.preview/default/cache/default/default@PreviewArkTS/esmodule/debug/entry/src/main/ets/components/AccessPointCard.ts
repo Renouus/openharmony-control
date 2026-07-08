@@ -47,6 +47,7 @@ export class AccessPointCard extends ViewPU {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
             Column.debugLine("entry/src/main/ets/components/AccessPointCard.ets(25:5)", "entry");
+            globalThis.Context.animation({ duration: 250, curve: Curve.Friction });
             Column.padding(20);
             Column.borderRadius(20);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
@@ -54,6 +55,14 @@ export class AccessPointCard extends ViewPU {
             Column.shadow({ radius: 10, color: '#3A302A06', offsetX: 0, offsetY: 3 });
             Column.alignItems(HorizontalAlign.Start);
             Column.width('100%');
+            ViewStackProcessor.visualState("pressed");
+            Column.scale({ x: 0.95, y: 0.95 });
+            Column.opacity(0.8);
+            ViewStackProcessor.visualState("normal");
+            Column.scale({ x: 1, y: 1 });
+            Column.opacity(1);
+            ViewStackProcessor.visualState();
+            globalThis.Context.animation(null);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();

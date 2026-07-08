@@ -1,4 +1,4 @@
-import type { AccessOverview, CameraSnapshot, BrightnessPayload, ColorTemperaturePayload, HomeSummary, LockPayload, SceneSnapshot, SwitchPayload, TemperaturePayload } from '../services/device-api';
+import type { AccessOverview, CameraSnapshot, BrightnessPayload, ColorTemperaturePayload, HomeSummary, LockPayload, SceneSnapshot, SwitchPayload, TemperaturePayload, RoomItem } from '../services/device-api';
 import type { DeviceSnapshot } from '../model/device-view-model';
 import type { HomeViewStateData } from '../model/page-view-state';
 import { mapHomeViewState } from "@bundle:com.example.smarthomecontrol/entry/ets/model/smart-home-mappers";
@@ -9,7 +9,7 @@ export class HomeViewModel {
     constructor(repository: SmartHomeRepositoryPort) {
         this.repository = repository;
     }
-    async load(feedback: string = ''): Promise<HomeViewStateData> {
+    async load(feedback: string = '', activeSceneId?: string): Promise<HomeViewStateData> {
         const summary: HomeSummary = await this.repository.getSummary();
         let devices: DeviceSnapshot[] = [];
         let scenes: SceneSnapshot[] = [];
@@ -19,6 +19,7 @@ export class HomeViewModel {
             accessPoints: [],
         };
         let cameras: CameraSnapshot[] = [];
+        let rooms: RoomItem[] = [];
         try {
             devices = await this.repository.listDevices();
         }
@@ -35,7 +36,11 @@ export class HomeViewModel {
             cameras = await this.repository.getCameraOverview();
         }
         catch { }
-        return mapHomeViewState(summary, devices, scenes, accessOverview, cameras, feedback);
+        try {
+            rooms = await this.repository.listRooms();
+        }
+        catch { }
+        return mapHomeViewState(summary, devices, scenes, accessOverview, cameras, feedback, activeSceneId, rooms);
     }
     async runScene(sceneId: string): Promise<string> {
         try {

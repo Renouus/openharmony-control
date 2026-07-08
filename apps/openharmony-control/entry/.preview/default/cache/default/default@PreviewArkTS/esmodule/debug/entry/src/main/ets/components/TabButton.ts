@@ -7,7 +7,7 @@ interface TabButton_Params {
     icon?: string;
     onTap?: () => void;
 }
-import { COLOR_PRIMARY, COLOR_PRIMARY_CONTAINER, COLOR_SURFACE, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
+import { COLOR_PRIMARY, COLOR_ON_PRIMARY, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 export class TabButton extends ViewPU {
     constructor(parent, params, __localStorage, elmtId = -1, paramsLambda = undefined, extraInfo) {
@@ -68,36 +68,41 @@ export class TabButton extends ViewPU {
     private onTap: () => void;
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Column.create({ space: 2 });
-            Column.debugLine("entry/src/main/ets/components/TabButton.ets(17:5)", "entry");
-            Column.layoutWeight(1);
-            Column.height(58);
-            Column.justifyContent(FlexAlign.Center);
-            Column.alignItems(HorizontalAlign.Center);
-            Column.padding({ left: 10, right: 10, top: 6, bottom: 4 });
-            Column.borderRadius(14);
-            Column.backgroundColor(this.selected ? COLOR_PRIMARY_CONTAINER + '33' : COLOR_SURFACE);
-            Column.shadow(this.selected ? {
-                radius: 10, color: '#3A302A0A', offsetX: 0, offsetY: 3,
-            } : {
-                radius: 0, color: '#00000000', offsetX: 0, offsetY: 0,
-            });
-            Column.onClick(() => this.onTap());
-        }, Column);
+            Row.create({ space: this.selected ? 6 : 0 });
+            Row.debugLine("entry/src/main/ets/components/TabButton.ets(18:5)", "entry");
+            globalThis.Context.animation({ duration: 300, curve: Curve.Friction });
+            Row.layoutWeight(this.selected ? 1 : 0);
+            Row.width(this.selected ? 'auto' : 48);
+            Row.height(48);
+            Row.justifyContent(FlexAlign.Center);
+            Row.alignItems(VerticalAlign.Center);
+            Row.padding({ left: this.selected ? 16 : 0, right: this.selected ? 16 : 0 });
+            Row.borderRadius(24);
+            Row.backgroundColor(this.selected ? COLOR_PRIMARY : 'transparent');
+            ViewStackProcessor.visualState("pressed");
+            Row.scale({ x: 0.9, y: 0.9 });
+            Row.opacity(0.8);
+            ViewStackProcessor.visualState("normal");
+            Row.scale({ x: 1, y: 1 });
+            Row.opacity(1);
+            ViewStackProcessor.visualState();
+            Row.onClick(() => this.onTap());
+            globalThis.Context.animation(null);
+        }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
                     let componentCall = new AppSymbol(this, {
                         name: this.icon,
                         glyphSize: 22,
-                        color: this.selected ? COLOR_PRIMARY : COLOR_TEXT_MUTED,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/TabButton.ets", line: 18, col: 7 });
+                        color: this.selected ? COLOR_ON_PRIMARY : COLOR_TEXT_MUTED,
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/TabButton.ets", line: 19, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             name: this.icon,
                             glyphSize: 22,
-                            color: this.selected ? COLOR_PRIMARY : COLOR_TEXT_MUTED
+                            color: this.selected ? COLOR_ON_PRIMARY : COLOR_TEXT_MUTED
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
@@ -106,21 +111,34 @@ export class TabButton extends ViewPU {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         name: this.icon,
                         glyphSize: 22,
-                        color: this.selected ? COLOR_PRIMARY : COLOR_TEXT_MUTED
+                        color: this.selected ? COLOR_ON_PRIMARY : COLOR_TEXT_MUTED
                     });
                 }
             }, { name: "AppSymbol" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.label);
-            Text.debugLine("entry/src/main/ets/components/TabButton.ets(23:7)", "entry");
-            Text.fontSize(10);
-            Text.fontColor(this.selected ? COLOR_PRIMARY : COLOR_TEXT_MUTED);
-            Text.fontWeight(this.selected ? FontWeight.Bold : FontWeight.Normal);
-            Text.letterSpacing(0.8);
-        }, Text);
-        Text.pop();
-        Column.pop();
+            If.create();
+            if (this.selected) {
+                this.ifElseBranchUpdateFunction(0, () => {
+                    this.observeComponentCreation2((elmtId, isInitialRender) => {
+                        Text.create(this.label);
+                        Text.debugLine("entry/src/main/ets/components/TabButton.ets(25:9)", "entry");
+                        Text.fontSize(14);
+                        Text.fontColor(COLOR_ON_PRIMARY);
+                        Text.fontWeight(FontWeight.Medium);
+                        Text.letterSpacing(0.5);
+                        Text.transition(TransitionEffect.OPACITY.combine(TransitionEffect.scale({ x: 0.8, y: 0.8 })));
+                    }, Text);
+                    Text.pop();
+                });
+            }
+            else {
+                this.ifElseBranchUpdateFunction(1, () => {
+                });
+            }
+        }, If);
+        If.pop();
+        Row.pop();
     }
     rerender() {
         this.updateDirtyElements();

@@ -1,6 +1,6 @@
 import type { DeviceSnapshot } from './device-view-model';
-import type { AccessKey, AccessOverview, AccessPointSnapshot, CameraSnapshot, ClimateOverview, CommandHistoryEntry, FamilyOverview, HomeSummary, SceneSnapshot } from '../services/device-api';
-import type { AccessKeyItemState, AccessPointItemState, AccessPrimaryState, AccessViewStateData, AutomationViewStateData, CameraRowState, CameraViewStateData, ClimateModeState, ClimateUsageBarState, ClimateViewStateData, DevicePanelState, FeaturedCameraState, FamilyActivityState, FamilyMemberCardState, FamilyViewStateData, HistoryRowState, HomeDeviceCardState, HomeRoomSectionState, HomeViewStateData, LightDeviceCardState, LightingViewStateData, MetricPillState, NotificationsViewStateData, RoomLightCardState, SceneCardState, SceneChipState, ScenePresetState, StatusChipState, SummaryCardState } from './page-view-state';
+import type { AccessKey, AccessOverview, AccessPointSnapshot, AutomationSnapshot, CameraSnapshot, ClimateOverview, CommandHistoryEntry, FamilyOverview, HomeSummary, RoomItem, SceneSnapshot } from '../services/device-api';
+import type { AccessKeyItemState, AccessPointItemState, AccessPrimaryState, AccessViewStateData, AutomationViewStateData, CameraRowState, CameraViewStateData, ClimateModeState, ClimateUsageBarState, ClimateViewStateData, DevicePanelState, FeaturedCameraState, FamilyActivityState, FamilyMemberCardState, FamilyViewStateData, HistoryRowState, HomeDeviceCardState, HomeRoomSectionState, HomeViewStateData, LightDeviceCardState, LightingViewStateData, MetricPillState, NotificationsViewStateData, RoomItemState, RoomLightCardState, SceneCardState, ScenesViewStateData, SceneChipState, ScenePresetState, StatusChipState, SummaryCardState } from './page-view-state';
 import { ROOM_ORDER } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
 export function formatDeviceStatus(device: DeviceSnapshot): string {
     if (!device.state.online) {
@@ -218,19 +218,18 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
     };
     return card;
 }
-export interface RoomDeviceSplit {
-    primary: HomeDeviceCardState;
-    secondary: HomeDeviceCardState[];
-}
-export function splitRoomDevices(devices: HomeDeviceCardState[]): RoomDeviceSplit {
-    const secondary: HomeDeviceCardState[] = [];
-    for (let index = 1; index < devices.length; index++) {
-        secondary.push(devices[index]);
-    }
-    return {
-        primary: devices[0],
-        secondary,
-    };
+export function mapRoomList(rooms: RoomItem[], devices: DeviceSnapshot[]): RoomItemState[] {
+    return rooms.map((r: RoomItem) => {
+        const deviceCount = devices.filter((d: DeviceSnapshot) => d.room === r.id).length;
+        const state: RoomItemState = {
+            id: r.id,
+            name: r.name,
+            icon: r.icon,
+            builtIn: r.builtIn,
+            deviceCount
+        };
+        return state;
+    });
 }
 function roomDisplayName(roomId: string): string {
     if (roomId === 'entry') {
@@ -250,39 +249,54 @@ function roomDisplayName(roomId: string): string {
     }
     return roomId;
 }
-export function mapHomeRooms(devices: DeviceSnapshot[]): HomeRoomSectionState[] {
+export function mapHomeRooms(devices: DeviceSnapshot[], allRooms: RoomItem[] = []): HomeRoomSectionState[] {
     // Group devices by room
     const roomMap: Map<string, DeviceSnapshot[]> = new Map();
+    // Initialize with all known rooms
+    for (const r of allRooms) {
+        roomMap.set(r.id, []);
+    }
     for (const device of devices) {
         const r = device.room ?? 'living-room';
         if (!roomMap.has(r)) {
             roomMap.set(r, []);
         }
-        (roomMap.get(r) as DeviceSnapshot[]).push(device);
+        const currentList = roomMap.get(r);
+        if (currentList) {
+            currentList.push(device);
+        }
     }
     // Desired room order (entry first, then living-room, etc.)
     const order: string[] = ['entry', 'living-room', 'kitchen', 'bedroom', 'bathroom'];
     const result: HomeRoomSectionState[] = [];
     for (const roomId of order) {
         const roomDevices = roomMap.get(roomId);
-        if (roomDevices === undefined || roomDevices.length === 0) {
+        if ((!roomDevices || roomDevices.length === 0) && allRooms.findIndex((r: RoomItem) => r.id === roomId) === -1) {
             continue;
         }
-        const cards: HomeDeviceCardState[] = roomDevices.map((d: DeviceSnapshot, idx: number) => mapHomeDeviceCard(d, idx === 0));
-        const section: HomeRoomSectionState = { roomId, roomName: roomDisplayName(roomId), devices: cards };
+        const cards: HomeDeviceCardState[] = (roomDevices || []).map((d: DeviceSnapshot, idx: number) => mapHomeDeviceCard(d, idx === 0));
+        const roomInfo = allRooms.find((r: RoomItem) => r.id === roomId);
+        const section: HomeRoomSectionState = { roomId, roomName: roomInfo ? roomInfo.name : roomDisplayName(roomId), devices: cards };
         result.push(section);
     }
     // Add any rooms not in the fixed order
     roomMap.forEach((roomDevices: DeviceSnapshot[], roomId: string) => {
-        if (!order.includes(roomId) && roomDevices.length > 0) {
+        if (!order.includes(roomId) && roomDevices && roomDevices.length > 0) {
             const cards: HomeDeviceCardState[] = roomDevices.map((d: DeviceSnapshot, idx: number) => mapHomeDeviceCard(d, idx === 0));
-            const section: HomeRoomSectionState = { roomId, roomName: roomDisplayName(roomId), devices: cards };
+            const roomInfo = allRooms.find((r: RoomItem) => r.id === roomId);
+            const section: HomeRoomSectionState = { roomId, roomName: roomInfo ? roomInfo.name : roomDisplayName(roomId), devices: cards };
             result.push(section);
         }
     });
+    // FINAL FALLBACK: If absolutely NO rooms were created, but we HAVE devices, force them into a default room so they don't vanish!
+    if (result.length === 0 && devices.length > 0) {
+        const cards: HomeDeviceCardState[] = devices.map((d: DeviceSnapshot, idx: number) => mapHomeDeviceCard(d, idx === 0));
+        result.push({ roomId: 'fallback', roomName: '所有设备', devices: cards });
+    }
     return result;
 }
-export function mapHomeViewState(summary: HomeSummary, devices: DeviceSnapshot[], scenes: SceneSnapshot[], accessOverview: AccessOverview, cameras: CameraSnapshot[], feedback: string): HomeViewStateData {
+export function mapHomeViewState(summary: HomeSummary, devices: DeviceSnapshot[], scenes: SceneSnapshot[], accessOverview: AccessOverview, cameras: CameraSnapshot[], feedback: string, activeSceneId?: string, rooms: RoomItem[] = []): HomeViewStateData {
+    const manualScenes = scenes.filter((scene: SceneSnapshot) => scene.trigger.type === 'manual');
     const accessCard: SummaryCardState = {
         title: '门禁控制',
         subtitle: '入户门、数字钥匙及其他入口',
@@ -309,13 +323,13 @@ export function mapHomeViewState(summary: HomeSummary, devices: DeviceSnapshot[]
         { label: '环境', value: `${summary.environment.aqi ?? '--'} 空气质量` },
         { label: '在线', value: `${summary.devices.online}/${summary.devices.total}` },
     ];
-    const activeSceneId = scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
-    const quickScenes: SceneChipState[] = scenes.slice(0, 4).map((scene: SceneSnapshot) => {
+    const finalActiveSceneId = activeSceneId ?? manualScenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
+    const quickScenes: SceneChipState[] = manualScenes.slice(0, 4).map((scene: SceneSnapshot) => {
         const chip: SceneChipState = {
             id: scene.id,
             label: scene.name,
-            icon: sceneIcon(scene.id),
-            active: scene.id === activeSceneId,
+            icon: scene.icon ?? sceneIcon(scene.id),
+            active: scene.id === finalActiveSceneId,
         };
         return chip;
     });
@@ -340,7 +354,7 @@ export function mapHomeViewState(summary: HomeSummary, devices: DeviceSnapshot[]
         cameraCard,
         quickScenes,
         statusChips,
-        rooms: mapHomeRooms(devices),
+        rooms: mapHomeRooms(devices, rooms),
         devices: devices.map(mapDevicePanel),
         feedback,
     };
@@ -476,17 +490,76 @@ export function mapSceneCard(scene: SceneSnapshot): SceneCardState {
     return {
         id: scene.id,
         name: scene.name,
+        icon: scene.icon,
         description: scene.description,
         enabled: scene.enabled,
         triggerLabel: scene.trigger.label,
         triggerTypeLabel: scene.trigger.type,
         actions: scene.actionsLabel,
+        commands: scene.commands,
         repeatLabel: formatSceneRepeat(scene),
     };
 }
-export function mapAutomationViewState(scenes: SceneSnapshot[], feedback: string): AutomationViewStateData {
+export function mapScenesViewState(scenes: SceneSnapshot[], feedback: string): ScenesViewStateData {
     return {
-        scenes: scenes.map(mapSceneCard),
+        items: scenes.map(mapSceneCard),
+        feedback,
+    };
+}
+function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
+    try {
+        const triggers = JSON.parse(automation.triggerJson) as Array<Record<string, Object>>;
+        const firstTrigger = triggers.length > 0 ? triggers[0] : undefined;
+        if (!firstTrigger) {
+            return automation.triggerType;
+        }
+        if (firstTrigger.type === 'time' && typeof firstTrigger.time === 'string') {
+            return firstTrigger.time;
+        }
+        if (typeof firstTrigger.label === 'string') {
+            return firstTrigger.label;
+        }
+    }
+    catch {
+        // Fall back to trigger type when older payloads are malformed.
+    }
+    return automation.triggerType;
+}
+function parseAutomationActions(automation: AutomationSnapshot): string[] {
+    try {
+        const actions = JSON.parse(automation.actionJson) as Array<Record<string, Object>>;
+        return actions.map((action: Record<string, Object>) => {
+            if (typeof action.command === 'string') {
+                return action.command;
+            }
+            if (typeof action.type === 'string') {
+                return action.type;
+            }
+            return 'action';
+        });
+    }
+    catch {
+        return [];
+    }
+}
+export function mapAutomationViewState(automations: AutomationSnapshot[], feedback: string): AutomationViewStateData {
+    const items: SceneCardState[] = automations.map((automation: AutomationSnapshot) => {
+        const item: SceneCardState = {
+            id: automation.id,
+            icon: automation.icon,
+            name: automation.name,
+            description: 'Automation rule',
+            enabled: automation.enabled,
+            triggerLabel: parseAutomationTriggerLabel(automation),
+            triggerTypeLabel: automation.triggerType,
+            actions: parseAutomationActions(automation),
+            commands: [],
+            repeatLabel: '',
+        };
+        return item;
+    });
+    return {
+        items,
         feedback,
     };
 }

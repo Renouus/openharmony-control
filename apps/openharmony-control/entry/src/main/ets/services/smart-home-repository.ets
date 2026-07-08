@@ -12,6 +12,7 @@ import {
   FamilySettingsSnapshot,
   FamilySettingsUpdateRequest,
   HomeSummary,
+  PendingDeviceSnapshot,
   PersistedScene,
   PersistedSceneSnapshot,
   SceneSnapshot,
@@ -44,7 +45,11 @@ export interface SmartHomeRepositoryPort {
   getSummary(): Promise<HomeSummary>;
   getDashboardData(historyLimit: number): Promise<DashboardData>;
   listDevices(): Promise<DeviceSnapshot[]>;
+  listPendingDevices(): Promise<PendingDeviceSnapshot[]>;
   createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot>;
+  joinPendingDevice(deviceId: string, displayName: string, roomId: string, deviceType: string): Promise<DeviceSnapshot>;
+  rejectPendingDevice(deviceId: string): Promise<void>;
+  updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
   updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
@@ -200,6 +205,32 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot> {
     const device = await this.api.createDevice(deviceCode, roomId);
+    await this.performBackgroundSync(true);
+    return device;
+  }
+
+  async listPendingDevices(): Promise<PendingDeviceSnapshot[]> {
+    return await this.api.listPendingDevices();
+  }
+
+  async joinPendingDevice(
+    deviceId: string,
+    displayName: string,
+    roomId: string,
+    deviceType: string,
+  ): Promise<DeviceSnapshot> {
+    const device = await this.api.joinPendingDevice(deviceId, displayName, roomId, deviceType);
+    await this.performBackgroundSync(true);
+    return device;
+  }
+
+  async rejectPendingDevice(deviceId: string): Promise<void> {
+    await this.api.rejectPendingDevice(deviceId);
+    await this.performBackgroundSync(true);
+  }
+
+  async updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot> {
+    const device = await this.api.updateDevice(deviceId, customName);
     await this.performBackgroundSync(true);
     return device;
   }
@@ -456,6 +487,12 @@ export function normalizeRepositoryError(error: Object): string {
       if (code === 'BAD_REQUEST') {
         return 'Invalid device information';
       }
+      if (code === 'PENDING_DEVICE_NOT_ALLOWED') {
+        return 'Pending devices must be joined before they can be used';
+      }
+      if (code === 'PENDING_DEVICE_NOT_FOUND') {
+        return 'Pending device was already handled';
+      }
       return commandFeedbackLabel(code);
     }
   }
@@ -471,6 +508,8 @@ function extractErrorCode(message: string): string {
     'DEVICE_TEMPLATE_NOT_FOUND',
     'DEVICE_ALREADY_EXISTS',
     'BAD_REQUEST',
+    'PENDING_DEVICE_NOT_ALLOWED',
+    'PENDING_DEVICE_NOT_FOUND',
   ];
   const matched = knownCodes.find((code: string) => message.indexOf(code) >= 0);
   if (matched !== undefined) {

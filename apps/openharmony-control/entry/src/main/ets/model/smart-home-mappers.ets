@@ -1,4 +1,4 @@
-import { DeviceSnapshot } from './device-view-model';
+import { DeviceSnapshot, displayDeviceName } from './device-view-model';
 import {
   AccessKey,
   AccessOverview,
@@ -9,6 +9,7 @@ import {
   CommandHistoryEntry,
   FamilyOverview,
   HomeSummary,
+  PendingDeviceSnapshot,
   RoomItem,
   SceneSnapshot,
 } from '../services/device-api';
@@ -30,6 +31,7 @@ import {
   FamilyViewStateData,
   HistoryRowState,
   HomeDeviceCardState,
+  PendingDeviceState,
   HomeRoomSectionState,
   HomeViewStateData,
   LightDeviceCardState,
@@ -229,7 +231,7 @@ export function roomBrightness(devices: DeviceSnapshot[], room: string): number 
 export function mapDevicePanel(device: DeviceSnapshot): DevicePanelState {
   return {
     id: device.id,
-    name: device.name,
+    name: displayDeviceName(device),
     roomName: roomName(device.room ?? 'living-room'),
     kind: device.kind,
     statusLabel: formatDeviceStatus(device),
@@ -263,7 +265,7 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   }
   const card: HomeDeviceCardState = {
     id: device.id,
-    name: device.name,
+    name: displayDeviceName(device),
     kind,
     statusLabel,
     power,
@@ -357,6 +359,7 @@ export function mapHomeRooms(devices: DeviceSnapshot[], allRooms: RoomItem[] = [
 export function mapHomeViewState(
   summary: HomeSummary,
   devices: DeviceSnapshot[],
+  pendingDevices: PendingDeviceSnapshot[],
   scenes: SceneSnapshot[],
   accessOverview: AccessOverview,
   cameras: CameraSnapshot[],
@@ -425,6 +428,18 @@ export function mapHomeViewState(
     cameraCard,
     quickScenes,
     statusChips,
+    pendingCount: pendingDevices.length,
+    pendingDevices: pendingDevices.map((device: PendingDeviceSnapshot) => {
+      const state: PendingDeviceState = {
+        id: device.id,
+        name: device.displayName,
+        provider: device.provider,
+        deviceType: device.deviceType,
+        online: device.online,
+        capabilities: device.capabilities,
+      };
+      return state;
+    }),
     rooms: mapHomeRooms(devices, rooms),
     devices: devices.map(mapDevicePanel),
     feedback,
@@ -460,7 +475,7 @@ export function mapLightingViewState(devices: DeviceSnapshot[], feedback: string
   const lightCards: LightDeviceCardState[] = lights.map((device: DeviceSnapshot) => {
     const lightCard: LightDeviceCardState = {
       id: device.id,
-      name: device.name,
+      name: displayDeviceName(device),
       roomName: roomName(device.room ?? 'living-room'),
       statusLabel: formatDeviceStatus(device),
       power: device.state.power ?? false,
@@ -626,7 +641,7 @@ function automationTriggerTypeFallback(triggerType: string): string {
   if (triggerType === 'time') {
     return '定时触发';
   }
-  if (triggerType === 'device') {
+  if (triggerType === 'device' || triggerType === 'device_state_changed') {
     return '设备联动';
   }
   return '触发条件';
@@ -667,10 +682,10 @@ function parseAutomationActions(automation: AutomationSnapshot): string[] {
       if (typeof action.command === 'string') {
         return humanizeAutomationCommand(action.command);
       }
-      if (action.type === 'scene') {
+      if (action.type === 'scene' || action.type === 'scene_run') {
         return '执行场景动作';
       }
-      if (action.type === 'device') {
+      if (action.type === 'device' || action.type === 'device_command') {
         return '执行设备动作';
       }
       return '自动化动作';
@@ -692,7 +707,7 @@ export function mapAutomationViewState(automations: AutomationSnapshot[], feedba
       description: '满足条件后自动执行设定动作',
       enabled: automation.enabled,
       triggerLabel: parseAutomationTriggerLabel(automation),
-      triggerTypeLabel,
+      triggerTypeLabel: automationTriggerTypeFallback(automation.triggerType),
       actions: parseAutomationActions(automation),
       commands: [],
       repeatLabel: '自动执行',

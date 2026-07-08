@@ -15,7 +15,7 @@ import abilityAccessCtrl from '@ohos.abilityAccessCtrl';
 import common from '@ohos.app.ability.common';
 import { AppController } from '../controllers/AppController';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { RoomItemState } from '../model/page-view-state';
+import { PendingDeviceState, RoomItemState } from '../model/page-view-state';
 
 class RecommendedDeviceCode {
   icon: string;
@@ -169,6 +169,38 @@ export struct AddDeviceSheet {
     this.errorMessage = result.message;
   }
 
+  private async submitJoinPendingDevice(device: PendingDeviceState): Promise<void> {
+    if (this.isSubmitting) {
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+    const message = await this.controller.handleJoinPendingDevice(
+      this.appState,
+      device.id,
+      this.selectedRoomId,
+      device.deviceType,
+      device.name,
+    );
+    this.isSubmitting = false;
+    this.successMessage = message;
+  }
+
+  private async submitRejectPendingDevice(deviceId: string): Promise<void> {
+    if (this.isSubmitting) {
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+    const message = await this.controller.handleRejectPendingDevice(this.appState, deviceId);
+    this.isSubmitting = false;
+    this.successMessage = message;
+  }
+
   build() {
     Column({ space: 22 }) {
       Row()
@@ -320,6 +352,29 @@ export struct AddDeviceSheet {
       }
       .width('100%')
 
+      if (this.appState.home.pendingDevices.length > 0) {
+        Column({ space: 12 }) {
+          Text('Pending Review')
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(COLOR_ON_SURFACE)
+            .width('100%')
+
+          Text(`Assign these devices to ${this.roomLabel(this.selectedRoomId)} or ignore them for now.`)
+            .fontSize(12)
+            .fontColor(COLOR_TEXT_MUTED)
+            .width('100%')
+
+          Column({ space: 10 }) {
+            ForEach(this.appState.home.pendingDevices, (device: PendingDeviceState) => {
+              this.PendingDeviceCard(device)
+            }, (device: PendingDeviceState) => device.id)
+          }
+          .width('100%')
+        }
+        .width('100%')
+      }
+
       Column({ space: 12 }) {
         Text('Recommended Device Codes')
           .fontSize(15)
@@ -402,5 +457,69 @@ export struct AddDeviceSheet {
     .onClick(() => {
       this.applyRecommendedCode(item.deviceCode);
     })
+  }
+
+  @Builder
+  private PendingDeviceCard(device: PendingDeviceState) {
+    Column({ space: 10 }) {
+      Row({ space: 10 }) {
+        Row() {
+          AppSymbol({ name: 'inventory_2', glyphSize: 18, color: COLOR_PRIMARY })
+        }
+        .width(40)
+        .height(40)
+        .borderRadius(20)
+        .backgroundColor(COLOR_SURFACE_CONTAINER_HIGH)
+        .justifyContent(FlexAlign.Center)
+
+        Column({ space: 2 }) {
+          Text(device.name)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(COLOR_ON_SURFACE)
+          Text(`${device.provider} · ${device.deviceType} · ${device.online ? 'online' : 'offline'}`)
+            .fontSize(11)
+            .fontColor(COLOR_TEXT_MUTED)
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+      }
+      .width('100%')
+
+      Row({ space: 10 }) {
+        Button(this.isSubmitting ? 'Joining...' : 'Join Home')
+          .layoutWeight(1)
+          .height(42)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_ON_PRIMARY)
+          .backgroundColor(COLOR_PRIMARY)
+          .borderRadius(21)
+          .enabled(!this.isSubmitting)
+          .onClick(async () => {
+            await this.submitJoinPendingDevice(device);
+          })
+
+        Button('Ignore')
+          .layoutWeight(1)
+          .height(42)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(COLOR_ON_SURFACE)
+          .backgroundColor('#FFFFFF')
+          .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' })
+          .borderRadius(21)
+          .enabled(!this.isSubmitting)
+          .onClick(async () => {
+            await this.submitRejectPendingDevice(device.id);
+          })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding(14)
+    .borderRadius(18)
+    .backgroundColor('#FFFFFF')
+    .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '66' })
   }
 }

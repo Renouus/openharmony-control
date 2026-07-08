@@ -22,7 +22,7 @@ const discoveredLight: DiscoveredProviderDevice = {
     online: true,
     updatedAt: 100,
   },
-  capabilities: ["switch", "brightness", "colorTemperature"],
+  capabilities: ["switch", "brightness", "color-temperature"],
   status: [{ code: "switch_led", value: true }],
   functions: [{ code: "switch_led", type: "Boolean" }],
   raw: { id: "light-1", name: "Smart Light" },
@@ -71,7 +71,7 @@ describe("ProviderDeviceStore", () => {
         displayName: "Smart Light",
         deviceType: "light",
         online: true,
-        capabilities: ["switch", "brightness", "colorTemperature"],
+        capabilities: ["switch", "brightness", "color-temperature"],
       }),
     ]);
     expect(getDb().prepare("SELECT id FROM devices").all()).toHaveLength(1);

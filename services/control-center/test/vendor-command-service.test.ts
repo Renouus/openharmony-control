@@ -16,6 +16,9 @@ describe("vendor command service", () => {
     }));
     const vendorProvider: VendorDeviceProvider = {
       providerId: "fake",
+      discoverDevices: async () => [],
+      getDiscoveredDeviceStatus: async () => [],
+      getDiscoveredDeviceCapabilities: async () => [],
       ownsDevice: (deviceId) => deviceId === "tuya-vdevo178318782505115",
       listDevices: async () => [],
       getDevice: async () => undefined,

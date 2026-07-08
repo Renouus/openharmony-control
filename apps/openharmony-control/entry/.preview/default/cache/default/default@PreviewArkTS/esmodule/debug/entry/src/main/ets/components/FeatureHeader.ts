@@ -6,8 +6,7 @@ interface FeatureHeader_Params {
     subtitle?: string;
     onBack?: () => void;
 }
-import { COLOR_ON_SURFACE, COLOR_PRIMARY, COLOR_PRIMARY_SOFT, COLOR_TEXT_MUTED } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
-import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
+import { COLOR_ON_SURFACE, COLOR_TEXT_MUTED } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
 export class FeatureHeader extends ViewPU {
     constructor(parent, params, __localStorage, elmtId = -1, paramsLambda = undefined, extraInfo) {
         super(parent, __localStorage, elmtId, extraInfo);
@@ -63,47 +62,14 @@ export class FeatureHeader extends ViewPU {
             Row.alignItems(VerticalAlign.Center);
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Row.create();
-            Row.debugLine("entry/src/main/ets/components/FeatureHeader.ets(12:7)", "entry");
-            Row.width(40);
-            Row.height(40);
-            Row.borderRadius(20);
-            Row.backgroundColor(COLOR_PRIMARY_SOFT);
-            Row.border({ width: 1, color: COLOR_PRIMARY + '1A' });
-            Row.justifyContent(FlexAlign.Center);
-            Row.onClick(() => this.onBack());
-        }, Row);
-        {
-            this.observeComponentCreation2((elmtId, isInitialRender) => {
-                if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'arrow_back', glyphSize: 20, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/components/FeatureHeader.ets", line: 13, col: 9 });
-                    ViewPU.create(componentCall);
-                    let paramsLambda = () => {
-                        return {
-                            name: 'arrow_back',
-                            glyphSize: 20,
-                            color: COLOR_PRIMARY
-                        };
-                    };
-                    componentCall.paramsGenerator_ = paramsLambda;
-                }
-                else {
-                    this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: 'arrow_back', glyphSize: 20, color: COLOR_PRIMARY
-                    });
-                }
-            }, { name: "AppSymbol" });
-        }
-        Row.pop();
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 3 });
-            Column.debugLine("entry/src/main/ets/components/FeatureHeader.ets(23:7)", "entry");
+            Column.debugLine("entry/src/main/ets/components/FeatureHeader.ets(12:7)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.title);
-            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(24:9)", "entry");
+            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(13:9)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Bold);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -112,7 +78,7 @@ export class FeatureHeader extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.subtitle);
-            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(29:9)", "entry");
+            Text.debugLine("entry/src/main/ets/components/FeatureHeader.ets(18:9)", "entry");
             Text.fontSize(13);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);

@@ -2,73 +2,97 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
     Reflect.set(ViewPU.prototype, "finalizeConstruction", () => { });
 }
 interface AccessView_Params {
-}
-interface AccessContent_Params {
     appState?: AppStateSnapshot;
-    controller?: AppController;
-    navStack?: NavPathStack;
+    access?: AccessViewState;
+    camera?: CameraViewState;
+    onBack?: () => void;
+    onTogglePrimaryLock?: (locked: boolean) => void;
+    onShareGuest?: () => void;
+    onOpenCamera?: () => void;
+    onToggleCameraRecording?: (cameraId: string, recording: boolean) => void;
 }
-import type { AccessKeyItemState, AccessPointItemState, FeaturedCameraState } from '../model/page-view-state';
+import type { AccessKeyItemState, AccessPointItemState, AccessViewState, CameraViewState } from '../model/page-view-state';
 import type { AppStateSnapshot } from '../model/app-state-snapshot';
-import type { AppController } from '../controllers/AppController';
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 import { AccessKeyRow } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AccessKeyRow";
 import { AccessPointCard } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AccessPointCard";
 import { FeatureHeader } from "@bundle:com.example.smarthomecontrol/entry/ets/components/FeatureHeader";
 import { COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_PRIMARY_SOFT, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_SURFACE_CONTAINER_LOWEST, COLOR_TEXT_MUTED, } from "@bundle:com.example.smarthomecontrol/entry/ets/theme/smart-home-theme";
-class AccessContent extends ViewPU {
+export class AccessView extends ViewPU {
     constructor(parent, params, __localStorage, elmtId = -1, paramsLambda = undefined, extraInfo) {
         super(parent, __localStorage, elmtId, extraInfo);
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.__appState = this.initializeConsume('appState', "appState");
-        this.__controller = this.initializeConsume('controller', "controller");
-        this.__navStack = this.initializeConsume('navStack', "navStack");
+        this.__appState = new SynchedPropertyNesedObjectPU(params.appState, this, "appState");
+        this.__access = new SynchedPropertyNesedObjectPU(params.access, this, "access");
+        this.__camera = new SynchedPropertyNesedObjectPU(params.camera, this, "camera");
+        this.onBack = () => { };
+        this.onTogglePrimaryLock = () => { };
+        this.onShareGuest = () => { };
+        this.onOpenCamera = () => { };
+        this.onToggleCameraRecording = () => { };
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
-    setInitiallyProvidedValue(params: AccessContent_Params) {
+    setInitiallyProvidedValue(params: AccessView_Params) {
+        this.__appState.set(params.appState);
+        this.__access.set(params.access);
+        this.__camera.set(params.camera);
+        if (params.onBack !== undefined) {
+            this.onBack = params.onBack;
+        }
+        if (params.onTogglePrimaryLock !== undefined) {
+            this.onTogglePrimaryLock = params.onTogglePrimaryLock;
+        }
+        if (params.onShareGuest !== undefined) {
+            this.onShareGuest = params.onShareGuest;
+        }
+        if (params.onOpenCamera !== undefined) {
+            this.onOpenCamera = params.onOpenCamera;
+        }
+        if (params.onToggleCameraRecording !== undefined) {
+            this.onToggleCameraRecording = params.onToggleCameraRecording;
+        }
     }
-    updateStateVars(params: AccessContent_Params) {
+    updateStateVars(params: AccessView_Params) {
+        this.__appState.set(params.appState);
+        this.__access.set(params.access);
+        this.__camera.set(params.camera);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
         this.__appState.purgeDependencyOnElmtId(rmElmtId);
-        this.__controller.purgeDependencyOnElmtId(rmElmtId);
-        this.__navStack.purgeDependencyOnElmtId(rmElmtId);
+        this.__access.purgeDependencyOnElmtId(rmElmtId);
+        this.__camera.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
         this.__appState.aboutToBeDeleted();
-        this.__controller.aboutToBeDeleted();
-        this.__navStack.aboutToBeDeleted();
+        this.__access.aboutToBeDeleted();
+        this.__camera.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private __appState: ObservedPropertyAbstractPU<AppStateSnapshot>;
+    private __appState: SynchedPropertyNesedObjectPU<AppStateSnapshot>;
     get appState() {
         return this.__appState.get();
     }
-    set appState(newValue: AppStateSnapshot) {
-        this.__appState.set(newValue);
+    private __access: SynchedPropertyNesedObjectPU<AccessViewState>;
+    get access() {
+        return this.__access.get();
     }
-    private __controller: ObservedPropertyAbstractPU<AppController>;
-    get controller() {
-        return this.__controller.get();
+    private __camera: SynchedPropertyNesedObjectPU<CameraViewState>;
+    get camera() {
+        return this.__camera.get();
     }
-    set controller(newValue: AppController) {
-        this.__controller.set(newValue);
-    }
-    private __navStack: ObservedPropertyAbstractPU<NavPathStack>;
-    get navStack() {
-        return this.__navStack.get();
-    }
-    set navStack(newValue: NavPathStack) {
-        this.__navStack.set(newValue);
-    }
+    private onBack: () => void;
+    private onTogglePrimaryLock: (locked: boolean) => void;
+    private onShareGuest: () => void;
+    private onOpenCamera: () => void;
+    private onToggleCameraRecording: (cameraId: string, recording: boolean) => void;
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 28 });
-            Column.debugLine("entry/src/main/ets/views/AccessView.ets(38:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/AccessView.ets(37:5)", "entry");
             Column.width('100%');
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
@@ -77,15 +101,15 @@ class AccessContent extends ViewPU {
                 if (isInitialRender) {
                     let componentCall = new FeatureHeader(this, {
                         title: '智能门禁',
-                        subtitle: '门锁、数字钥匙及入口',
-                        onBack: () => this.navStack.pop(),
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 39, col: 7 });
+                        subtitle: '门锁、访客与安防管理',
+                        onBack: this.onBack,
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 38, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
                             title: '智能门禁',
-                            subtitle: '门锁、数字钥匙及入口',
-                            onBack: () => this.navStack.pop()
+                            subtitle: '门锁、访客与安防管理',
+                            onBack: this.onBack
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
@@ -93,14 +117,14 @@ class AccessContent extends ViewPU {
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
                         title: '智能门禁',
-                        subtitle: '门锁、数字钥匙及入口'
+                        subtitle: '门锁、访客与安防管理'
                     });
                 }
             }, { name: "FeatureHeader" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 22 });
-            Column.debugLine("entry/src/main/ets/views/AccessView.ets(45:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/AccessView.ets(44:7)", "entry");
             Column.padding(28);
             Column.borderRadius(28);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -111,11 +135,11 @@ class AccessContent extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 10 });
-            Column.debugLine("entry/src/main/ets/views/AccessView.ets(46:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/AccessView.ets(45:9)", "entry");
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.access.primary.name);
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(47:11)", "entry");
+            Text.create(this.access.primary.name);
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(46:11)", "entry");
             Text.fontSize(30);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -126,13 +150,13 @@ class AccessContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(55:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(54:11)", "entry");
             Row.justifyContent(FlexAlign.Center);
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(56:13)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(55:13)", "entry");
             Row.width(8);
             Row.height(8);
             Row.borderRadius(4);
@@ -140,8 +164,8 @@ class AccessContent extends ViewPU {
         }, Row);
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.access.primary.locked ? 'Secure' : 'Unlocked');
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(61:13)", "entry");
+            Text.create(this.access.primary.locked ? '已锁定' : '已解锁');
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(60:13)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_ON_SURFACE_VARIANT);
             Text.letterSpacing(1.5);
@@ -151,12 +175,12 @@ class AccessContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Stack.create({ alignContent: Alignment.Center });
-            Stack.debugLine("entry/src/main/ets/views/AccessView.ets(70:9)", "entry");
+            Stack.debugLine("entry/src/main/ets/views/AccessView.ets(69:9)", "entry");
             Stack.width('100%');
         }, Stack);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(71:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(70:11)", "entry");
             Row.width(164);
             Row.height(164);
             Row.borderRadius(82);
@@ -165,7 +189,7 @@ class AccessContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(77:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(76:11)", "entry");
             Row.width(140);
             Row.height(140);
             Row.borderRadius(70);
@@ -173,20 +197,20 @@ class AccessContent extends ViewPU {
             Row.border({ width: 1, color: COLOR_PRIMARY + '1A' });
             Row.justifyContent(FlexAlign.Center);
             Row.shadow({ radius: 24, color: '#C2652A26', offsetX: 0, offsetY: 4 });
-            Row.onClick(() => this.controller.handleAccessToggleLock(ObservedObject.GetRawObject(this.appState), !this.appState.access.primary.locked));
+            Row.onClick(() => this.onTogglePrimaryLock(!this.access.primary.locked));
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
                     let componentCall = new AppSymbol(this, {
-                        name: this.appState.access.primary.locked ? 'lock' : 'lock_open',
+                        name: this.access.primary.locked ? 'lock' : 'lock_open',
                         glyphSize: 56,
                         color: COLOR_PRIMARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 78, col: 13 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 77, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
-                            name: this.appState.access.primary.locked ? 'lock' : 'lock_open',
+                            name: this.access.primary.locked ? 'lock' : 'lock_open',
                             glyphSize: 56,
                             color: COLOR_PRIMARY
                         };
@@ -195,7 +219,7 @@ class AccessContent extends ViewPU {
                 }
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
-                        name: this.appState.access.primary.locked ? 'lock' : 'lock_open',
+                        name: this.access.primary.locked ? 'lock' : 'lock_open',
                         glyphSize: 56,
                         color: COLOR_PRIMARY
                     });
@@ -205,8 +229,8 @@ class AccessContent extends ViewPU {
         Row.pop();
         Stack.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.access.primary.locked ? '点击解锁' : '点击锁定');
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(96:9)", "entry");
+            Text.create(this.access.primary.locked ? '点击解锁' : '点击锁定');
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(94:9)", "entry");
             Text.fontSize(13);
             Text.fontColor(COLOR_TEXT_MUTED);
             Text.letterSpacing(2);
@@ -216,13 +240,13 @@ class AccessContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 10 });
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(103:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(101:9)", "entry");
             Row.width('100%');
             Row.justifyContent(FlexAlign.Center);
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(104:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(102:11)", "entry");
             Row.padding({ left: 14, right: 14, top: 8, bottom: 8 });
             Row.borderRadius(999);
             Row.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
@@ -231,7 +255,7 @@ class AccessContent extends ViewPU {
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'schedule', glyphSize: 14, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 105, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'schedule', glyphSize: 14, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 103, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -250,8 +274,8 @@ class AccessContent extends ViewPU {
             }, { name: "AppSymbol" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.access.primary.subtitle);
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(106:13)", "entry");
+            Text.create(this.access.primary.subtitle);
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(104:13)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_ON_SURFACE_VARIANT);
         }, Text);
@@ -259,11 +283,11 @@ class AccessContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.appState.access.primary.metrics.length > 0) {
+            if (this.access.primary.metrics.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create({ space: 6 });
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(116:13)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(114:13)", "entry");
                         Row.padding({ left: 14, right: 14, top: 8, bottom: 8 });
                         Row.borderRadius(999);
                         Row.backgroundColor(COLOR_SURFACE_CONTAINER_LOWEST);
@@ -272,7 +296,7 @@ class AccessContent extends ViewPU {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AppSymbol(this, { name: 'battery_horiz_075', glyphSize: 14, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 117, col: 15 });
+                                let componentCall = new AppSymbol(this, { name: 'battery_horiz_075', glyphSize: 14, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 115, col: 15 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -291,8 +315,8 @@ class AccessContent extends ViewPU {
                         }, { name: "AppSymbol" });
                     }
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.appState.access.primary.metrics[0].value);
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(118:15)", "entry");
+                        Text.create(this.access.primary.metrics[0].value);
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(116:15)", "entry");
                         Text.fontSize(12);
                         Text.fontColor(COLOR_ON_SURFACE_VARIANT);
                     }, Text);
@@ -310,11 +334,11 @@ class AccessContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.featuredCamera !== undefined) {
+            if (this.camera.featuredCamera !== undefined) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 14 });
-                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(140:9)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(138:9)", "entry");
                         Column.padding(24);
                         Column.borderRadius(28);
                         Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -324,13 +348,13 @@ class AccessContent extends ViewPU {
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(141:11)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(139:11)", "entry");
                         Row.width('100%');
-                        Row.onClick(() => this.navStack.pushPathByName('camera', null));
+                        Row.onClick(() => this.onOpenCamera());
                     }, Row);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create('实时监控');
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(142:13)", "entry");
+                        Text.create('Live Feed');
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(140:13)", "entry");
                         Text.fontSize(22);
                         Text.fontWeight(FontWeight.Medium);
                         Text.fontColor(COLOR_ON_SURFACE);
@@ -341,7 +365,7 @@ class AccessContent extends ViewPU {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 149, col: 13 });
+                                let componentCall = new AppSymbol(this, { name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 147, col: 13 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -362,12 +386,12 @@ class AccessContent extends ViewPU {
                     Row.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Stack.create({ alignContent: Alignment.TopStart });
-                        Stack.debugLine("entry/src/main/ets/views/AccessView.ets(154:11)", "entry");
+                        Stack.debugLine("entry/src/main/ets/views/AccessView.ets(152:11)", "entry");
                         Stack.width('100%');
                     }, Stack);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create();
-                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(155:13)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(153:13)", "entry");
                         Column.width('100%');
                         Column.height(190);
                         Column.borderRadius(18);
@@ -377,7 +401,7 @@ class AccessContent extends ViewPU {
                     Column.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create({ space: 8 });
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(162:13)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(160:13)", "entry");
                         Row.padding({ left: 10, right: 10, top: 6, bottom: 6 });
                         Row.borderRadius(10);
                         Row.backgroundColor('#3A302ACC');
@@ -385,7 +409,7 @@ class AccessContent extends ViewPU {
                     }, Row);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(163:15)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(161:15)", "entry");
                         Row.width(8);
                         Row.height(8);
                         Row.borderRadius(4);
@@ -393,8 +417,8 @@ class AccessContent extends ViewPU {
                     }, Row);
                     Row.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create('实时');
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(168:15)", "entry");
+                        Text.create('Live');
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(166:15)", "entry");
                         Text.fontSize(10);
                         Text.fontColor('#FFFFFF');
                         Text.fontWeight(FontWeight.Bold);
@@ -405,18 +429,18 @@ class AccessContent extends ViewPU {
                     Stack.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create({ space: 10 });
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(181:11)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(179:11)", "entry");
                         Row.width('100%');
                     }, Row);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 6 });
-                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(182:13)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(180:13)", "entry");
                         Column.layoutWeight(1);
                         Column.alignItems(HorizontalAlign.Center);
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(183:15)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(181:15)", "entry");
                         Row.width(40);
                         Row.height(40);
                         Row.borderRadius(20);
@@ -427,7 +451,7 @@ class AccessContent extends ViewPU {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AppSymbol(this, { name: 'videocam', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 184, col: 17 });
+                                let componentCall = new AppSymbol(this, { name: 'videocam', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 182, col: 17 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -447,8 +471,8 @@ class AccessContent extends ViewPU {
                     }
                     Row.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create('查看');
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(192:15)", "entry");
+                        Text.create('View');
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(190:15)", "entry");
                         Text.fontSize(10);
                         Text.fontColor(COLOR_TEXT_MUTED);
                     }, Text);
@@ -456,13 +480,13 @@ class AccessContent extends ViewPU {
                     Column.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 6 });
-                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(199:13)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(197:13)", "entry");
                         Column.layoutWeight(1);
                         Column.alignItems(HorizontalAlign.Center);
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(200:15)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(198:15)", "entry");
                         Row.width(40);
                         Row.height(40);
                         Row.borderRadius(20);
@@ -473,7 +497,7 @@ class AccessContent extends ViewPU {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AppSymbol(this, { name: 'movie', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 201, col: 17 });
+                                let componentCall = new AppSymbol(this, { name: 'movie', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 199, col: 17 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -493,8 +517,8 @@ class AccessContent extends ViewPU {
                     }
                     Row.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create('录像');
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(209:15)", "entry");
+                        Text.create('Clips');
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(207:15)", "entry");
                         Text.fontSize(10);
                         Text.fontColor(COLOR_TEXT_MUTED);
                     }, Text);
@@ -502,20 +526,20 @@ class AccessContent extends ViewPU {
                     Column.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 6 });
-                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(216:13)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(214:13)", "entry");
                         Column.layoutWeight(1);
                         Column.alignItems(HorizontalAlign.Center);
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(217:15)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(215:15)", "entry");
                         Row.width(40);
                         Row.height(40);
                         Row.borderRadius(20);
-                        Row.backgroundColor(this.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST);
-                        Row.border({ width: this.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' });
+                        Row.backgroundColor(this.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOWEST);
+                        Row.border({ width: this.camera.featuredCamera!.recording ? 0 : 1, color: COLOR_OUTLINE_VARIANT + '66' });
                         Row.justifyContent(FlexAlign.Center);
-                        Row.onClick(() => this.controller.handleCameraToggleRecording(ObservedObject.GetRawObject(this.appState), this.featuredCamera!.id, !this.featuredCamera!.recording));
+                        Row.onClick(() => this.onToggleCameraRecording(this.camera.featuredCamera!.id, !this.camera.featuredCamera!.recording));
                     }, Row);
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
@@ -523,14 +547,14 @@ class AccessContent extends ViewPU {
                                 let componentCall = new AppSymbol(this, {
                                     name: 'fiber_manual_record',
                                     glyphSize: 18,
-                                    color: this.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
-                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 218, col: 17 });
+                                    color: this.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY,
+                                }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 216, col: 17 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
                                         name: 'fiber_manual_record',
                                         glyphSize: 18,
-                                        color: this.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY
+                                        color: this.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY
                                     };
                                 };
                                 componentCall.paramsGenerator_ = paramsLambda;
@@ -539,30 +563,30 @@ class AccessContent extends ViewPU {
                                 this.updateStateVarsOfChildByElmtId(elmtId, {
                                     name: 'fiber_manual_record',
                                     glyphSize: 18,
-                                    color: this.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY
+                                    color: this.camera.featuredCamera!.recording ? '#FFFFFF' : COLOR_PRIMARY
                                 });
                             }
                         }, { name: "AppSymbol" });
                     }
                     Row.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.featuredCamera!.recording ? '录制中' : '录制');
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(235:15)", "entry");
+                        Text.create(this.camera.featuredCamera!.recording ? '录制中' : '录制');
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(232:15)", "entry");
                         Text.fontSize(10);
-                        Text.fontColor(this.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED);
+                        Text.fontColor(this.camera.featuredCamera!.recording ? COLOR_PRIMARY : COLOR_TEXT_MUTED);
                         Text.fontWeight(FontWeight.Bold);
                     }, Text);
                     Text.pop();
                     Column.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Column.create({ space: 6 });
-                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(243:13)", "entry");
+                        Column.debugLine("entry/src/main/ets/views/AccessView.ets(240:13)", "entry");
                         Column.layoutWeight(1);
                         Column.alignItems(HorizontalAlign.Center);
                     }, Column);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create();
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(244:15)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(241:15)", "entry");
                         Row.width(40);
                         Row.height(40);
                         Row.borderRadius(20);
@@ -573,7 +597,7 @@ class AccessContent extends ViewPU {
                     {
                         this.observeComponentCreation2((elmtId, isInitialRender) => {
                             if (isInitialRender) {
-                                let componentCall = new AppSymbol(this, { name: 'notifications', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 245, col: 17 });
+                                let componentCall = new AppSymbol(this, { name: 'notifications', glyphSize: 18, color: COLOR_TEXT_MUTED }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 242, col: 17 });
                                 ViewPU.create(componentCall);
                                 let paramsLambda = () => {
                                     return {
@@ -593,8 +617,8 @@ class AccessContent extends ViewPU {
                     }
                     Row.pop();
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create('警报');
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(253:15)", "entry");
+                        Text.create('安全通知');
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(250:15)", "entry");
                         Text.fontSize(10);
                         Text.fontColor(COLOR_TEXT_MUTED);
                     }, Text);
@@ -612,17 +636,17 @@ class AccessContent extends ViewPU {
         If.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/AccessView.ets(270:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/AccessView.ets(267:7)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(271:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(268:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('数字钥匙');
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(272:11)", "entry");
+            Text.create('Digital Keys');
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(269:11)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -632,13 +656,13 @@ class AccessContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 4 });
-            Row.debugLine("entry/src/main/ets/views/AccessView.ets(279:11)", "entry");
-            Row.onClick(() => this.controller.handleShareGuest(ObservedObject.GetRawObject(this.appState)));
+            Row.debugLine("entry/src/main/ets/views/AccessView.ets(276:11)", "entry");
+            Row.onClick(() => this.onShareGuest());
         }, Row);
         {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
-                    let componentCall = new AppSymbol(this, { name: 'add', glyphSize: 15, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 280, col: 13 });
+                    let componentCall = new AppSymbol(this, { name: 'add', glyphSize: 15, color: COLOR_PRIMARY }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 277, col: 13 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -657,8 +681,8 @@ class AccessContent extends ViewPU {
             }, { name: "AppSymbol" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('分享访客钥匙');
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(281:13)", "entry");
+            Text.create('分享 Guest');
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(278:13)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_PRIMARY);
             Text.fontWeight(FontWeight.Bold);
@@ -674,7 +698,7 @@ class AccessContent extends ViewPU {
                 {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         if (isInitialRender) {
-                            let componentCall = new AccessKeyRow(this, { keyItem }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 292, col: 11 });
+                            let componentCall = new AccessKeyRow(this, { keyItem }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 289, col: 11 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
@@ -691,18 +715,18 @@ class AccessContent extends ViewPU {
                     }, { name: "AccessKeyRow" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.appState.access.keys, forEachItemGenFunction, (keyItem: AccessKeyItemState) => keyItem.id, false, false);
+            this.forEachUpdateFunction(elmtId, this.access.keys, forEachItemGenFunction, (keyItem: AccessKeyItemState) => keyItem.id, false, false);
         }, ForEach);
         ForEach.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/AccessView.ets(297:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/AccessView.ets(294:7)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create('其他入口');
-            Text.debugLine("entry/src/main/ets/views/AccessView.ets(298:9)", "entry");
+            Text.create('Other Access Points');
+            Text.debugLine("entry/src/main/ets/views/AccessView.ets(295:9)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -712,11 +736,11 @@ class AccessContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.appState.access.points.length > 0) {
+            if (this.access.points.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
                         Row.create({ space: 12 });
-                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(306:11)", "entry");
+                        Row.debugLine("entry/src/main/ets/views/AccessView.ets(303:11)", "entry");
                         Row.width('100%');
                     }, Row);
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
@@ -726,7 +750,7 @@ class AccessContent extends ViewPU {
                             {
                                 this.observeComponentCreation2((elmtId, isInitialRender) => {
                                     if (isInitialRender) {
-                                        let componentCall = new AccessPointCard(this, { point }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 308, col: 15 });
+                                        let componentCall = new AccessPointCard(this, { point }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 305, col: 15 });
                                         ViewPU.create(componentCall);
                                         let paramsLambda = () => {
                                             return {
@@ -743,7 +767,7 @@ class AccessContent extends ViewPU {
                                 }, { name: "AccessPointCard" });
                             }
                         };
-                        this.forEachUpdateFunction(elmtId, this.appState.access.points, forEachItemGenFunction, (point: AccessPointItemState) => point.id, false, false);
+                        this.forEachUpdateFunction(elmtId, this.access.points, forEachItemGenFunction, (point: AccessPointItemState) => point.id, false, false);
                     }, ForEach);
                     ForEach.pop();
                     Row.pop();
@@ -758,11 +782,11 @@ class AccessContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.appState.access.feedback.length > 0) {
+            if (this.access.feedback.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.appState.access.feedback);
-                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(317:9)", "entry");
+                        Text.create(this.access.feedback);
+                        Text.debugLine("entry/src/main/ets/views/AccessView.ets(314:9)", "entry");
                         Text.fontSize(13);
                         Text.fontColor(COLOR_PRIMARY);
                         Text.padding(12);
@@ -780,66 +804,6 @@ class AccessContent extends ViewPU {
         }, If);
         If.pop();
         Column.pop();
-    }
-    rerender() {
-        this.updateDirtyElements();
-    }
-}
-export class AccessView extends ViewPU {
-    constructor(parent, params, __localStorage, elmtId = -1, paramsLambda = undefined, extraInfo) {
-        super(parent, __localStorage, elmtId, extraInfo);
-        if (typeof paramsLambda === "function") {
-            this.paramsGenerator_ = paramsLambda;
-        }
-        this.setInitiallyProvidedValue(params);
-        this.finalizeConstruction();
-    }
-    setInitiallyProvidedValue(params: AccessView_Params) {
-    }
-    updateStateVars(params: AccessView_Params) {
-    }
-    purgeVariableDependenciesOnElmtId(rmElmtId) {
-    }
-    aboutToBeDeleted() {
-        SubscriberManager.Get().delete(this.id__());
-        this.aboutToBeDeletedInternal();
-    }
-    initialRender() {
-        this.observeComponentCreation2((elmtId, isInitialRender) => {
-            NavDestination.create(() => {
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    Scroll.create();
-                    Scroll.debugLine("entry/src/main/ets/views/AccessView.ets(335:7)", "entry");
-                    Scroll.scrollBar(BarState.Off);
-                    Scroll.width('100%');
-                    Scroll.height('100%');
-                }, Scroll);
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    __Common__.create();
-                    __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
-                }, __Common__);
-                {
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        if (isInitialRender) {
-                            let componentCall = new AccessContent(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/AccessView.ets", line: 336, col: 9 });
-                            ViewPU.create(componentCall);
-                            let paramsLambda = () => {
-                                return {};
-                            };
-                            componentCall.paramsGenerator_ = paramsLambda;
-                        }
-                        else {
-                            this.updateStateVarsOfChildByElmtId(elmtId, {});
-                        }
-                    }, { name: "AccessContent" });
-                }
-                __Common__.pop();
-                Scroll.pop();
-            }, { moduleName: "entry", pagePath: "entry/src/main/ets/views/AccessView" });
-            NavDestination.hideTitleBar(true);
-            NavDestination.debugLine("entry/src/main/ets/views/AccessView.ets(334:5)", "entry");
-        }, NavDestination);
-        NavDestination.pop();
     }
     rerender() {
         this.updateDirtyElements();

@@ -7,10 +7,14 @@ import {
   DeviceKind,
 } from "@smart-home/device-contract";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
+import { ProviderDeviceStore } from "../src/devices/provider-device-store";
 
 function fakeVendorProvider(): VendorDeviceProvider {
   return {
     providerId: "fake",
+    discoverDevices: async () => [],
+    getDiscoveredDeviceStatus: async () => [],
+    getDiscoveredDeviceCapabilities: async () => [],
     ownsDevice: (deviceId: string) => deviceId.startsWith("tuya-"),
     listDevices: async () => [
       {
@@ -45,6 +49,29 @@ function fakeVendorProvider(): VendorDeviceProvider {
       message: "not used in device route tests",
     }),
   };
+}
+
+function insertManagedVendorDeviceRow(
+  deviceId: string,
+  name: string,
+  type: string,
+  roomId: string,
+  state: Record<string, unknown>,
+): void {
+  getDb().prepare(`
+    INSERT INTO devices (
+      id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state, sort_order
+    )
+    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0, 'active', 100)
+  `).run(
+    deviceId,
+    name,
+    type,
+    roomId,
+    JSON.stringify(state),
+    state.updatedAt,
+    state.updatedAt,
+  );
 }
 
 describe("device snapshot routes", () => {
@@ -311,10 +338,11 @@ describe("device snapshot routes", () => {
   });
 
   it("overlays a stored custom name onto a vendor-backed device detail response", async () => {
-    const db = getDb();
-    db.prepare(`
-      INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+    getDb().prepare(`
+      INSERT INTO devices (
+        id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state, sort_order
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'active', 100)
     `).run(
       "tuya-light-1",
       "Ceiling lighting",
@@ -349,6 +377,14 @@ describe("device snapshot routes", () => {
   });
 
   it("updates a vendor-backed device custom name without changing the upstream name", async () => {
+    insertManagedVendorDeviceRow("tuya-light-1", "Ceiling lighting", "light", "living-room", {
+      power: true,
+      brightness: 50,
+      colorTemperature: 4350,
+      updatedAt: 40,
+      online: true,
+    });
+
     const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
     const response = await app.inject({
       method: "PUT",
@@ -364,6 +400,112 @@ describe("device snapshot routes", () => {
         customName: "Hall Accent",
       },
     });
+  });
+
+  it("keeps discovered provider devices pending until the user joins or rejects them", async () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([
+      {
+        provider: "tuya",
+        externalDeviceId: "light-1",
+        originalName: "Smart Light",
+        online: true,
+        deviceType: "light",
+        state: {
+          power: true,
+          brightness: 50,
+          colorTemperature: 4000,
+          online: true,
+          updatedAt: 100,
+        },
+        capabilities: ["switch", "brightness", "color-temperature"],
+        status: [],
+        functions: [],
+        raw: { id: "light-1" },
+      },
+    ]);
+
+    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+
+    const listBeforeJoin = await app.inject({ method: "GET", url: "/api/devices" });
+    expect(listBeforeJoin.statusCode).toBe(200);
+    expect(
+      listBeforeJoin.json().devices.some((device: { id: string }) => device.id === "tuya-light-1"),
+    ).toBe(false);
+
+    const pending = await app.inject({ method: "GET", url: "/api/devices/pending" });
+    expect(pending.statusCode).toBe(200);
+    expect(pending.json()).toMatchObject({
+      devices: [
+        {
+          id: "tuya-light-1",
+          provider: "tuya",
+          originalName: "Smart Light",
+        },
+      ],
+    });
+
+    const joined = await app.inject({
+      method: "POST",
+      url: "/api/devices/tuya-light-1/join-home",
+      payload: {
+        displayName: "Bedroom Bedside Lamp",
+        roomId: "bedroom",
+        deviceType: "light",
+      },
+    });
+    expect(joined.statusCode).toBe(200);
+    expect(joined.json()).toMatchObject({
+      device: {
+        id: "tuya-light-1",
+        customName: "Bedroom Bedside Lamp",
+        room: "bedroom",
+      },
+    });
+
+    const listAfterJoin = await app.inject({ method: "GET", url: "/api/devices" });
+    expect(listAfterJoin.statusCode).toBe(200);
+    expect(listAfterJoin.json().devices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "tuya-light-1",
+          customName: "Bedroom Bedside Lamp",
+          room: "bedroom",
+        }),
+      ]),
+    );
+
+    store.upsertDiscoveredDevices([
+      {
+        provider: "tuya",
+        externalDeviceId: "sensor-9",
+        originalName: "Entry Sensor",
+        online: false,
+        deviceType: "motion-sensor",
+        state: {
+          motionDetected: false,
+          online: false,
+          updatedAt: 200,
+        },
+        capabilities: ["motion-detection"],
+        status: [],
+        functions: [],
+        raw: { id: "sensor-9" },
+      },
+    ]);
+
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/api/devices/tuya-sensor-9/reject",
+    });
+    expect(rejected.statusCode).toBe(200);
+    expect(rejected.json()).toMatchObject({ success: true });
+
+    const pendingAfterReject = await app.inject({ method: "GET", url: "/api/devices/pending" });
+    expect(pendingAfterReject.statusCode).toBe(200);
+    expect(
+      pendingAfterReject.json().devices.some((device: { id: string }) => device.id === "tuya-sensor-9"),
+    ).toBe(false);
   });
 
   it("creates a device from a supported device code and persists it for follow-up reads", async () => {

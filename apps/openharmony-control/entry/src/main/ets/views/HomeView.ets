@@ -1,5 +1,6 @@
 import {
   HomeDeviceCardState,
+  PendingDeviceState,
   HomeRoomSectionState,
   HomeViewState,
   SceneChipState,
@@ -91,6 +92,52 @@ struct SceneChip {
     })
     .onClick(() => this.onTap())
     .animation({ duration: 250, curve: Curve.Friction })
+  }
+}
+
+@Component
+struct PendingInboxBanner {
+  @Prop count: number;
+  @Prop devices: PendingDeviceState[];
+
+  build() {
+    Column({ space: 10 }) {
+      Row({ space: 10 }) {
+        Row() {
+          AppSymbol({ name: 'inventory_2', glyphSize: 18, color: COLOR_PRIMARY })
+        }
+        .width(36)
+        .height(36)
+        .borderRadius(18)
+        .backgroundColor(COLOR_PRIMARY_SOFT)
+        .justifyContent(FlexAlign.Center)
+
+        Column({ space: 2 }) {
+          Text(`${this.count} devices waiting for review`)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(COLOR_ON_SURFACE)
+          Text('Review them in Add Device to place them into rooms.')
+            .fontSize(12)
+            .fontColor(COLOR_TEXT_MUTED)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+      }
+      .width('100%')
+
+      if (this.devices.length > 0) {
+        Text(this.devices.slice(0, 3).map((device: PendingDeviceState) => device.name).join(' · '))
+          .fontSize(12)
+          .fontColor(COLOR_PRIMARY)
+          .width('100%')
+      }
+    }
+    .width('100%')
+    .padding(16)
+    .borderRadius(22)
+    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
+    .border({ width: 1, color: COLOR_PRIMARY + '22' })
   }
 }
 
@@ -192,6 +239,14 @@ struct HomeContent {
       }
       .width('100%')
       .margin({ bottom: 28 })
+
+      if (this.home.pendingCount > 0) {
+        PendingInboxBanner({
+          count: this.home.pendingCount,
+          devices: this.home.pendingDevices,
+        })
+          .margin({ bottom: 24 })
+      }
 
       Column({ space: 14 }) {
         Row({ space: 4 }) {

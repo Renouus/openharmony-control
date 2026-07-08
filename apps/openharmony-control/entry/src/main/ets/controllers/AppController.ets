@@ -1,4 +1,4 @@
-import {
+﻿import {
   AccessViewStateData,
   AutomationViewStateData,
   CameraViewStateData,
@@ -560,6 +560,45 @@ export class AppController {
       snapshot.assignHome(await this.fetchHome('设备已分配'));
     } catch {
       snapshot.assignHome(await this.fetchHome('分配设备失败'));
+    }
+  }
+
+  async handleUpdateDeviceName(snapshot: AppStateSnapshot, deviceId: string, customName: string): Promise<void> {
+    try {
+      await this.repository.updateDeviceName(deviceId, customName);
+      await this.refreshTargets(snapshot, ['home', 'lighting'], '设备名称已更新');
+    } catch {
+      await this.refreshTargets(snapshot, ['home', 'lighting'], '更新设备名称失败');
+    }
+  }
+
+  async handleJoinPendingDevice(
+    snapshot: AppStateSnapshot,
+    deviceId: string,
+    roomId: string,
+    deviceType: string,
+    displayName: string,
+  ): Promise<string> {
+    try {
+      await this.repository.joinPendingDevice(deviceId, displayName, roomId, deviceType);
+      await this.refreshAll(snapshot, '设备已加入家庭');
+      return '设备已加入家庭';
+    } catch (error) {
+      const message = normalizeRepositoryError(error as Object);
+      await this.refreshAll(snapshot, message);
+      return message;
+    }
+  }
+
+  async handleRejectPendingDevice(snapshot: AppStateSnapshot, deviceId: string): Promise<string> {
+    try {
+      await this.repository.rejectPendingDevice(deviceId);
+      await this.refreshAll(snapshot, '设备已忽略');
+      return '设备已忽略';
+    } catch (error) {
+      const message = normalizeRepositoryError(error as Object);
+      await this.refreshAll(snapshot, message);
+      return message;
     }
   }
 }

@@ -3,6 +3,7 @@ import {
   DeviceCapability,
   DeviceHealth,
   DeviceKind,
+  type DeviceCapabilityName,
   type DeviceKindName,
   type DeviceState,
   type EnhancedDeviceDescriptor,
@@ -26,7 +27,7 @@ export type DiscoveredProviderDevice = {
   deviceType: DeviceKindName;
   roomHint?: string;
   state: DeviceState;
-  capabilities: string[];
+  capabilities: DeviceCapabilityName[];
   status: unknown[];
   functions: unknown[];
   raw: unknown;
@@ -286,13 +287,17 @@ export class ProviderDeviceStore {
   }
 }
 
-function parseCapabilities(raw: string | null): string[] {
+function parseCapabilities(raw: string | null): DeviceCapabilityName[] {
   try {
     const parsed = JSON.parse(raw ?? "[]") as unknown;
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed.filter((item): item is string => typeof item === "string");
+    return parsed.filter(
+      (item): item is DeviceCapabilityName =>
+        typeof item === "string" &&
+        Object.values(DeviceCapability).includes(item as DeviceCapabilityName),
+    );
   } catch {
     return [];
   }

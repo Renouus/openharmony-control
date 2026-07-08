@@ -166,8 +166,40 @@ export class DeviceCommandService {
     return this.executeVerifiedCommand(envelope);
   }
 
+  async executeAutomationCommand(
+    command: DeviceCommand,
+    automationId: string,
+    parentExecutionId: string,
+    parentChainDepth: number,
+  ): Promise<DeviceCommandExecutionResult> {
+    return this.executeCommand(command, "automation", {
+      automationId,
+      parentExecutionId,
+      executionId: command.requestId,
+      chainDepth: parentChainDepth + 1,
+      routeOrigin: "automation",
+    });
+  }
+
   private async executeVerifiedCommand(envelope: SignedCommandEnvelope): Promise<DeviceCommandExecutionResult> {
-    const { command } = envelope;
+    return this.executeCommand(envelope.command, "user", {
+      executionId: envelope.command.requestId,
+      chainDepth: 0,
+      routeOrigin: "commands",
+    });
+  }
+
+  private async executeCommand(
+    command: DeviceCommand,
+    source: "user" | "automation",
+    metadata: {
+      automationId?: string;
+      parentExecutionId?: string;
+      executionId: string;
+      chainDepth: number;
+      routeOrigin: string;
+    },
+  ): Promise<DeviceCommandExecutionResult> {
     if (this.vendorProvider?.ownsDevice(command.deviceId)) {
       return await this.executeVendorCommand(command);
     }
@@ -246,14 +278,10 @@ export class DeviceCommandService {
         try {
           await this.deviceStateTriggerAdapter.dispatchStateChange({
             deviceId: command.deviceId,
-            source: "user",
+            source,
             before: beforeState,
             after: (updated?.state ?? result.state) as Record<string, unknown>,
-            metadata: {
-              executionId: command.requestId,
-              chainDepth: 0,
-              routeOrigin: "commands",
-            },
+            metadata,
           });
         } catch (error) {
           this.logger.error(`Failed to dispatch device_state_changed event:${String(error)}`);

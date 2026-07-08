@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import {
   mapDeviceRowToSyncDto,
-  mapVendorDeviceToSyncDto,
   type DeviceSyncDto,
   type DeviceSyncRow,
 } from './device-sync-mapper';
+import { listManagedVendorSyncDevices } from '../devices/provider-device-projection';
 import { SceneRegistry } from '../scenes/scene-registry';
 import type { VendorDeviceProvider } from '../integrations/vendor-provider';
 
@@ -117,7 +117,9 @@ export class DatabaseService {
 
   public async getSyncData(lastVersion: number): Promise<SyncResponse> {
     this.ensureBuiltInScenesPersisted();
-    const devicesRaw = this.db.prepare("SELECT * FROM devices WHERE version > ?").all(lastVersion) as DeviceSyncRow[];
+    const devicesRaw = this.db
+      .prepare("SELECT * FROM devices WHERE version > ? AND lifecycle_state = 'active'")
+      .all(lastVersion) as DeviceSyncRow[];
     const dbDevices = devicesRaw
       .filter((row: DeviceSyncRow) => !this.vendorProvider?.ownsDevice(row.id))
       .map(mapDeviceRowToSyncDto);
@@ -212,22 +214,7 @@ export class DatabaseService {
   }
 
   private async loadAllVendorSyncDevices(): Promise<DeviceSyncDto[]> {
-    if (!this.vendorProvider) {
-      return [];
-    }
-
-    const devices = await this.vendorProvider.listDevices();
-    const lookupCustomName = this.db.prepare(`
-      SELECT custom_name
-      FROM devices
-      WHERE id = ? AND is_deleted = 0
-    `);
-
-    return devices.map((device) => {
-      const row = lookupCustomName.get(device.id) as { custom_name?: string | null } | undefined;
-      const customName = row?.custom_name ?? undefined;
-      return mapVendorDeviceToSyncDto(customName ? { ...device, customName } : device);
-    });
+    return await listManagedVendorSyncDevices(this.db, this.vendorProvider);
   }
 
   private ensureBuiltInScenesPersisted(): void {

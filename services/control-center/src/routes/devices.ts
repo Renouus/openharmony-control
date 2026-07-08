@@ -14,6 +14,11 @@ import {
   createSimulatorFromTemplate,
   findCreatableDeviceTemplate,
 } from "../devices/device-template-registry";
+import {
+  listManagedVendorDevices,
+  loadManagedVendorDevice,
+} from "../devices/provider-device-projection";
+import { ProviderDeviceStore } from "../devices/provider-device-store";
 import type { DeviceSimulator } from "../devices/device-simulator";
 import { getDb } from "../db/database";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
@@ -40,6 +45,12 @@ type UpdateDeviceRequest = {
   customName?: string;
 };
 
+type JoinPendingDeviceRequest = {
+  displayName?: string;
+  roomId?: string;
+  deviceType?: string;
+};
+
 type DeviceRouteOptions = {
   vendorProvider?: VendorDeviceProvider;
 };
@@ -51,6 +62,52 @@ export async function registerDeviceRoutes(
   options: DeviceRouteOptions = {},
 ): Promise<void> {
   app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.vendorProvider) }));
+
+  app.get("/api/devices/pending", async () => {
+    const store = new ProviderDeviceStore(getDb());
+    return { devices: store.listPendingDevices() };
+  });
+
+  app.post("/api/devices/:deviceId/join-home", async (request, reply) => {
+    const { deviceId } = request.params as { deviceId: string };
+    const body = request.body as JoinPendingDeviceRequest;
+
+    if (typeof body.displayName !== "string" || body.displayName.trim().length === 0) {
+      return reply
+        .code(400)
+        .send({ code: "BAD_REQUEST", message: "displayName is required" });
+    }
+    if (typeof body.roomId !== "string" || body.roomId.trim().length === 0) {
+      return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is required" });
+    }
+    if (typeof body.deviceType !== "string" || !isSupportedDeviceKind(body.deviceType)) {
+      return reply
+        .code(400)
+        .send({ code: "BAD_REQUEST", message: "deviceType is invalid" });
+    }
+
+    const store = new ProviderDeviceStore(getDb());
+    const device = store.joinHome(deviceId, {
+      displayName: body.displayName,
+      roomId: body.roomId.trim(),
+      deviceType: body.deviceType,
+    });
+    if (!device) {
+      return reply.code(404).send({ code: "PENDING_DEVICE_NOT_FOUND" });
+    }
+
+    return reply.send({ device });
+  });
+
+  app.post("/api/devices/:deviceId/reject", async (request, reply) => {
+    const { deviceId } = request.params as { deviceId: string };
+    const store = new ProviderDeviceStore(getDb());
+    if (!store.rejectDevice(deviceId)) {
+      return reply.code(404).send({ code: "PENDING_DEVICE_NOT_FOUND" });
+    }
+
+    return reply.send({ success: true });
+  });
 
   app.get("/api/devices/:deviceId", async (request, reply) => {
     const { deviceId } = request.params as { deviceId: string };
@@ -208,9 +265,9 @@ async function loadDevices(
   registry: DeviceRegistry,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor[]> {
-  const dbDevices = loadDevicesFromDb(vendorProvider);
+  const dbDevices = loadDevicesFromDb();
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
-  const vendorDevices = vendorProvider ? await vendorProvider.listDevices() : [];
+  const vendorDevices = await listManagedVendorDevices(getDb(), vendorProvider);
   return [...baseDevices, ...vendorDevices]
     .map(applyStoredCustomName)
     .filter((device): device is EnhancedDeviceDescriptor => device !== undefined)
@@ -223,10 +280,12 @@ async function loadDevice(
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (vendorProvider?.ownsDevice(deviceId)) {
-    return applyStoredCustomName(await vendorProvider.getDevice(deviceId));
+    return applyStoredCustomName(
+      await loadManagedVendorDevice(getDb(), deviceId, vendorProvider),
+    );
   }
 
-  const dbDevices = loadDevicesFromDb(vendorProvider);
+  const dbDevices = loadDevicesFromDb();
   if (dbDevices.length > 0) {
     return findLoadedDevice(dbDevices, deviceId);
   }
@@ -240,21 +299,19 @@ function findLoadedDevice(
   return devices.find((device) => device.id === deviceId);
 }
 
-function loadDevicesFromDb(vendorProvider?: VendorDeviceProvider): EnhancedDeviceDescriptor[] {
+function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
   try {
     const db = getDb();
     const rows = db
       .prepare(`
         SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
-        WHERE is_deleted = 0
+        WHERE is_deleted = 0 AND lifecycle_state = 'active'
         ORDER BY room_id ASC, id ASC
       `)
       .all() as DeviceRow[];
 
-    return rows
-      .filter((row) => !vendorProvider?.ownsDevice(row.id))
-      .map(mapDeviceRow);
+    return rows.map(mapDeviceRow);
   } catch {
     return [];
   }
@@ -493,6 +550,16 @@ function toDeviceKind(type: string): DeviceKindName {
     default:
       return DeviceKind.Light;
   }
+}
+
+function isSupportedDeviceKind(value: string): value is DeviceKindName {
+  return [
+    DeviceKind.DoorLock,
+    DeviceKind.Light,
+    DeviceKind.EnvironmentSensor,
+    DeviceKind.AirConditioner,
+    DeviceKind.MotionSensor,
+  ].includes(value as DeviceKindName);
 }
 
 function capabilitiesForKind(kind: DeviceKindName) {

@@ -68,12 +68,19 @@ export class LightDeviceCard extends ViewPU {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
             Column.debugLine("entry/src/main/ets/components/LightDeviceCard.ets(31:5)", "entry");
+            globalThis.Context.animation({ duration: 250, curve: Curve.EaseOut });
             Column.padding(18);
             Column.borderRadius(22);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
             Column.border({ width: 1, color: COLOR_OUTLINE_VARIANT + '99' });
             Column.shadow({ radius: 14, color: '#3A302A08', offsetX: 0, offsetY: 4 });
             Column.width('100%');
+            ViewStackProcessor.visualState("pressed");
+            Column.scale({ x: 0.98, y: 0.98 });
+            ViewStackProcessor.visualState("normal");
+            Column.scale({ x: 1, y: 1 });
+            ViewStackProcessor.visualState();
+            globalThis.Context.animation(null);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();

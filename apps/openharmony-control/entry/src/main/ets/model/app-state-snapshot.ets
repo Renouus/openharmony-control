@@ -52,6 +52,8 @@ export class AppStateSnapshot {
     this.home.cameraCard = data.cameraCard;
     this.home.quickScenes = data.quickScenes;
     this.home.statusChips = data.statusChips;
+    this.home.pendingCount = data.pendingCount;
+    this.home.pendingDevices = data.pendingDevices;
     this.home.rooms = data.rooms;
     this.home.devices = data.devices;
     this.home.feedback = data.feedback;

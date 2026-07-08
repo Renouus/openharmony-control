@@ -12,6 +12,9 @@ import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 function fakeVendorProvider(): VendorDeviceProvider {
   return {
     providerId: "fake",
+    discoverDevices: async () => [],
+    getDiscoveredDeviceStatus: async () => [],
+    getDiscoveredDeviceCapabilities: async () => [],
     ownsDevice: (deviceId) => deviceId.startsWith("tuya-"),
     listDevices: async () => [
       {

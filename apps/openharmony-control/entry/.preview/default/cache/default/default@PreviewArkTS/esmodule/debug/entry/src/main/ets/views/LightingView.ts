@@ -2,19 +2,22 @@ if (!("finalizeConstruction" in ViewPU.prototype)) {
     Reflect.set(ViewPU.prototype, "finalizeConstruction", () => { });
 }
 interface LightingView_Params {
+    appState?: AppStateSnapshot;
 }
 interface LightingContent_Params {
     appState?: AppStateSnapshot;
+    lighting?: LightingViewState;
     controller?: AppController;
-    navStack?: NavPathStack;
+    navStack?: NavProxy;
 }
 interface LightPresetChip_Params {
     preset?: ScenePresetState;
     onTap?: () => void;
 }
-import type { LightDeviceCardState, RoomLightCardState, ScenePresetState } from '../model/page-view-state';
+import type { LightingViewState, LightDeviceCardState, RoomLightCardState, ScenePresetState } from '../model/page-view-state';
 import type { AppStateSnapshot } from '../model/app-state-snapshot';
 import type { AppController } from '../controllers/AppController';
+import type { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from "@bundle:com.example.smarthomecontrol/entry/ets/components/AppSymbol";
 import { FeatureHeader } from "@bundle:com.example.smarthomecontrol/entry/ets/components/FeatureHeader";
 import { LightDeviceCard } from "@bundle:com.example.smarthomecontrol/entry/ets/components/LightDeviceCard";
@@ -73,7 +76,7 @@ class LightPresetChip extends ViewPU {
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(36:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(37:5)", "entry");
             Column.padding(22);
             Column.borderRadius(22);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -89,12 +92,12 @@ class LightPresetChip extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(37:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(38:7)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(38:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(39:9)", "entry");
             Row.width(42);
             Row.height(42);
             Row.borderRadius(14);
@@ -108,7 +111,7 @@ class LightPresetChip extends ViewPU {
                         name: this.icon(),
                         glyphSize: 20,
                         color: this.preset.accent ? COLOR_ON_PRIMARY : COLOR_PRIMARY,
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 39, col: 11 });
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 40, col: 11 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
@@ -131,12 +134,12 @@ class LightPresetChip extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(51:9)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(52:9)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Scene');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(53:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(54:9)", "entry");
             Text.fontSize(10);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.opacity(0.5);
@@ -147,7 +150,7 @@ class LightPresetChip extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.preset.label);
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(62:7)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(63:7)", "entry");
             Text.fontSize(20);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontFamily('serif');
@@ -157,7 +160,7 @@ class LightPresetChip extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.moodLabel());
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(69:7)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(70:7)", "entry");
             Text.fontSize(11);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontWeight(FontWeight.Bold);
@@ -178,34 +181,42 @@ class LightingContent extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
-        this.__appState = this.initializeConsume('appState', "appState");
+        this.__appState = new SynchedPropertyNesedObjectPU(params.appState, this, "appState");
+        this.__lighting = new SynchedPropertyNesedObjectPU(params.lighting, this, "lighting");
         this.__controller = this.initializeConsume('controller', "controller");
         this.__navStack = this.initializeConsume('navStack', "navStack");
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: LightingContent_Params) {
+        this.__appState.set(params.appState);
+        this.__lighting.set(params.lighting);
     }
     updateStateVars(params: LightingContent_Params) {
+        this.__appState.set(params.appState);
+        this.__lighting.set(params.lighting);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
         this.__appState.purgeDependencyOnElmtId(rmElmtId);
+        this.__lighting.purgeDependencyOnElmtId(rmElmtId);
         this.__controller.purgeDependencyOnElmtId(rmElmtId);
         this.__navStack.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
         this.__appState.aboutToBeDeleted();
+        this.__lighting.aboutToBeDeleted();
         this.__controller.aboutToBeDeleted();
         this.__navStack.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
-    private __appState: ObservedPropertyAbstractPU<AppStateSnapshot>;
+    private __appState: SynchedPropertyNesedObjectPU<AppStateSnapshot>;
     get appState() {
         return this.__appState.get();
     }
-    set appState(newValue: AppStateSnapshot) {
-        this.__appState.set(newValue);
+    private __lighting: SynchedPropertyNesedObjectPU<LightingViewState>;
+    get lighting() {
+        return this.__lighting.get();
     }
     private __controller: ObservedPropertyAbstractPU<AppController>;
     get controller() {
@@ -214,36 +225,36 @@ class LightingContent extends ViewPU {
     set controller(newValue: AppController) {
         this.__controller.set(newValue);
     }
-    private __navStack: ObservedPropertyAbstractPU<NavPathStack>;
+    private __navStack: ObservedPropertyAbstractPU<NavProxy>;
     get navStack() {
         return this.__navStack.get();
     }
-    set navStack(newValue: NavPathStack) {
+    set navStack(newValue: NavProxy) {
         this.__navStack.set(newValue);
     }
     private houseEnabled(): boolean {
-        return this.appState.lighting.rooms.some((room: RoomLightCardState) => room.enabled);
+        return this.lighting.rooms.some((room: RoomLightCardState) => room.enabled);
     }
     private averageBrightness(): number {
-        if (this.appState.lighting.rooms.length === 0) {
+        if (this.lighting.rooms.length === 0) {
             return 0;
         }
-        const total = this.appState.lighting.rooms.reduce((sum: number, room: RoomLightCardState) => sum + room.brightness, 0);
-        return Math.round(total / this.appState.lighting.rooms.length);
+        const total = this.lighting.rooms.reduce((sum: number, room: RoomLightCardState) => sum + room.brightness, 0);
+        return Math.round(total / this.lighting.rooms.length);
     }
     private averageTemperature(): number {
-        if (this.appState.lighting.presets.length === 0) {
+        if (this.lighting.presets.length === 0) {
             return 3200;
         }
-        const total = this.appState.lighting.presets.reduce((sum: number, preset: ScenePresetState) => {
+        const total = this.lighting.presets.reduce((sum: number, preset: ScenePresetState) => {
             return sum + preset.colorTemperature;
         }, 0);
-        return Math.round(total / this.appState.lighting.presets.length);
+        return Math.round(total / this.lighting.presets.length);
     }
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 28 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(123:5)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(125:5)", "entry");
             Column.width('100%');
             Column.alignItems(HorizontalAlign.Start);
         }, Column);
@@ -251,31 +262,29 @@ class LightingContent extends ViewPU {
             this.observeComponentCreation2((elmtId, isInitialRender) => {
                 if (isInitialRender) {
                     let componentCall = new FeatureHeader(this, {
-                        title: 'Lighting Control Center',
-                        subtitle: 'Manage the ambiance of your entire home from a single view',
-                        onBack: () => this.navStack.pop(),
-                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 124, col: 7 });
+                        title: '智能照明',
+                        subtitle: '全局控制与房间预设',
+                    }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 126, col: 7 });
                     ViewPU.create(componentCall);
                     let paramsLambda = () => {
                         return {
-                            title: 'Lighting Control Center',
-                            subtitle: 'Manage the ambiance of your entire home from a single view',
-                            onBack: () => this.navStack.pop()
+                            title: '智能照明',
+                            subtitle: '全局控制与房间预设'
                         };
                     };
                     componentCall.paramsGenerator_ = paramsLambda;
                 }
                 else {
                     this.updateStateVarsOfChildByElmtId(elmtId, {
-                        title: 'Lighting Control Center',
-                        subtitle: 'Manage the ambiance of your entire home from a single view'
+                        title: '智能照明',
+                        subtitle: '全局控制与房间预设'
                     });
                 }
             }, { name: "FeatureHeader" });
         }
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 26 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(130:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(131:7)", "entry");
             Column.padding(28);
             Column.borderRadius(28);
             Column.backgroundColor(COLOR_SURFACE_CONTAINER_LOW);
@@ -285,18 +294,18 @@ class LightingContent extends ViewPU {
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(131:9)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(132:9)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 4 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(132:11)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(133:11)", "entry");
             Column.alignItems(HorizontalAlign.Start);
             Column.layoutWeight(1);
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Whole House');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(133:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(134:13)", "entry");
             Text.fontSize(30);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontFamily('serif');
@@ -304,11 +313,11 @@ class LightingContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 6 });
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(137:13)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(138:13)", "entry");
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(138:15)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(139:15)", "entry");
             Row.width(8);
             Row.height(8);
             Row.borderRadius(4);
@@ -317,7 +326,7 @@ class LightingContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(this.houseEnabled() ? 'Active' : 'Standby');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(143:15)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(144:15)", "entry");
             Text.fontSize(12);
             Text.fontColor(COLOR_PRIMARY);
             Text.fontWeight(FontWeight.Bold);
@@ -331,32 +340,32 @@ class LightingContent extends ViewPU {
                 type: ToggleType.Switch,
                 isOn: this.houseEnabled()
             });
-            Toggle.debugLine("entry/src/main/ets/views/LightingView.ets(153:11)", "entry");
+            Toggle.debugLine("entry/src/main/ets/views/LightingView.ets(154:11)", "entry");
             Toggle.selectedColor(COLOR_PRIMARY);
             Toggle.onChange((value: boolean) => this.controller.handleLightingToggleAll(ObservedObject.GetRawObject(this.appState), value));
         }, Toggle);
         Toggle.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            Text.create(this.appState.lighting.activeCountLabel);
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(162:9)", "entry");
+            Text.create(this.lighting.activeCountLabel);
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(163:9)", "entry");
             Text.fontSize(14);
             Text.fontColor(COLOR_TEXT_MUTED);
         }, Text);
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(166:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(167:9)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(167:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(168:11)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Brightness');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(168:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(169:13)", "entry");
             Text.fontSize(13);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontWeight(FontWeight.Bold);
@@ -364,12 +373,12 @@ class LightingContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(172:13)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(173:13)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(`${this.averageBrightness()}%`);
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(173:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(174:13)", "entry");
             Text.fontSize(20);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontWeight(FontWeight.Medium);
@@ -378,7 +387,7 @@ class LightingContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Slider.create({ value: this.averageBrightness(), min: 0, max: 100, step: 5 });
-            Slider.debugLine("entry/src/main/ets/views/LightingView.ets(180:11)", "entry");
+            Slider.debugLine("entry/src/main/ets/views/LightingView.ets(181:11)", "entry");
             Slider.blockColor(COLOR_PRIMARY);
             Slider.trackColor(COLOR_OUTLINE_VARIANT);
             Slider.selectedColor(COLOR_PRIMARY);
@@ -388,17 +397,17 @@ class LightingContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 14 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(189:9)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(190:9)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(190:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(191:11)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Temperature');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(191:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(192:13)", "entry");
             Text.fontSize(13);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontWeight(FontWeight.Bold);
@@ -406,12 +415,12 @@ class LightingContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(195:13)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(196:13)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create(`${this.averageTemperature()}K`);
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(196:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(197:13)", "entry");
             Text.fontSize(20);
             Text.fontColor(COLOR_ON_SURFACE);
             Text.fontWeight(FontWeight.Medium);
@@ -420,7 +429,7 @@ class LightingContent extends ViewPU {
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Slider.create({ value: this.averageTemperature(), min: 2000, max: 6500, step: 100 });
-            Slider.debugLine("entry/src/main/ets/views/LightingView.ets(203:11)", "entry");
+            Slider.debugLine("entry/src/main/ets/views/LightingView.ets(204:11)", "entry");
             Slider.blockColor(COLOR_PRIMARY);
             Slider.trackColor(COLOR_OUTLINE_VARIANT);
             Slider.selectedColor(COLOR_PRIMARY);
@@ -429,12 +438,12 @@ class LightingContent extends ViewPU {
         }, Slider);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create();
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(210:11)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(211:11)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Warm (2000K)');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(211:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(212:13)", "entry");
             Text.fontSize(11);
             Text.fontColor(COLOR_TEXT_MUTED);
             Text.fontWeight(FontWeight.Bold);
@@ -442,12 +451,12 @@ class LightingContent extends ViewPU {
         Text.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Blank.create();
-            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(215:13)", "entry");
+            Blank.debugLine("entry/src/main/ets/views/LightingView.ets(216:13)", "entry");
         }, Blank);
         Blank.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Cool (6500K)');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(216:13)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(217:13)", "entry");
             Text.fontSize(11);
             Text.fontColor(COLOR_TEXT_MUTED);
             Text.fontWeight(FontWeight.Bold);
@@ -458,7 +467,7 @@ class LightingContent extends ViewPU {
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Row.create({ space: 14 });
-            Row.debugLine("entry/src/main/ets/views/LightingView.ets(232:7)", "entry");
+            Row.debugLine("entry/src/main/ets/views/LightingView.ets(233:7)", "entry");
             Row.width('100%');
         }, Row);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
@@ -471,7 +480,7 @@ class LightingContent extends ViewPU {
                             let componentCall = new LightPresetChip(this, {
                                 preset,
                                 onTap: () => this.controller.handleLightingPreset(ObservedObject.GetRawObject(this.appState), preset.label),
-                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 234, col: 11 });
+                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 235, col: 11 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
@@ -489,18 +498,18 @@ class LightingContent extends ViewPU {
                     }, { name: "LightPresetChip" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.appState.lighting.presets, forEachItemGenFunction, (preset: ScenePresetState) => preset.label, false, false);
+            this.forEachUpdateFunction(elmtId, this.lighting.presets, forEachItemGenFunction, (preset: ScenePresetState) => preset.label, false, false);
         }, ForEach);
         ForEach.pop();
         Row.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(242:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(243:7)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Rooms');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(243:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(244:9)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -519,7 +528,7 @@ class LightingContent extends ViewPU {
                                 card: room,
                                 onToggle: (value: boolean) => this.controller.handleLightingToggleRoom(ObservedObject.GetRawObject(this.appState), room.roomId, value),
                                 onBrightnessChange: (value: number) => this.controller.handleLightingRoomBrightness(ObservedObject.GetRawObject(this.appState), room.roomId, value),
-                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 251, col: 11 });
+                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 252, col: 11 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
@@ -538,18 +547,18 @@ class LightingContent extends ViewPU {
                     }, { name: "RoomLightCard" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.appState.lighting.rooms, forEachItemGenFunction, (room: RoomLightCardState) => room.roomId, false, false);
+            this.forEachUpdateFunction(elmtId, this.lighting.rooms, forEachItemGenFunction, (room: RoomLightCardState) => room.roomId, false, false);
         }, ForEach);
         ForEach.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Column.create({ space: 16 });
-            Column.debugLine("entry/src/main/ets/views/LightingView.ets(262:7)", "entry");
+            Column.debugLine("entry/src/main/ets/views/LightingView.ets(263:7)", "entry");
             Column.width('100%');
         }, Column);
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             Text.create('Devices');
-            Text.debugLine("entry/src/main/ets/views/LightingView.ets(263:9)", "entry");
+            Text.debugLine("entry/src/main/ets/views/LightingView.ets(264:9)", "entry");
             Text.fontSize(24);
             Text.fontWeight(FontWeight.Medium);
             Text.fontColor(COLOR_ON_SURFACE);
@@ -569,7 +578,7 @@ class LightingContent extends ViewPU {
                                 onToggle: (value: boolean) => this.controller.handleLightingToggleLight(ObservedObject.GetRawObject(this.appState), device.id, value),
                                 onBrightnessChange: (value: number) => this.controller.handleLightingLightBrightness(ObservedObject.GetRawObject(this.appState), device.id, value),
                                 onColorTemperature: (value: number) => this.controller.handleLightingLightColor(ObservedObject.GetRawObject(this.appState), device.id, value),
-                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 271, col: 11 });
+                            }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 272, col: 11 });
                             ViewPU.create(componentCall);
                             let paramsLambda = () => {
                                 return {
@@ -589,17 +598,17 @@ class LightingContent extends ViewPU {
                     }, { name: "LightDeviceCard" });
                 }
             };
-            this.forEachUpdateFunction(elmtId, this.appState.lighting.devices, forEachItemGenFunction, (device: LightDeviceCardState) => device.id, false, false);
+            this.forEachUpdateFunction(elmtId, this.lighting.devices, forEachItemGenFunction, (device: LightDeviceCardState) => device.id, false, false);
         }, ForEach);
         ForEach.pop();
         Column.pop();
         this.observeComponentCreation2((elmtId, isInitialRender) => {
             If.create();
-            if (this.appState.lighting.feedback.length > 0) {
+            if (this.lighting.feedback.length > 0) {
                 this.ifElseBranchUpdateFunction(0, () => {
                     this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        Text.create(this.appState.lighting.feedback);
-                        Text.debugLine("entry/src/main/ets/views/LightingView.ets(285:9)", "entry");
+                        Text.create(this.lighting.feedback);
+                        Text.debugLine("entry/src/main/ets/views/LightingView.ets(286:9)", "entry");
                         Text.fontSize(13);
                         Text.fontColor(COLOR_PRIMARY);
                         Text.padding(12);
@@ -628,55 +637,54 @@ export class LightingView extends ViewPU {
         if (typeof paramsLambda === "function") {
             this.paramsGenerator_ = paramsLambda;
         }
+        this.__appState = new SynchedPropertyNesedObjectPU(params.appState, this, "appState");
         this.setInitiallyProvidedValue(params);
         this.finalizeConstruction();
     }
     setInitiallyProvidedValue(params: LightingView_Params) {
+        this.__appState.set(params.appState);
     }
     updateStateVars(params: LightingView_Params) {
+        this.__appState.set(params.appState);
     }
     purgeVariableDependenciesOnElmtId(rmElmtId) {
+        this.__appState.purgeDependencyOnElmtId(rmElmtId);
     }
     aboutToBeDeleted() {
+        this.__appState.aboutToBeDeleted();
         SubscriberManager.Get().delete(this.id__());
         this.aboutToBeDeletedInternal();
     }
+    private __appState: SynchedPropertyNesedObjectPU<AppStateSnapshot>;
+    get appState() {
+        return this.__appState.get();
+    }
     initialRender() {
         this.observeComponentCreation2((elmtId, isInitialRender) => {
-            NavDestination.create(() => {
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    Scroll.create();
-                    Scroll.debugLine("entry/src/main/ets/views/LightingView.ets(303:7)", "entry");
-                    Scroll.scrollBar(BarState.Off);
-                    Scroll.width('100%');
-                    Scroll.height('100%');
-                }, Scroll);
-                this.observeComponentCreation2((elmtId, isInitialRender) => {
-                    __Common__.create();
-                    __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
-                }, __Common__);
-                {
-                    this.observeComponentCreation2((elmtId, isInitialRender) => {
-                        if (isInitialRender) {
-                            let componentCall = new LightingContent(this, {}, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 304, col: 9 });
-                            ViewPU.create(componentCall);
-                            let paramsLambda = () => {
-                                return {};
-                            };
-                            componentCall.paramsGenerator_ = paramsLambda;
-                        }
-                        else {
-                            this.updateStateVarsOfChildByElmtId(elmtId, {});
-                        }
-                    }, { name: "LightingContent" });
+            __Common__.create();
+            __Common__.padding({ left: 20, right: 20, top: 16, bottom: 32 });
+        }, __Common__);
+        {
+            this.observeComponentCreation2((elmtId, isInitialRender) => {
+                if (isInitialRender) {
+                    let componentCall = new LightingContent(this, { appState: this.appState, lighting: this.appState.lighting }, undefined, elmtId, () => { }, { page: "entry/src/main/ets/views/LightingView.ets", line: 305, col: 5 });
+                    ViewPU.create(componentCall);
+                    let paramsLambda = () => {
+                        return {
+                            appState: this.appState,
+                            lighting: this.appState.lighting
+                        };
+                    };
+                    componentCall.paramsGenerator_ = paramsLambda;
                 }
-                __Common__.pop();
-                Scroll.pop();
-            }, { moduleName: "entry", pagePath: "entry/src/main/ets/views/LightingView" });
-            NavDestination.hideTitleBar(true);
-            NavDestination.debugLine("entry/src/main/ets/views/LightingView.ets(302:5)", "entry");
-        }, NavDestination);
-        NavDestination.pop();
+                else {
+                    this.updateStateVarsOfChildByElmtId(elmtId, {
+                        appState: this.appState, lighting: this.appState.lighting
+                    });
+                }
+            }, { name: "LightingContent" });
+        }
+        __Common__.pop();
     }
     rerender() {
         this.updateDirtyElements();

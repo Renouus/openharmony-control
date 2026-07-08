@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CommandStatus, DeviceKind } from "@smart-home/device-contract";
+import { CommandStatus, DeviceCapability, DeviceKind } from "@smart-home/device-contract";
 import type {
   VendorDeviceProvider,
   VendorExecutionResult,
@@ -20,13 +20,16 @@ describe("vendor provider contract", () => {
 
     const provider: VendorDeviceProvider = {
       providerId: "fake",
+      discoverDevices: async () => [],
+      getDiscoveredDeviceStatus: async () => [],
+      getDiscoveredDeviceCapabilities: async () => [],
       ownsDevice: (deviceId) => deviceId.startsWith("tuya-"),
       listDevices: async () => [
         {
           id: "tuya-vdevo178318782505115",
           name: "Ceiling lighting",
           kind: DeviceKind.Light,
-          capabilities: ["switch"],
+          capabilities: [DeviceCapability.Switch],
           state: { power: true, updatedAt: 1, online: true },
           room: "living-room",
           displayOrder: 80,

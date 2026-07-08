@@ -1,5 +1,14 @@
 import type { FastifyInstance } from 'fastify';
+import {
+  collectAutomationTransportDeviceIds,
+  normalizeAutomationTransport,
+} from '../automation/automation-normalization';
+import type { AutomationRuntime } from '../automation/automation-runtime';
 import { getDb } from '../db/database';
+import {
+  assertDevicesAreActive,
+  InactiveDeviceReferenceError,
+} from '../devices/device-lifecycle-guard';
 
 type AutomationRow = {
   id: string;
@@ -25,6 +34,8 @@ type AutomationDescriptor = {
 };
 
 export async function registerAutomationRoutes(app: FastifyInstance): Promise<void> {
+  const runtime = (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
+
   app.get('/api/automations', async () => {
     return {
       automations: listAutomations(),
@@ -36,25 +47,62 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
     if (!body?.name || !body.triggerType || !body.triggerJson || !body.actionJson) {
       return reply.code(400).send({ code: 'INVALID_PAYLOAD' });
     }
+    const normalized = normalizeAutomationTransport({
+      triggerType: body.triggerType,
+      triggerJson: body.triggerJson,
+      actionJson: body.actionJson,
+    });
+    try {
+      assertDevicesAreActive(
+        collectAutomationTransportDeviceIds({
+          triggerType: normalized.triggerType,
+          triggerJson: normalized.triggerJson,
+          actionJson: normalized.actionJson,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof InactiveDeviceReferenceError) {
+        return reply.code(409).send({
+          code: 'PENDING_DEVICE_NOT_ALLOWED',
+          deviceId: error.deviceId,
+        });
+      }
+      throw error;
+    }
 
     const automation = createAutomation({
       icon: body.icon,
       name: body.name,
-      triggerType: body.triggerType,
-      triggerJson: body.triggerJson,
-      actionJson: body.actionJson,
+      triggerType: normalized.triggerType,
+      triggerJson: normalized.triggerJson,
+      actionJson: normalized.actionJson,
       enabled: body.enabled ?? true,
     });
+    if (automation.enabled) {
+      await runtime.reload(automation.id);
+    }
     return reply.code(201).send({ automation });
   });
 
   app.put('/api/automations/:automationId', async (request, reply) => {
     const { automationId } = request.params as { automationId: string };
     const body = request.body as Partial<AutomationDescriptor>;
-    const automation = updateAutomation(automationId, body);
+    let automation: AutomationDescriptor | undefined;
+    try {
+      automation = updateAutomation(automationId, body);
+    } catch (error) {
+      if (error instanceof InactiveDeviceReferenceError) {
+        return reply.code(409).send({
+          code: 'PENDING_DEVICE_NOT_ALLOWED',
+          deviceId: error.deviceId,
+        });
+      }
+      throw error;
+    }
     if (!automation) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });
     }
+    await runtime.reload(automation.id);
     return { automation };
   });
 
@@ -64,6 +112,7 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
     if (!success) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });
     }
+    runtime.unload(automationId);
     return reply.code(204).send();
   });
 }
@@ -121,11 +170,26 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
   }
 
   const base = mapAutomationRow(existing);
+  const normalizedPatch = patch.triggerType && patch.triggerJson && patch.actionJson
+    ? normalizeAutomationTransport({
+        triggerType: patch.triggerType,
+        triggerJson: patch.triggerJson,
+        actionJson: patch.actionJson,
+      })
+    : undefined;
   const next: AutomationDescriptor = {
     ...base,
     ...patch,
+    ...(normalizedPatch ?? {}),
     id: automationId,
   };
+  assertDevicesAreActive(
+    collectAutomationTransportDeviceIds({
+      triggerType: next.triggerType,
+      triggerJson: next.triggerJson,
+      actionJson: next.actionJson,
+    }),
+  );
   const now = Date.now();
   const version = incrementAndGetVersion(db);
   db.prepare(`
@@ -159,13 +223,18 @@ function deleteAutomation(automationId: string): boolean {
 }
 
 function mapAutomationRow(row: AutomationRow): AutomationDescriptor {
+  const normalized = normalizeAutomationTransport({
+    triggerType: row.trigger_type,
+    triggerJson: row.trigger_json,
+    actionJson: row.action_json,
+  });
   return {
     id: row.id,
     icon: row.icon ?? undefined,
     name: row.name,
-    triggerType: row.trigger_type,
-    triggerJson: row.trigger_json,
-    actionJson: row.action_json,
+    triggerType: normalized.triggerType,
+    triggerJson: normalized.triggerJson,
+    actionJson: normalized.actionJson,
     enabled: row.enabled === 1,
   };
 }
@@ -189,7 +258,7 @@ function seedBuiltInAutomations(): void {
     'Night Routine',
     'time',
     JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-    JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
+    JSON.stringify([{ id: 'seed-lock', type: 'device_command', deviceId: 'door-front', command: 'lock:true' }]),
     1,
     now,
     1,

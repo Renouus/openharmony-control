@@ -20,12 +20,12 @@ Add a device rename capability that lets users change the displayed name of both
 
 ### Entry Point
 
-The first UI entry point will live in device detail pages, with `LightControlView` as the initial surfaced page because it already exists as the current device detail baseline. The underlying rename capability must be device-generic so later detail pages for air conditioners, locks, and sensors can reuse it without backend redesign.
+The first UI entry point will live in device detail pages, with `LightControlView` as the initial surfaced page because it already exists as the current device detail baseline. The visible trigger should be a small edit icon placed to the right of the device name in the title area. The underlying rename capability must be device-generic so later detail pages for air conditioners, locks, and sensors can reuse it without backend redesign.
 
 ### Interaction Flow
 
 1. The user opens a device detail page.
-2. The user taps `Edit name`.
+2. The user taps the edit icon to the right of the device name.
 3. A bottom sheet opens with:
    - current display name prefilled
    - one text input
@@ -150,7 +150,7 @@ This keeps the detail page focused on device display and control behavior.
 
 `LightControlView` should host the first entry point. The detail page should:
 
-- expose an `Edit name` affordance in the header region or nearby action area
+- render the device name in the header region with a small edit icon immediately to its right
 - open the rename sheet with the current display name
 - delegate save to `AppController`
 - reflect the refreshed shared device state after save

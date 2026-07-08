@@ -70,8 +70,32 @@ export default function automationEditorMappersTest() {
       expect(payload.name).assertEqual('Night Routine Updated');
       expect(payload.triggerType).assertEqual('time');
       expect(payload.triggerJson).assertContain('"time":"22:00"');
-      expect(payload.actionJson).assertContain('"deviceId":"door-front"');
+      expect(payload.actionJson).assertContain('"type":"device_command"');
       expect(payload.actionJson).assertContain('"command":"lock:true"');
+    });
+
+    it('rewrites legacy device conditions and actions to runtime semantics on save', () => {
+      const automation: AutomationSnapshot = {
+        id: 'door-guard',
+        icon: 'auto_awesome',
+        name: 'Door Guard',
+        triggerType: 'device',
+        triggerJson: '[{"id":"t1","type":"device","deviceId":"door-front","property":"locked","operator":"==","threshold":"false","label":"Door unlocked"}]',
+        actionJson: '[{"id":"a1","type":"scene","sceneId":"away","label":"Run away scene"}]',
+        enabled: true,
+      };
+
+      const draft = hydrateAutomationDraft(automation);
+      const payload = buildAutomationPayloadDraft(
+        draft,
+        (condition) => condition.type === 'time' ? `Time ${condition.time}` : 'Door unlocked',
+        (action) => action.type === 'device' ? `Command ${action.command}` : 'Run away scene',
+      );
+
+      expect(payload.triggerType).assertEqual('device_state_changed');
+      expect(payload.triggerJson).assertContain('"type":"device_state_changed"');
+      expect(payload.actionJson).assertContain('"type":"scene_run"');
+      expect(payload.actionJson).assertContain('"sceneId":"away"');
     });
   });
 }

@@ -97,6 +97,7 @@ export class DomainEventAdapter {
     return {
       id: payload.id,
       name: payload.name,
+      customName: payload.customName ?? undefined,
       type: payload.type,
       roomId: payload.roomId ?? '',
       payload: payload.payload,

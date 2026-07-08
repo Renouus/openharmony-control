@@ -1,5 +1,10 @@
 import { CommandStatus, type DeviceCommand } from "@smart-home/device-contract";
 import type {
+  DiscoveredProviderDevice,
+  ProviderCapability,
+  ProviderDeviceStatus,
+} from "../../devices/provider-discovery";
+import type {
   VendorDeviceProvider,
   VendorExecutionResult,
 } from "../vendor-provider";
@@ -71,9 +76,11 @@ export function createTuyaProvider(
     return nextVersion;
   }
 
-  async function loadConfiguredDevice(configured: TuyaConfiguredDevice) {
-    const detail = await client.getDeviceDetail(configured.id);
-    const status = await client.getDeviceStatus(configured.id);
+  function mapConfiguredDevice(
+    configured: TuyaConfiguredDevice,
+    detail: TuyaDeviceDetail,
+    status: TuyaStatusItem[],
+  ) {
     const updatedAt = resolveSnapshotVersion(configured.id, configured, detail, status);
     const kind = classifyTuyaDevice({
       configuredKind: configured.kind,
@@ -132,6 +139,50 @@ export function createTuyaProvider(
     return undefined;
   }
 
+  async function loadConfiguredDevice(configured: TuyaConfiguredDevice) {
+    const detail = await client.getDeviceDetail(configured.id);
+    const status = await client.getDeviceStatus(configured.id);
+    return mapConfiguredDevice(configured, detail, status);
+  }
+
+  async function discoverConfiguredDevice(
+    configured: TuyaConfiguredDevice,
+  ): Promise<DiscoveredProviderDevice | undefined> {
+    const detail = await client.getDeviceDetail(configured.id);
+    const status = await client.getDeviceStatus(configured.id);
+    const mapped = mapConfiguredDevice(configured, detail, status);
+    if (!mapped) {
+      return undefined;
+    }
+
+    return {
+      provider: "tuya",
+      externalDeviceId: configured.id,
+      externalProductId: undefined,
+      externalCategory: detail.category,
+      originalName: detail.name || configured.name,
+      originalIcon: undefined,
+      online: detail.online,
+      deviceType: mapped.kind,
+      roomHint: configured.room,
+      state: mapped.state,
+      capabilities: mapped.capabilities,
+      status,
+      functions: [],
+      raw: detail,
+    };
+  }
+
+  async function loadDiscoveredDeviceByExternalId(
+    externalDeviceId: string,
+  ): Promise<DiscoveredProviderDevice | undefined> {
+    const configured = config.devices.find((device) => device.id === externalDeviceId);
+    if (!configured) {
+      return undefined;
+    }
+    return discoverConfiguredDevice(configured);
+  }
+
   function resolveConfiguredDevice(deviceId: string): TuyaConfiguredDevice | undefined {
     const rawDeviceId = fromOmniVendorDeviceId("tuya", deviceId);
     if (!rawDeviceId) {
@@ -172,6 +223,24 @@ export function createTuyaProvider(
 
   return {
     providerId: "tuya",
+    discoverDevices: async () => {
+      const devices = await Promise.all(
+        config.devices.map((configured) => discoverConfiguredDevice(configured)),
+      );
+      return devices.filter((device): device is DiscoveredProviderDevice => device !== undefined);
+    },
+    getDiscoveredDeviceStatus: async (
+      externalDeviceId: string,
+    ): Promise<ProviderDeviceStatus[]> => client.getDeviceStatus(externalDeviceId),
+    getDiscoveredDeviceCapabilities: async (
+      externalDeviceId: string,
+    ): Promise<ProviderCapability[]> => {
+      const discovered = await loadDiscoveredDeviceByExternalId(externalDeviceId);
+      if (!discovered) {
+        return [];
+      }
+      return discovered.capabilities.map((code) => ({ code }));
+    },
     ownsDevice: (deviceId) => resolveConfiguredDevice(deviceId) !== undefined,
     listDevices: async () => {
       const devices = await Promise.all(

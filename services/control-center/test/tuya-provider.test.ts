@@ -106,6 +106,56 @@ describe("tuya provider", () => {
     }
   });
 
+  it("exposes configured Tuya devices as discovery records without joining rooms", async () => {
+    const client = createClient();
+    const provider = createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "light-1", name: "Seed Light", room: "kitchen", kind: "light" },
+        ],
+      },
+      client,
+    });
+
+    await expect(provider.discoverDevices()).resolves.toEqual([
+      expect.objectContaining({
+        provider: "tuya",
+        externalDeviceId: "light-1",
+        originalName: "Ceiling lighting",
+        deviceType: "light",
+        roomHint: "kitchen",
+        online: true,
+        capabilities: ["switch", "brightness", "color-temperature"],
+        functions: [],
+      }),
+    ]);
+  });
+
+  it("uses external-device discovery lookups with normalized capabilities instead of status-derived function metadata", async () => {
+    const client = createClient();
+    const provider = createTuyaProvider({
+      config: {
+        ...baseConfig,
+        devices: [
+          { id: "light-1", name: "Seed Light", room: "kitchen", kind: "light" },
+        ],
+      },
+      client,
+    });
+
+    await expect(provider.getDiscoveredDeviceStatus("light-1")).resolves.toEqual([
+      { code: "switch_led", value: true },
+      { code: "bright_value", value: 505 },
+      { code: "temp_value", value: 500 },
+    ]);
+    await expect(provider.getDiscoveredDeviceCapabilities("light-1")).resolves.toEqual([
+      { code: "switch" },
+      { code: "brightness" },
+      { code: "color-temperature" },
+    ]);
+  });
+
   it("routes light commands through the light adapter", async () => {
     const client = createClient();
     const provider = createTuyaProvider({

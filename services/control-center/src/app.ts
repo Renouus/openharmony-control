@@ -35,6 +35,7 @@ import { registerDemoRoutes } from "./routes/demo";
 import { createDemoFaultState } from "./routes/demo-fault-state";
 import { registerDeviceRoutes } from "./routes/devices";
 import { registerFamilyRoutes } from "./routes/family";
+import { registerProviderRoutes } from "./routes/providers";
 import { registerSceneRoutes } from "./routes/scenes";
 import { SceneRegistry } from "./scenes/scene-registry";
 import { SceneService } from "./services/scene-service";
@@ -151,6 +152,7 @@ export function buildApp(
 
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
+    await registerProviderRoutes(scope, { vendorProvider });
     await registerDeviceRoutes(scope, registry, simulators, { vendorProvider });
     await registerAccessRoutes(scope, registry);
     await registerCameraRoutes(scope);

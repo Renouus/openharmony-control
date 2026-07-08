@@ -6,9 +6,65 @@ import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { clientConnections } from '../../src/routes/websocket';
 
+function seedManagedVendorDevices(deviceIds: string[] = ['tuya-light-1', 'tuya-ac-1']): void {
+  const db = getDb();
+  const devices = [
+    {
+      id: 'tuya-light-1',
+      name: 'Ceiling lighting',
+      type: 'light',
+      roomId: 'living-room',
+      state: {
+        power: true,
+        brightness: 50,
+        colorTemperature: 4350,
+        online: true,
+        updatedAt: 40,
+      },
+      sortOrder: 80,
+    },
+    {
+      id: 'tuya-ac-1',
+      name: 'Bedroom AC',
+      type: 'air-conditioner',
+      roomId: 'bedroom',
+      state: {
+        power: true,
+        targetTemperature: 26,
+        online: true,
+        updatedAt: 60,
+      },
+      sortOrder: 90,
+    },
+  ];
+
+  const insert = db.prepare(
+    "INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'active', ?)"
+  );
+
+  devices
+    .filter((device) => deviceIds.includes(device.id))
+    .forEach((device) => {
+      insert.run(
+        device.id,
+        device.name,
+        null,
+        device.type,
+        device.roomId,
+        JSON.stringify(device.state),
+        device.state.updatedAt,
+        device.state.updatedAt,
+        device.sortOrder,
+      );
+    });
+}
+
 function fakeVendorProvider(): VendorDeviceProvider {
   return {
     providerId: 'fake',
+    discoverDevices: async () => [],
+    getDiscoveredDeviceStatus: async () => [],
+    getDiscoveredDeviceCapabilities: async () => [],
     ownsDevice: (deviceId: string) => deviceId.startsWith('tuya-'),
     listDevices: async () => [
       {
@@ -167,6 +223,7 @@ describe('GET /api/sync', () => {
       10,
       0,
     );
+    seedManagedVendorDevices(['tuya-light-1']);
 
     await app.close();
     app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
@@ -272,6 +329,7 @@ describe('GET /api/sync', () => {
   });
 
   it('returns vendor devices through /api/sync when a provider is configured', async () => {
+    seedManagedVendorDevices();
     await app.close();
     app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
 
@@ -302,9 +360,8 @@ describe('GET /api/sync', () => {
   });
 
   it('overlays a locally stored customName onto vendor sync payloads', async () => {
-    const db = getDb();
-    db.prepare(
-      "INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    getDb().prepare(
+      "INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)"
     ).run(
       'tuya-light-1',
       'Ceiling lighting',
@@ -321,6 +378,7 @@ describe('GET /api/sync', () => {
       40,
       40,
       0,
+      80,
     );
 
     await app.close();
@@ -345,6 +403,7 @@ describe('GET /api/sync', () => {
   });
 
   it('returns only vendor devices whose version is newer than lastVersion', async () => {
+    seedManagedVendorDevices();
     await app.close();
     app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
 

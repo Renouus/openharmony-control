@@ -33,6 +33,16 @@
 		"requestPermissions": [
 			{
 				"name": "ohos.permission.INTERNET"
+			},
+			{
+				"name": "ohos.permission.CAMERA",
+				"reason": "$string:EntryAbility_desc",
+				"usedScene": {
+					"abilities": [
+						"EntryAbility"
+					],
+					"when": "inuse"
+				}
 			}
 		],
 		"abilities": [
@@ -55,12 +65,6 @@
 						]
 					}
 				]
-			},
-			{
-				"name": "FakeUIAbility",
-				"srcEntry": "../../.preview/fakeuiability/FakeUIAbility.ets",
-				"startWindowIcon": "startIcon",
-				"startWindowBackground": "#FFFFFF"
 			}
 		],
 		"packageName": "entry",

@@ -4,6 +4,7 @@ import {
   BrightnessPayload,
   ColorTemperaturePayload,
   HomeSummary,
+  PendingDeviceSnapshot,
   LockPayload,
   SceneSnapshot,
   SwitchPayload,
@@ -40,6 +41,7 @@ export class HomeViewModel {
     };
     let cameras: CameraSnapshot[] = [];
     let rooms: RoomItem[] = [];
+    let pendingDevices: PendingDeviceSnapshot[] = [];
 
     try {
       devices = await this.repository.listDevices();
@@ -53,10 +55,14 @@ export class HomeViewModel {
     try {
       rooms = await this.repository.listRooms();
     } catch {}
+    try {
+      pendingDevices = await this.repository.listPendingDevices();
+    } catch {}
 
     return mapHomeViewState(
       summary,
       devices,
+      pendingDevices,
       scenes,
       accessOverview,
       cameras,

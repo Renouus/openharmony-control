@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import {
@@ -43,5 +43,13 @@ describe("control center env loader", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it("resolves the same .env file when npm already runs inside services/control-center", () => {
+    const workspaceDir = "G:/openharmony-control/services/control-center";
+
+    expect(normalize(resolveControlCenterEnvPath(workspaceDir))).toBe(
+      normalize("G:/openharmony-control/services/control-center/.env"),
+    );
   });
 });

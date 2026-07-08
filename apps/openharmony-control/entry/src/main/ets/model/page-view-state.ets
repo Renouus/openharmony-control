@@ -83,6 +83,15 @@ export interface StatusChipState {
   useImage: boolean;  // true = shield icon via resource, false = text icon
 }
 
+export interface PendingDeviceState {
+  id: string;
+  name: string;
+  provider: string;
+  deviceType: string;
+  online: boolean;
+  capabilities: string[];
+}
+
 export interface ScenePresetState {
   label: string;
   brightness: number;
@@ -243,6 +252,8 @@ export class HomeViewState {
   };
   quickScenes: SceneChipState[] = [];
   statusChips: StatusChipState[] = [];
+  pendingCount: number = 0;
+  pendingDevices: PendingDeviceState[] = [];
   rooms: HomeRoomSectionState[] = [];
   devices: DevicePanelState[] = [];
   feedback: string = '';
@@ -354,6 +365,8 @@ export interface HomeViewStateData {
   cameraCard: SummaryCardState;
   quickScenes: SceneChipState[];
   statusChips: StatusChipState[];
+  pendingCount: number;
+  pendingDevices: PendingDeviceState[];
   rooms: HomeRoomSectionState[];
   devices: DevicePanelState[];
   feedback: string;
@@ -455,6 +468,8 @@ export function createEmptyHomeViewStateData(): HomeViewStateData {
     },
     quickScenes: [],
     statusChips: [],
+    pendingCount: 0,
+    pendingDevices: [],
     rooms: [],
     devices: [],
     feedback: '',

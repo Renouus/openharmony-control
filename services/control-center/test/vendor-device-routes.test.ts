@@ -6,7 +6,7 @@ import {
   DeviceKind,
 } from "@smart-home/device-contract";
 import { buildApp } from "../src/app";
-import { closeDatabase, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
 function createVendorDevices() {
@@ -93,6 +93,9 @@ function fakeVendorProvider(): VendorDeviceProvider {
 
   return {
     providerId: "fake",
+    discoverDevices: async () => [],
+    getDiscoveredDeviceStatus: async () => [],
+    getDiscoveredDeviceCapabilities: async () => [],
     ownsDevice: (deviceId) => deviceId.startsWith("tuya-"),
     listDevices: async () => devices,
     getDevice: async (deviceId) => devices.find((device) => device.id === deviceId),
@@ -125,11 +128,35 @@ function fakeVendorProvider(): VendorDeviceProvider {
   };
 }
 
+function seedManagedVendorDevices(): void {
+  const db = getDb();
+  const insert = db.prepare(`
+    INSERT INTO devices (
+      id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state, sort_order
+    )
+    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0, 'active', ?)
+  `);
+
+  createVendorDevices().forEach((device) => {
+    insert.run(
+      device.id,
+      device.name,
+      device.kind,
+      device.room,
+      JSON.stringify(device.state),
+      device.state.updatedAt,
+      device.state.updatedAt,
+      device.displayOrder,
+    );
+  });
+}
+
 describe("vendor device routes", () => {
   beforeEach(() => initDatabase(":memory:"));
   afterEach(() => closeDatabase());
 
   it("includes multiple vendor device kinds in the device list", async () => {
+    seedManagedVendorDevices();
     const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
     const response = await app.inject({ method: "GET", url: "/api/devices" });
 
@@ -145,6 +172,7 @@ describe("vendor device routes", () => {
   });
 
   it("returns vendor device detail responses for non-light kinds", async () => {
+    seedManagedVendorDevices();
     const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
     const response = await app.inject({
       method: "GET",
