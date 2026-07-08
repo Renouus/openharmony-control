@@ -77,6 +77,7 @@ export interface SmartHomeRepositoryPort {
   updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot>;
   deleteAutomation(automationId: string): Promise<void>;
   sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void>;
+  syncProviderDevices(): Promise<boolean>;
 }
 
 export class SmartHomeRepository implements SmartHomeRepositoryPort {
@@ -103,10 +104,20 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     this.wsClient.connect();
   }
 
-  private handleWebSocketEvent(event: string, payload: Object): void {
+  async handleWebSocketEvent(event: string, payload: Object): void {
     const domainEvent = DomainEventAdapter.fromWebSocketEvent(event, payload);
     if (domainEvent) {
       DatabaseEventProcessor.getInstance().pushEvent(domainEvent);
+    }
+  }
+
+  async syncProviderDevices(): Promise<boolean> {
+    try {
+      await this.api.syncProviderDevices('tuya');
+      return true;
+    } catch (e) {
+      console.error('OmniHomeLog', `Failed to sync provider devices: ${e}`);
+      return false;
     }
   }
 

@@ -469,6 +469,23 @@ export class DeviceApi {
     this.baseUrl = baseUrl;
   }
 
+  async syncProviderDevices(providerId: string = 'tuya'): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/providers/${providerId}/discover`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        readTimeout: 10000,
+        connectTimeout: 10000
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
   async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
     const client = http.createHttp();
     try {

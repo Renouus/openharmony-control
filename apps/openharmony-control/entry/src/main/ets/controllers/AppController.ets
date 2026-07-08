@@ -601,5 +601,9 @@ export class AppController {
       return message;
     }
   }
+
+  async syncProviderDevices(): Promise<boolean> {
+    return this.repository.syncProviderDevices();
+  }
 }
 
