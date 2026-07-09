@@ -91,12 +91,7 @@ export class AppController {
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
     
-    // Room list and views
-    const rooms = await this.repository.listRooms();
-    const devices = await this.repository.listDevices();
-    const scenes = this.sceneStore.visibleItems();
-    snapshot.assignRoomList(mapRoomList(rooms, devices));
-    snapshot.assignRoomViews(mapRoomViews(rooms, devices, scenes, this.activeSceneId));
+    await this.syncRoomState(snapshot);
   }
 
   async refreshTargets(
@@ -147,13 +142,16 @@ export class AppController {
 
   // ── Private fetch helpers ─────────────────────────────────────────────────
 
-  private async fetchRoomList(): Promise<RoomItemState[]> {
+  private async syncRoomState(snapshot: AppStateSnapshot): Promise<void> {
     try {
       const rooms = await this.repository.listRooms();
       const devices = await this.repository.listDevices();
-      return mapRoomList(rooms, devices);
+      const scenes = this.sceneStore.visibleItems();
+      snapshot.assignRoomList(mapRoomList(rooms, devices));
+      snapshot.assignRoomViews(mapRoomViews(rooms, devices, scenes, this.activeSceneId));
     } catch {
-      return [];
+      snapshot.assignRoomList([]);
+      snapshot.assignRoomViews([]);
     }
   }
 
@@ -522,7 +520,7 @@ export class AppController {
     } catch (error) {
       const message = normalizeRepositoryError(error as Object);
       snapshot.assignHome(await this.fetchHome(message));
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       return { success: false, message };
     }
   }
@@ -530,7 +528,7 @@ export class AppController {
   async handleCreateRoom(snapshot: AppStateSnapshot, name: string, icon: string): Promise<void> {
     try {
       await this.repository.createRoom(name, icon);
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('房间已创建'));
     } catch {
       snapshot.assignHome(await this.fetchHome('创建房间失败'));
@@ -540,7 +538,7 @@ export class AppController {
   async handleUpdateRoom(snapshot: AppStateSnapshot, roomId: string, name?: string, icon?: string): Promise<void> {
     try {
       await this.repository.updateRoom(roomId, name, icon);
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('房间已更新'));
     } catch {
       snapshot.assignHome(await this.fetchHome('更新房间失败'));
@@ -550,7 +548,7 @@ export class AppController {
   async handleDeleteRoom(snapshot: AppStateSnapshot, roomId: string): Promise<void> {
     try {
       await this.repository.deleteRoom(roomId);
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('房间已删除'));
     } catch {
       snapshot.assignHome(await this.fetchHome('删除房间失败'));
@@ -562,7 +560,7 @@ export class AppController {
       for (const deviceId of deviceIds) {
         await this.repository.updateDeviceRoom(deviceId, roomId);
       }
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('设备已分配'));
     } catch {
       snapshot.assignHome(await this.fetchHome('分配设备失败'));
