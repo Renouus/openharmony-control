@@ -40,6 +40,7 @@ import {
   NotificationsViewStateData,
   RoomItemState,
   RoomLightCardState,
+  RoomViewStateData,
   SceneCardState,
   ScenesViewStateData,
   SceneChipState,
@@ -803,6 +804,70 @@ function climateStatusLabel(mode: string): string {
   if (mode === 'cool') { return '安静制冷中'; }
   if (mode === 'auto') { return '自动平衡中'; }
   return '系统待机中';
+}
+
+export function extractRoomOverviewChips(roomDevices: DeviceSnapshot[]): StatusChipState[] {
+  const chips: StatusChipState[] = [];
+  const lockedDoors = roomDevices.filter(d => d.kind === 'door-lock' && d.state.locked).length;
+  const activeLights = roomDevices.filter(d => d.kind === 'light' && d.state.power).length;
+  
+  // Example for deriving temperature if an AC exists
+  const ac = roomDevices.find(d => d.kind === 'air-conditioner');
+  if (ac) {
+    const temp = ac.state.targetTemperature ?? 24; // fallback mockup
+    chips.push({ icon: 'thermostat', label: `${temp}\u00B0C`, useImage: false });
+  }
+
+  if (activeLights > 0) {
+    chips.push({ icon: 'lightbulb', label: `${activeLights} 盏灯开启`, useImage: false });
+  }
+  if (lockedDoors > 0) {
+    chips.push({ icon: 'lock', label: `${lockedDoors} 扇门已上锁`, useImage: false });
+  }
+  return chips;
+}
+
+export function mapRoomViews(
+  rooms: RoomItem[],
+  devices: DeviceSnapshot[],
+  scenes: SceneSnapshot[],
+  activeSceneId?: string
+): RoomViewStateData[] {
+  return rooms.map(room => {
+    const roomDevices = devices.filter(d => d.room === room.id);
+    const roomDeviceCards = roomDevices.map((d, index) => mapHomeDeviceCard(d, index === 0));
+    const deviceCountLabel = `${roomDevices.length} 个设备`;
+    const overviewChips = extractRoomOverviewChips(roomDevices);
+    
+    // Explicit scene filter rule: only show scenes strictly bound to this roomId.
+    // Assuming 'scene.roomId' exists in domain. (If missing, we approximate using action membership for the MVP but flag it)
+    const roomScenes = scenes
+      .filter(s => {
+        // Enforcing strict attribution rule if domain supports it, otherwise fallback pattern:
+        if ((s as any).roomId) { return (s as any).roomId === room.id; }
+        // Fallback constraint to ensure it's not a generic scene.
+        const allActionsTargetRoom = s.commands.every(cmd => {
+           const d = devices.find(x => x.id === cmd.deviceId);
+           return d && d.room === room.id;
+        });
+        return s.commands.length > 0 && allActionsTargetRoom;
+      })
+      .map(scene => ({
+        id: scene.id,
+        label: scene.name,
+        icon: scene.icon ?? sceneIcon(scene.id),
+        active: scene.id === activeSceneId,
+      }));
+
+    return {
+      roomId: room.id,
+      name: room.name,
+      deviceCountLabel,
+      overviewChips,
+      roomScenes,
+      devices: roomDeviceCards,
+    };
+  });
 }
 
 export function mapClimateViewState(overview: ClimateOverview, feedback: string): ClimateViewStateData {
