@@ -177,3 +177,21 @@ Warnings noted:
 - `GenericRoomView.ets` still emits the pre-existing ArkTS warning:
   - `The 'regular' property 'roomState' cannot be assigned to the '@ObjectLink' property 'roomState'.`
 - The focused build still emits existing repo-wide ArkTS warnings unrelated to this task surface.
+
+### Task 1 narrow cleanup pass
+
+Changed only `apps/openharmony-control/entry/src/main/ets/views/GenericRoomView.ets` to keep the explicit room-create routing, restore the previous `房间不存在` fallback when the room lookup misses, and remove the extra UI/layout refactor churn from the room page.
+
+Verification:
+
+```powershell
+node "E:\DevEco Studio\tools\hvigor\hvigor\bin\hvigor.js" UnitTestBuild --mode module -p product=default -p module=entry -i
+```
+
+Result:
+
+- `BUILD SUCCESSFUL`
+
+Concerns:
+
+- No preview, device/emulator runtime, or HAP/install verification was run for this narrow cleanup pass.
