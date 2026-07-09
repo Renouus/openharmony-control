@@ -10,41 +10,80 @@ Currently, `GenericRoomView` only displays the room title, device count, and the
 
 ### 1. Data Model Updates (`model/page-view-state.ets`)
 To support the new layout, we must extend the state object used for rendering individual rooms to include scoped overview metrics and scenes.
-Currently, room views rely on filtering the `home.rooms` or `roomList.rooms` lists matching `roomId`. We will introduce a dedicated struct `RoomViewState` that encapsulates all the details of a single room.
 
-**Changes:**
-- Create a new `RoomViewState` class and its corresponding plain object interface `RoomViewStateData`.
-- `RoomViewState` will hold:
-  - `roomId`
-  - `name`
-  - `deviceCountLabel`
-  - `metrics: MetricPillState[]` (Reusable metric array for env data like Temp/Humidity, or states like "2 lights on")
-  - `statusChips: StatusChipState[]` (For small status readouts specific to the room)
-  - `roomScenes: SceneChipState[]` (The scenes *exclusive* to this room)
-  - `devices: HomeDeviceCardState[]` (The devices within this room)
-- Update `AppStateSnapshot` with `roomViews: Map<string, RoomViewState>` or a flat list we can filter, ensuring views can react to state changes in a specific room.
+**Crucial Constraints & Guardrails:**
+- **Derived State Only:** `RoomViewState` is purely computed (derived). Its rooms, devices, and scenes must be mapped from the exact same canonical app snapshot sources (e.g., `SceneStore`, DB) as the Home view. It must *not* introduce a separate mutable room scene/device source.
+- **No In-View Filtering:** `GenericRoomView` will no longer fish for its own data out of `home.rooms` or `roomList.rooms`. It will be handed a pre-computed `RoomViewState` instance to render.
+- **ArkUI Friendly List:** We will use `roomViews: RoomViewState[]` rather than a `Map` to ensure stable reactivity in ArkTS.
 
-### 2. UI Layout Structure (`views/GenericRoomView.ets`)
-We will remodel the page structure to match the top-to-bottom hierarchy logic of `HomeView`.
+```ts
+export interface RoomViewStateData {
+  roomId: string;
+  name: string;
+  deviceCountLabel: string;
+  overviewChips: StatusChipState[]; // Consolidated discrete states & metrics (e.g., "2 lights on", "24°C")
+  roomScenes: SceneChipState[];
+  devices: HomeDeviceCardState[];
+}
+
+@Observed
+export class RoomViewState {
+  roomId: string = '';
+  name: string = '';
+  deviceCountLabel: string = '';
+  overviewChips: StatusChipState[] = [];
+  roomScenes: SceneChipState[] = [];
+  devices: HomeDeviceCardState[] = [];
+  
+  constructor(data?: RoomViewStateData) {
+    if (data) {
+      this.roomId = data.roomId;
+      this.name = data.name;
+      this.deviceCountLabel = data.deviceCountLabel;
+      this.overviewChips = data.overviewChips;
+      this.roomScenes = data.roomScenes;
+      this.devices = data.devices;
+    }
+  }
+}
+```
+
+Update `AppStateSnapshot`:
+```ts
+  roomViews: RoomViewState[] = [];
+  
+  assignRoomViews(views: RoomViewStateData[]): void {
+      // Re-assign or mutate array to trigger @Observed updates appropriately
+  }
+```
+
+### 2. Scene Attribution Rules
+Scenes shown in a room must explicitly belong to that room. We do *not* infer room membership just because a scene's actions happen to only target devices in that room (e.g., an "All Off" scene might accidentally only affect living room lights, but it is a global scene, not a living room scene).
+
+- **Rule:** `GenericRoomView` only displays manual scenes whose explicit room scope includes the current `roomId`. (Requires ensuring the `SceneCardState` or domain model has an explicit `roomId?: string` or `targetRoomIds: string[]` binding).
+- Global scenes remain on HomeView unless product explicitly wants them duplicated.
+
+### 3. UI Layout Structure (`views/GenericRoomView.ets`)
+We will remodel the page structure to match the top-to-bottom hierarchy logic.
 
 **A. Room Header & Overview Data:**
-- The large Title and subtitle (device count) stay intact at the top.
-- Right below the title, render a horizontal scrolling row for `statusChips` or `metrics` showing environmental data (e.g., Temperature: 24°C) or aggregated states.
+- Title and subtitle (device count) at the top.
+- Horizontal scroll row for `overviewChips`.
+- **Empty State:** If `overviewChips` is empty, do not render a blank horizontal scroll area. Hide the section completely.
 
 **B. Room-Specific Scenes Area:**
 - Create a subsection titled "场景" (Scenes).
-- Utilize the existing `SceneChip` component (same component used in `HomeView`).
-- Render a horizontal scrolling `Scroll` block listing the scenes. *Crucially, these scene chips are populated from `roomScenes`, ensuring they only apply to that specific room.*
+- Utilize the existing `SceneChip` component.
+- **Empty State:** If `roomScenes` is empty, hide the section entirely to save vertical space.
 
 **C. Devices Grid Area:**
-- The existing `DeviceGridLayout` will remain at the bottom, receiving the mapped devices array for the target room exactly as it does now.
+- The existing `DeviceGridLayout` mapping `this.roomViewState.devices`.
+- **Empty State:** If `devices` is empty, show the existing empty device state (e.g., placeholder text or "Add Device" entry).
 
-### 3. Controller / Data Mapping (`controllers/AppController.ets` & ViewModels)
-When the app state maps domain state to UI state, it needs to populate the room-specific scenes.
-- Scenes will be filtered based on their target scope (e.g., if a scene operates only on devices within "Living Room", or if it is explicitly tagged to that room).
-- Aggregated metrics (e.g., calculating average temperature of temperature sensors in the room, or counting 'on' lights in the room) must be calculated when building the `RoomViewState`.
+**D. Missing Room Guard:**
+- If the requested `roomId` does not map to an existing `RoomViewState` (e.g., deleted in background), show a clean "Room Not Found / 房间不存在" fallback or trigger an automatic navigation back to the previous screen.
 
 ## Action Items for Implementation Plan
-1. Add `RoomViewState` types to `page-view-state.ets`.
-2. Map current room states and room-specific scenes to compile these new `RoomViewState` objects in the app state mapper.
-3. Overhaul `GenericRoomView.ets` to accept the new structures and lay down the UI elements matching the "Header/Overview -> Horizontal Scenes -> Grid Devices" flow.
+1. Update `page-view-state.ets` and `app-state-snapshot.ets` with `RoomViewState` arrays and objects.
+2. Update the domain mapping (e.g., in `smart-home-mappers.ets` or `AppController`) to generate `RoomViewState` from the canonical data sources, explicitly enforcing the explicit scope/roomId rule for scenes.
+3. Refactor `GenericRoomView.ets` to consume `RoomViewState` sequentially (Overview -> Scenes -> Devices), handling all empty state permutations correctly without performing any filtering logic inside the view itself.
