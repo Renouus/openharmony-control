@@ -21,6 +21,8 @@ import {
   FamilySettingsState,
   RoomListState,
   RoomItemState,
+  RoomViewStateData,
+  RoomViewState,
 } from '../model/page-view-state';
 import { AutomationSnapshot } from '../services/device-api';
 
@@ -38,6 +40,7 @@ export class AppStateSnapshot {
   family: FamilyViewState = new FamilyViewState();
   familySettings: FamilySettingsState = new FamilySettingsState();
   roomList: RoomListState = new RoomListState();
+  roomViews: RoomViewState[] = [];
 
   // In-place mutation so @Observed proxies propagate changes to @ObjectLink subscribers
   assignHome(data: HomeViewStateData): void {
@@ -138,5 +141,19 @@ export class AppStateSnapshot {
 
   assignRoomList(rooms: RoomItemState[]): void {
     this.roomList.rooms = rooms;
+  }
+
+  assignRoomViews(dataList: RoomViewStateData[]): void {
+    // We recreate the instances to trigger UI updates reliably
+    this.roomViews = dataList.map((data) => {
+      const state = new RoomViewState();
+      state.roomId = data.roomId;
+      state.name = data.name;
+      state.deviceCountLabel = data.deviceCountLabel;
+      state.overviewChips = data.overviewChips;
+      state.roomScenes = data.roomScenes;
+      state.devices = data.devices;
+      return state;
+    });
   }
 }

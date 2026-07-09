@@ -351,6 +351,25 @@ export class RoomListState {
   rooms: RoomItemState[] = [];
 }
 
+export interface RoomViewStateData {
+  roomId: string;
+  name: string;
+  deviceCountLabel: string;
+  overviewChips: StatusChipState[];
+  roomScenes: SceneChipState[];
+  devices: HomeDeviceCardState[];
+}
+
+@Observed
+export class RoomViewState {
+  roomId: string = '';
+  name: string = '';
+  deviceCountLabel: string = '';
+  overviewChips: StatusChipState[] = [];
+  roomScenes: SceneChipState[] = [];
+  devices: HomeDeviceCardState[] = [];
+}
+
 // ── Plain-object factory helpers (still used by ViewModels & tests) ───────────
 
 export interface HomeViewStateData {
@@ -573,6 +592,17 @@ export function createEmptyClimateViewStateData(): ClimateViewStateData {
 
 export function createEmptyRoomListState(): RoomListState {
   return new RoomListState();
+}
+
+export function createEmptyRoomViewStateData(roomId: string): RoomViewStateData {
+  return {
+    roomId,
+    name: 'Unknown Room',
+    deviceCountLabel: '0 个设备',
+    overviewChips: [],
+    roomScenes: [],
+    devices: [],
+  };
 }
 
 // ── Legacy aliases kept for backward compatibility with ViewModels & tests ────
