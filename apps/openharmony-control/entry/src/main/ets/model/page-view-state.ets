@@ -45,6 +45,21 @@ export interface SceneChipState {
   active: boolean;
 }
 
+export interface SceneEditorCreateContext {
+  mode: 'create';
+  scope: 'global' | 'room';
+  roomId?: string;
+}
+
+export interface SceneEditorEditContext {
+  mode: 'edit';
+  sceneId: string;
+}
+
+export type SceneEditorContext =
+  | SceneEditorCreateContext
+  | SceneEditorEditContext;
+
 export interface HomeDeviceCardState {
   id: string;
   name: string;

@@ -1,4 +1,4 @@
-import { AppPageId, RoomItemState } from '../model/page-view-state';
+import { AppPageId, RoomItemState, SceneEditorContext } from '../model/page-view-state';
 import { isSubPageId } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
@@ -208,6 +208,21 @@ struct Index {
       });
   }
 
+  private getSceneEditorContext(): SceneEditorContext | null {
+    if (!this.subPageParam) {
+      return null;
+    }
+    return this.subPageParam as SceneEditorContext;
+  }
+
+  private getEditingSceneId(): string {
+    const sceneEditorContext = this.getSceneEditorContext();
+    if (sceneEditorContext && sceneEditorContext.mode === 'edit') {
+      return sceneEditorContext.sceneId;
+    }
+    return '';
+  }
+
   // ── Sub-page overlay content ─────────────────────────────────────────────
 
   @Builder
@@ -330,11 +345,12 @@ struct Index {
       } else if (this.currentSubPage === 'sceneEditor') {
         SceneEditorView({
           appState: this.appState,
-          editingSceneId: this.subPageParam as string,
+          editingSceneId: this.getEditingSceneId(),
           onCancel: () => this.popSubPage(),
           onSave: async (payload) => {
-            if (this.subPageParam) {
-              await this.controller.handleUpdateScene(this.appState, this.subPageParam as string, payload);
+            const sceneEditorContext = this.getSceneEditorContext();
+            if (sceneEditorContext && sceneEditorContext.mode === 'edit') {
+              await this.controller.handleUpdateScene(this.appState, sceneEditorContext.sceneId, payload);
             } else {
               await this.controller.handleCreateScene(this.appState, payload);
             }

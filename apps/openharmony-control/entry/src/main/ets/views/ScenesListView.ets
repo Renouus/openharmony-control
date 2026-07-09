@@ -1,5 +1,12 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { DeviceActionState, SceneCardState, ScenesViewState } from '../model/page-view-state';
+import {
+  DeviceActionState,
+  SceneCardState,
+  SceneEditorContext,
+  SceneEditorCreateContext,
+  SceneEditorEditContext,
+  ScenesViewState
+} from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
@@ -21,12 +28,29 @@ export struct ScenesListView {
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
+  private buildEditSceneEditorContext(sceneId: string): SceneEditorEditContext {
+    const context: SceneEditorEditContext = {
+      mode: 'edit',
+      sceneId,
+    };
+    return context;
+  }
+
+  private buildGlobalSceneEditorContext(): SceneEditorCreateContext {
+    const context: SceneEditorCreateContext = {
+      mode: 'create',
+      scope: 'global',
+    };
+    return context;
+  }
+
   @Builder
   SceneMenu(sceneId: string) {
     Menu() {
       MenuItem({ content: 'Edit scene' })
         .onClick(() => {
-          this.navStack.pushPathByName('sceneEditor', sceneId);
+          const context = this.buildEditSceneEditorContext(sceneId);
+          this.navStack.pushPathByName('sceneEditor', context as SceneEditorContext);
         })
       MenuItem({ content: 'Delete scene' })
         .onClick(() => {
@@ -119,7 +143,8 @@ export struct ScenesListView {
           .borderRadius(16)
           .shadow({ radius: 16, color: '#3A302A0A', offsetX: 0, offsetY: 2 })
           .onClick(() => {
-            this.navStack.pushPathByName('sceneEditor', scene.id);
+            const context = this.buildEditSceneEditorContext(scene.id);
+            this.navStack.pushPathByName('sceneEditor', context as SceneEditorContext);
           })
         }, (scene: SceneCardState) => scene.id)
 
@@ -144,7 +169,8 @@ export struct ScenesListView {
         .border({ width: 1, color: COLOR_OUTLINE_VARIANT, style: BorderStyle.Dashed })
         .borderRadius(16)
         .onClick(() => {
-          this.navStack.pushPathByName('sceneEditor', null);
+          const context = this.buildGlobalSceneEditorContext();
+          this.navStack.pushPathByName('sceneEditor', context as SceneEditorContext);
         })
       }
       .width('100%')
