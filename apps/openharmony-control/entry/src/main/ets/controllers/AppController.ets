@@ -21,7 +21,7 @@
   createEmptyNotificationsViewStateData,
   RoomItemState,
 } from '../model/page-view-state';
-import { mapAutomationViewState, mapRoomList, mapScenesViewState } from '../model/smart-home-mappers';
+import { mapAutomationViewState, mapRoomList, mapRoomViews, mapScenesViewState } from '../model/smart-home-mappers';
 import { createRefreshPlan, AppPageRefreshTarget, IndexPageAction } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import {
@@ -90,7 +90,13 @@ export class AppController {
     await this.refreshAutomationState(snapshot, feedback);
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
-    snapshot.assignRoomList(await this.fetchRoomList());
+    
+    // Room list and views
+    const rooms = await this.repository.listRooms();
+    const devices = await this.repository.listDevices();
+    const scenes = this.sceneStore.visibleItems();
+    snapshot.assignRoomList(mapRoomList(rooms, devices));
+    snapshot.assignRoomViews(mapRoomViews(rooms, devices, scenes, this.activeSceneId));
   }
 
   async refreshTargets(
