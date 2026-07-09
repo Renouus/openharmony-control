@@ -1,4 +1,10 @@
-import { AppPageId, RoomItemState, SceneEditorContext } from '../model/page-view-state';
+import {
+  AppPageId,
+  createGlobalSceneEditorRoute,
+  RoomItemState,
+  SceneEditorContext,
+  sceneEditorEditingSceneId
+} from '../model/page-view-state';
 import { isSubPageId } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
@@ -148,6 +154,9 @@ struct Index {
     this.isHeaderMenuOpen = false;
     if (item === 'createRoom') {
       this.isAddRoomSheetOpen = true;
+    } else if (item === 'sceneEditor') {
+      const route = createGlobalSceneEditorRoute();
+      this.pushSubPage(route.page, route.param);
     } else if (item === 'syncProviderDevices') {
       this.handleSyncDevices();
     } else {
@@ -216,11 +225,7 @@ struct Index {
   }
 
   private getEditingSceneId(): string {
-    const sceneEditorContext = this.getSceneEditorContext();
-    if (sceneEditorContext && sceneEditorContext.mode === 'edit') {
-      return sceneEditorContext.sceneId;
-    }
-    return '';
+    return sceneEditorEditingSceneId(this.getSceneEditorContext());
   }
 
   // ── Sub-page overlay content ─────────────────────────────────────────────

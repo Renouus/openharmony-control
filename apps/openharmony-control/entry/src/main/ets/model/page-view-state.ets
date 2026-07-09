@@ -60,6 +60,67 @@ export type SceneEditorContext =
   | SceneEditorCreateContext
   | SceneEditorEditContext;
 
+export interface SceneEditorRouteTarget {
+  page: 'sceneEditor';
+  param: SceneEditorContext;
+}
+
+export function createGlobalSceneEditorContext(): SceneEditorCreateContext {
+  const context: SceneEditorCreateContext = {
+    mode: 'create',
+    scope: 'global',
+  };
+  return context;
+}
+
+export function createRoomSceneEditorContext(roomId: string): SceneEditorCreateContext {
+  const context: SceneEditorCreateContext = {
+    mode: 'create',
+    scope: 'room',
+    roomId,
+  };
+  return context;
+}
+
+export function createEditSceneEditorContext(sceneId: string): SceneEditorEditContext {
+  const context: SceneEditorEditContext = {
+    mode: 'edit',
+    sceneId,
+  };
+  return context;
+}
+
+export function createGlobalSceneEditorRoute(): SceneEditorRouteTarget {
+  const route: SceneEditorRouteTarget = {
+    page: 'sceneEditor',
+    param: createGlobalSceneEditorContext(),
+  };
+  return route;
+}
+
+export function createRoomSceneEditorRoute(roomId: string): SceneEditorRouteTarget {
+  const route: SceneEditorRouteTarget = {
+    page: 'sceneEditor',
+    param: createRoomSceneEditorContext(roomId),
+  };
+  return route;
+}
+
+export function createEditSceneEditorRoute(sceneId: string): SceneEditorRouteTarget {
+  const route: SceneEditorRouteTarget = {
+    page: 'sceneEditor',
+    param: createEditSceneEditorContext(sceneId),
+  };
+  return route;
+}
+
+export function sceneEditorEditingSceneId(context: SceneEditorContext | null): string {
+  if (context && context.mode === 'edit') {
+    return context.sceneId;
+  }
+  return '';
+}
+
 export interface HomeDeviceCardState {
   id: string;
   name: string;
