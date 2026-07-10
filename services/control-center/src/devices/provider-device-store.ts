@@ -4,6 +4,7 @@ import {
   DeviceHealth,
   DeviceKind,
   type DeviceCapabilityName,
+  type DeviceIconName,
   type DeviceKindName,
   type DeviceState,
   type EnhancedDeviceDescriptor,
@@ -54,6 +55,8 @@ type DeviceRow = {
   id: string;
   name: string;
   custom_name: string | null;
+  note: string | null;
+  custom_icon: DeviceIconName | null;
   provider: string | null;
   type: string;
   room_id: string | null;
@@ -218,7 +221,7 @@ export class ProviderDeviceStore {
   public listActiveDevices(): EnhancedDeviceDescriptor[] {
     const rows = this.db
       .prepare(`
-        SELECT d.id, d.name, d.custom_name, s.provider, d.type, d.room_id, d.state_json, d.updated_at, d.version, d.lifecycle_state, d.sort_order, s.source_capabilities_json
+        SELECT d.id, d.name, d.custom_name, d.note, d.custom_icon, s.provider, d.type, d.room_id, d.state_json, d.updated_at, d.version, d.lifecycle_state, d.sort_order, s.source_capabilities_json
         FROM devices d
         LEFT JOIN device_provider_sources s ON s.id = d.provider_source_id
         WHERE d.lifecycle_state = 'active' AND d.is_deleted = 0
@@ -262,28 +265,41 @@ export class ProviderDeviceStore {
 
   public updateActiveDevice(
     deviceId: string,
-    input: { displayName?: string; roomId: string; deviceType: DeviceKindName },
+    input: {
+      displayName: string;
+      note: string;
+      customIcon: DeviceIconName;
+      roomId: string;
+      deviceType: DeviceKindName;
+    },
   ): EnhancedDeviceDescriptor | undefined {
-    const now = Date.now();
-    const version = this.incrementVersion();
-    const displayName = input.displayName?.trim() ?? "";
-    const result = this.db
-      .prepare(`
-        UPDATE devices
-        SET custom_name = ?, room_id = ?, type = ?, device_type = ?, updated_at = ?, version = ?
+    const result = this.db.transaction(() => {
+      const existing = this.db.prepare(`
+        SELECT id FROM devices
         WHERE id = ? AND lifecycle_state = 'active' AND is_deleted = 0
-      `)
-      .run(
-        displayName.length > 0 ? displayName : null,
+      `).get(deviceId);
+      if (!existing) {
+        return false;
+      }
+      const version = this.incrementVersion();
+      return this.db.prepare(`
+        UPDATE devices
+        SET custom_name = ?, note = ?, custom_icon = ?, room_id = ?, type = ?, device_type = ?, updated_at = ?, version = ?
+        WHERE id = ? AND lifecycle_state = 'active' AND is_deleted = 0
+      `).run(
+        input.displayName.trim(),
+        input.note,
+        input.customIcon,
         input.roomId,
         input.deviceType,
         input.deviceType,
-        now,
+        Date.now(),
         version,
         deviceId,
-      );
+      ).changes === 1;
+    })();
 
-    if (result.changes === 0) {
+    if (!result) {
       return undefined;
     }
 
@@ -347,6 +363,8 @@ function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
     id: row.id,
     name: row.name,
     customName: row.custom_name ?? undefined,
+    note: row.note ?? undefined,
+    customIcon: row.custom_icon ?? undefined,
     brand: row.provider ?? "omnihome",
     kind,
     capabilities: capabilities.length > 0 ? capabilities : capabilitiesForKind(kind),

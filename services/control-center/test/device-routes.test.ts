@@ -75,6 +75,13 @@ function insertManagedVendorDeviceRow(
   );
 }
 
+function insertRoom(roomId: string, isDeleted = false): void {
+  getDb().prepare(`
+    INSERT INTO rooms (id, name, icon, built_in, updated_at, version, is_deleted)
+    VALUES (?, ?, 'room', 0, 1, 1, ?)
+  `).run(roomId, roomId, isDeleted ? 1 : 0);
+}
+
 describe("device snapshot routes", () => {
   beforeEach(() => {
     initDatabase(":memory:");
@@ -253,8 +260,10 @@ describe("device snapshot routes", () => {
     });
   });
 
-  it("updates a persisted device custom name and returns the updated device", async () => {
+  it("updates all device metadata atomically with one version increase", async () => {
     const db = getDb();
+    insertRoom("bedroom");
+    insertRoom("study");
     db.prepare(`
       INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
@@ -276,10 +285,18 @@ describe("device snapshot routes", () => {
     );
 
     const app = buildApp();
+    const versionBefore = Number(
+      (db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    );
     const response = await app.inject({
       method: "PUT",
       url: "/api/devices/rename-light",
-      payload: { customName: "Bedside Lamp" },
+      payload: {
+        customName: " Bedside Lamp ",
+        note: " Beside the sofa ",
+        customIcon: "outlet",
+        roomId: "study",
+      },
     });
 
     expect(response.statusCode).toBe(200);
@@ -288,12 +305,58 @@ describe("device snapshot routes", () => {
         id: "rename-light",
         name: "Reading Lamp",
         customName: "Bedside Lamp",
+        note: "Beside the sofa",
+        customIcon: "outlet",
+        room: "study",
       },
+    });
+    expect(db.prepare(`
+      SELECT custom_name, note, custom_icon, room_id FROM devices WHERE id = ?
+    `).get("rename-light")).toEqual({
+      custom_name: "Bedside Lamp",
+      note: "Beside the sofa",
+      custom_icon: "outlet",
+      room_id: "study",
+    });
+    expect(Number(
+      (db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    )).toBe(versionBefore + 1);
+  });
+
+  it("persists and updates a registry-only built-in device", async () => {
+    insertRoom("bedroom");
+    const response = await buildApp().inject({
+      method: "PUT",
+      url: "/api/devices/light-living-room",
+      payload: {
+        customName: "Reading Light",
+        note: "Beside the sofa",
+        customIcon: "outlet",
+        roomId: "bedroom",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().device).toMatchObject({
+      id: "light-living-room",
+      customName: "Reading Light",
+      note: "Beside the sofa",
+      customIcon: "outlet",
+      room: "bedroom",
+    });
+    expect(getDb().prepare(`
+      SELECT custom_name, note, custom_icon, room_id FROM devices WHERE id = ?
+    `).get("light-living-room")).toEqual({
+      custom_name: "Reading Light",
+      note: "Beside the sofa",
+      custom_icon: "outlet",
+      room_id: "bedroom",
     });
   });
 
-  it("clears a custom name when an empty trimmed value is submitted", async () => {
+  it("updates metadata for an active offline device", async () => {
     const db = getDb();
+    insertRoom("bedroom");
     db.prepare(`
       INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
@@ -308,7 +371,7 @@ describe("device snapshot routes", () => {
         brightness: 70,
         colorTemperature: 3000,
         updatedAt: 1718600000000,
-        online: true,
+        online: false,
       }),
       1718600000000,
       2,
@@ -318,24 +381,72 @@ describe("device snapshot routes", () => {
     const response = await app.inject({
       method: "PUT",
       url: "/api/devices/rename-light",
-      payload: { customName: "   " },
+      payload: {
+        customName: "Offline Lamp",
+        note: "Breaker is off",
+        customIcon: "lightbulb",
+        roomId: "bedroom",
+      },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().device.id).toBe("rename-light");
-    expect(response.json().device.customName).toBeUndefined();
+    expect(response.json().device).toMatchObject({
+      id: "rename-light",
+      customName: "Offline Lamp",
+      note: "Breaker is off",
+      customIcon: "lightbulb",
+    });
   });
 
-  it("returns 404 when renaming an unknown device", async () => {
-    const app = buildApp();
-    const response = await app.inject({
+  it.each([
+    ["empty name", { customName: "   ", note: "", customIcon: "lightbulb", roomId: "bedroom" }],
+    ["long name", { customName: "n".repeat(31), note: "", customIcon: "lightbulb", roomId: "bedroom" }],
+    ["long note", { customName: "Lamp", note: "n".repeat(121), customIcon: "lightbulb", roomId: "bedroom" }],
+    ["unsupported icon", { customName: "Lamp", note: "", customIcon: "rocket", roomId: "bedroom" }],
+    ["unknown room", { customName: "Lamp", note: "", customIcon: "lightbulb", roomId: "attic" }],
+    ["deleted room", { customName: "Lamp", note: "", customIcon: "lightbulb", roomId: "deleted-room" }],
+  ])("rejects %s without changing the device row or version", async (_label, payload) => {
+    const db = getDb();
+    insertRoom("bedroom");
+    insertRoom("deleted-room", true);
+    db.prepare(`
+      INSERT INTO devices (id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES ('validated-light', 'Lamp', 'Old name', 'Old note', 'lamp', 'light', 'bedroom', '{}', 10, 10, 0)
+    `).run();
+    const before = db.prepare("SELECT * FROM devices WHERE id = 'validated-light'").get();
+    const versionBefore = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get();
+
+    const response = await buildApp().inject({
       method: "PUT",
-      url: "/api/devices/missing-device",
-      payload: { customName: "Ghost" },
+      url: "/api/devices/validated-light",
+      payload,
     });
 
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toMatchObject({ code: "DEVICE_NOT_FOUND" });
+    expect(response.statusCode).toBe(400);
+    expect(db.prepare("SELECT * FROM devices WHERE id = 'validated-light'").get()).toEqual(before);
+    expect(db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get()).toEqual(versionBefore);
+  });
+
+  it("returns 404 without changing the version for missing or inactive devices", async () => {
+    const db = getDb();
+    insertRoom("bedroom");
+    db.prepare(`
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state)
+      VALUES ('pending-light', 'Lamp', 'light', 'bedroom', '{}', 10, 10, 0, 'pending')
+    `).run();
+    const versionBefore = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get();
+    const app = buildApp();
+    const payload = { customName: "Ghost", note: "", customIcon: "lightbulb", roomId: "bedroom" };
+    const missingResponse = await app.inject({
+      method: "PUT",
+      url: "/api/devices/missing-device",
+      payload,
+    });
+    const inactiveResponse = await app.inject({ method: "PUT", url: "/api/devices/pending-light", payload });
+
+    expect(missingResponse.statusCode).toBe(404);
+    expect(inactiveResponse.statusCode).toBe(404);
+    expect(db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get()).toEqual(versionBefore);
   });
 
   it("overlays a stored custom name onto a vendor-backed device detail response", async () => {
@@ -378,6 +489,7 @@ describe("device snapshot routes", () => {
   });
 
   it("updates a vendor-backed device custom name without changing the upstream name", async () => {
+    insertRoom("living-room");
     insertManagedVendorDeviceRow("tuya-light-1", "Ceiling lighting", "light", "living-room", {
       power: true,
       brightness: 50,
@@ -390,7 +502,7 @@ describe("device snapshot routes", () => {
     const response = await app.inject({
       method: "PUT",
       url: "/api/devices/tuya-light-1",
-      payload: { customName: "Hall Accent" },
+      payload: { customName: "Hall Accent", note: "North wall", customIcon: "lightbulb", roomId: "living-room" },
     });
 
     expect(response.statusCode).toBe(200);
@@ -404,6 +516,7 @@ describe("device snapshot routes", () => {
   });
 
   it("broadcasts vendor-backed rename updates using the sync dto shape", async () => {
+    insertRoom("living-room");
     insertManagedVendorDeviceRow("tuya-light-1", "Ceiling lighting", "light", "living-room", {
       power: true,
       brightness: 50,
@@ -426,7 +539,7 @@ describe("device snapshot routes", () => {
       const response = await app.inject({
         method: "PUT",
         url: "/api/devices/tuya-light-1",
-        payload: { customName: "Hall Accent" },
+        payload: { customName: "Hall Accent", note: "North wall", customIcon: "lightbulb", roomId: "living-room" },
       });
 
       expect(response.statusCode).toBe(200);

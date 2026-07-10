@@ -5,6 +5,7 @@ import {
   DeviceKind,
   type DeviceDescriptor,
   type DeviceHealthName,
+  type DeviceIconName,
   type DeviceKindName,
   type DeviceState,
   type EnhancedDeviceDescriptor,
@@ -25,11 +26,17 @@ import type { DeviceRegistry } from "../registry/device-registry";
 import { broadcastEvent } from "./websocket";
 import { mapDeviceRowToSyncDto, mapVendorDeviceToSyncDto } from "../db/device-sync-mapper";
 import { getDb } from "../db/database";
+import {
+  type DeviceMetadataUpdate,
+  validateDeviceMetadataUpdate,
+} from "../devices/device-metadata";
 
 type DeviceRow = {
   id: string;
   name: string;
   custom_name: string | null;
+  note: string | null;
+  custom_icon: DeviceIconName | null;
   type: string;
   room_id: string | null;
   state_json: string;
@@ -41,10 +48,6 @@ type DeviceRow = {
 type CreateDeviceRequest = {
   deviceCode?: string;
   roomId?: string;
-};
-
-type UpdateDeviceRequest = {
-  customName?: string;
 };
 
 type JoinPendingDeviceRequest = {
@@ -213,10 +216,13 @@ export async function registerDeviceRoutes(
 
   app.put("/api/devices/:deviceId", async (request, reply) => {
     const { deviceId } = request.params as { deviceId: string };
-    const body = request.body as UpdateDeviceRequest;
-
-    if (body.customName !== undefined && typeof body.customName !== "string") {
-      return reply.code(400).send({ code: "BAD_REQUEST", message: "customName must be a string" });
+    const validation = validateDeviceMetadataUpdate(request.body);
+    if (!validation.ok) {
+      return reply.code(400).send({ code: "BAD_REQUEST", message: validation.message });
+    }
+    const update = validation.value;
+    if (!roomExists(update.roomId)) {
+      return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is invalid" });
     }
 
     const device = await loadDevice(deviceId, registry, options.vendorProvider);
@@ -224,35 +230,20 @@ export async function registerDeviceRoutes(
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
-    const customName = normalizeCustomName(body.customName);
-    
-    // 如果是第三方设备，使用新架构的数据源修改：
-    if (options.vendorProvider?.ownsDevice(deviceId)) {
-        const store = new ProviderDeviceStore(getDb());
-        const updated = store.updateActiveDevice(deviceId, {
-          displayName: customName ?? undefined,
-          roomId: device.room,
-          deviceType: device.kind
-        });
-        if (!updated) {
-          return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
-        }
-    } else {
-        // 如果是本地模拟设备，走原来的逻辑
-        upsertDeviceCustomName(device, customName);
+    persistRegistryDeviceIfNeeded(device);
+    if (!updateStoredDeviceMetadata(deviceId, update)) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
+    const updatedDevice = await loadDevice(deviceId, registry, options.vendorProvider);
+    if (!updatedDevice) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
+    }
+    const payload = options.vendorProvider?.ownsDevice(deviceId)
+      ? mapVendorDeviceToSyncDto(updatedDevice)
+      : loadSyncDeviceRow(deviceId) ?? mapVendorDeviceToSyncDto(updatedDevice);
 
-      const updatedDevice = await loadDevice(deviceId, registry, options.vendorProvider);
-      if (!updatedDevice) {
-        return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
-      }
-      const payload = options.vendorProvider?.ownsDevice(deviceId)
-        ? mapVendorDeviceToSyncDto(updatedDevice)
-        : loadSyncDeviceRow(deviceId) ?? mapVendorDeviceToSyncDto(updatedDevice);
-      
-      broadcastEvent("DeviceStateUpdated", payload);
-
-      return reply.send({ device: updatedDevice });
+    broadcastEvent("DeviceStateUpdated", payload);
+    return reply.send({ device: updatedDevice });
   });
 
   app.post("/api/devices", async (request, reply) => {
@@ -332,7 +323,7 @@ function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
     const db = getDb();
     const rows = db
       .prepare(`
-        SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted
+        SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE is_deleted = 0 AND lifecycle_state = 'active'
         ORDER BY room_id ASC, id ASC
@@ -350,7 +341,7 @@ function loadSyncDeviceRow(deviceId: string) {
     const db = getDb();
     const row = db
       .prepare(`
-        SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted
+        SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE id = ?
       `)
@@ -432,6 +423,8 @@ function createDevice(
     id: device.id,
     name: device.name,
     custom_name: null,
+    note: null,
+    custom_icon: null,
     type: device.kind,
     room_id: device.room,
     state_json: JSON.stringify(device.state),
@@ -494,6 +487,8 @@ function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
     id: row.id,
     name: row.name,
     customName: row.custom_name ?? undefined,
+    note: row.note ?? undefined,
+    customIcon: row.custom_icon ?? undefined,
     kind,
     capabilities: capabilitiesForKind(kind),
     state,
@@ -505,17 +500,6 @@ function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
     displayOrder: 100,
     health: toHealth(descriptor),
   };
-}
-
-function normalizeCustomName(value: string | undefined): string | null {
-  if (value === undefined) {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return null;
-  }
-  return trimmed.slice(0, 30);
 }
 
 function applyStoredCustomName(
@@ -547,32 +531,53 @@ function lookupStoredCustomName(deviceId: string): string | undefined {
   }
 }
 
-function upsertDeviceCustomName(device: EnhancedDeviceDescriptor, customName: string | null): void {
+function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor): void {
   const db = getDb();
-  const now = Date.now();
-  const version = incrementGlobalVersion();
   db.prepare(`
     INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-    ON CONFLICT(id) DO UPDATE SET
-      name = excluded.name,
-      custom_name = excluded.custom_name,
-      type = excluded.type,
-      room_id = excluded.room_id,
-      state_json = excluded.state_json,
-      updated_at = excluded.updated_at,
-      version = excluded.version,
-      is_deleted = 0
+    VALUES (?, ?, NULL, ?, ?, ?, ?, 0, 0)
+    ON CONFLICT(id) DO NOTHING
   `).run(
     device.id,
     device.name,
-    customName,
     device.kind,
     device.room,
     JSON.stringify(device.state),
-    now,
-    version,
+    device.state.updatedAt,
   );
+}
+
+function roomExists(roomId: string): boolean {
+  return getDb().prepare(`
+    SELECT id FROM rooms WHERE id = ? AND is_deleted = 0
+  `).get(roomId) !== undefined;
+}
+
+function updateStoredDeviceMetadata(deviceId: string, update: DeviceMetadataUpdate): boolean {
+  const db = getDb();
+  return db.transaction(() => {
+    const existing = db.prepare(`
+      SELECT id FROM devices
+      WHERE id = ? AND is_deleted = 0 AND lifecycle_state = 'active'
+    `).get(deviceId);
+    if (!existing) {
+      return false;
+    }
+    const version = incrementGlobalVersion();
+    return db.prepare(`
+      UPDATE devices
+      SET custom_name = ?, note = ?, custom_icon = ?, room_id = ?, updated_at = ?, version = ?
+      WHERE id = ? AND is_deleted = 0 AND lifecycle_state = 'active'
+    `).run(
+      update.customName,
+      update.note.length > 0 ? update.note : null,
+      update.customIcon,
+      update.roomId,
+      Date.now(),
+      version,
+      deviceId,
+    ).changes === 1;
+  })();
 }
 
 function parseDeviceState(rawState: string, updatedAt: number): DeviceState {
