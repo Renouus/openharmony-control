@@ -550,6 +550,8 @@ describe("device snapshot routes", () => {
           id: "tuya-light-1",
           name: "Ceiling lighting",
           customName: "Hall Accent",
+          note: "North wall",
+          customIcon: "lightbulb",
           type: "light",
           roomId: "living-room",
           payload: expect.any(Object),

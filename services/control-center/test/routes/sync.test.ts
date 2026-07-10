@@ -202,14 +202,16 @@ describe('GET /api/sync', () => {
     expect(payload.devices[0].id).toBe('dev-sync');
   });
 
-  it('includes customName in db-backed and vendor-backed sync payloads', async () => {
+  it('includes editor metadata in db-backed and vendor-backed sync payloads', async () => {
     const db = getDb();
     db.prepare(
-      "INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO devices (id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
       'db-light',
       'Database Light',
       'Desk Lamp',
+      'Beside the monitor',
+      'outlet',
       'light',
       'study',
       JSON.stringify({
@@ -224,6 +226,11 @@ describe('GET /api/sync', () => {
       0,
     );
     seedManagedVendorDevices(['tuya-light-1']);
+    db.prepare(`
+      UPDATE devices
+      SET custom_name = ?, note = ?, custom_icon = ?
+      WHERE id = ?
+    `).run('Hall Accent', 'North wall', 'lightbulb', 'tuya-light-1');
 
     await app.close();
     app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
@@ -240,10 +247,14 @@ describe('GET /api/sync', () => {
         expect.objectContaining({
           id: 'db-light',
           customName: 'Desk Lamp',
+          note: 'Beside the monitor',
+          customIcon: 'outlet',
         }),
         expect.objectContaining({
           id: 'tuya-light-1',
-          customName: 'Hall Light',
+          customName: 'Hall Accent',
+          note: 'North wall',
+          customIcon: 'lightbulb',
         }),
       ]),
     );

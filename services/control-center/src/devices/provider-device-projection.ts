@@ -101,6 +101,8 @@ export async function listManagedVendorSyncDevices(
       id: liveDevice.id,
       name: liveDevice.name,
       customName: customName ?? undefined,
+      note: row.note ?? liveDevice.note,
+      customIcon: row.custom_icon ?? liveDevice.customIcon,
       type: liveDevice.kind,
       roomId: row.room_id ?? liveDevice.room,
       payload: liveDevice.state as Record<string, unknown>,

@@ -9,7 +9,9 @@ describe("device sync mapper", () => {
     const row: DeviceSyncRow = {
       id: "dev-1",
       name: "Desk Light",
-      custom_name: null,
+      custom_name: "Reading Light",
+      note: "Beside the monitor",
+      custom_icon: "outlet",
       type: "light",
       room_id: "study",
       state_json: JSON.stringify({
@@ -26,6 +28,9 @@ describe("device sync mapper", () => {
     expect(mapDeviceRowToSyncDto(row)).toEqual({
       id: "dev-1",
       name: "Desk Light",
+      customName: "Reading Light",
+      note: "Beside the monitor",
+      customIcon: "outlet",
       type: "light",
       roomId: "study",
       payload: {
