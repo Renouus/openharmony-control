@@ -76,6 +76,19 @@ The recommended design is:
 - replace inferred route parsing with explicit scene route objects
 - make all scene surfaces consume a normalized `SceneContext`
 
+## Implementation Guardrails
+
+1. Persisted scene scope is derived from `roomId` only:
+   - missing `roomId` means global scene
+   - present `roomId` means room-scoped scene
+   - route or context objects may contain `scope`, but persisted scene data must not store both `scope` and `roomId`
+2. `SceneContext` is the only normalized scene context passed into scene-feature containers. Leaf pages must not parse route params or infer scope.
+3. Scene editor create decides ownership from normalized create context. Scene editor edit preserves persisted ownership and does not allow scope migration in the first implementation pass.
+4. Existing scenes without `roomId` migrate to global scenes.
+5. Components under `scene-feature/components` remain presentational. Filtering, route construction, and command execution live in containers, mappers, and actions.
+6. Scene-feature surfaces include only manual scenes and never automations.
+7. Invalid room-scoped routes fail closed and never fall back to global silently.
+
 ## Module Structure
 Create a dedicated scene-domain area under:
 
@@ -100,6 +113,12 @@ Purpose:
 - map from `AppStateSnapshot` and persisted scene data into scene-feature state
 - keep scope filtering and ownership display logic out of page files
 
+Boundary:
+
+- containers may read `AppStateSnapshot` and call feature mappers
+- model and mapper code may accept snapshot-derived scene collections as inputs
+- presentational components must not read `AppStateSnapshot` directly
+
 ### Components
 Purpose:
 
@@ -113,6 +132,12 @@ Examples:
 - list panel
 - list item
 - editor panel
+
+Constraint:
+
+- components do not know route params
+- components do not filter by `roomId`
+- components do not infer scope
 
 ### Containers
 Purpose:
@@ -177,7 +202,7 @@ Every scene surface should consume one normalized context model.
 The context should be composed from three dimensions.
 
 ### 1. Scene Scope
-Represents persisted or intended ownership:
+Represents normalized ownership context:
 
 - global
 - room with `roomId`
@@ -195,6 +220,40 @@ Represents whether the user is browsing, creating, or editing:
 - browse
 - create
 - edit with `sceneId`
+
+### Persisted scene data model
+Persisted scene data remains ownership-by-`roomId`:
+
+- `roomId` missing, `undefined`, or database `NULL` means global
+- non-empty `roomId` means room-scoped
+
+Persisted scene records must not introduce a second stored scope field.
+
+### Normalized context shape
+The normalized scene context should be explicit and validated.
+
+Suggested shape:
+
+```ts
+export type SceneSurface = 'capsule' | 'list' | 'editor';
+export type SceneScope = 'global' | 'room';
+export type SceneMode = 'browse' | 'create' | 'edit';
+
+export interface SceneContext {
+  surface: SceneSurface;
+  scope: SceneScope;
+  roomId?: string;
+  sceneId?: string;
+  mode: SceneMode;
+}
+```
+
+Validation rules:
+
+- `scope = global` requires empty `roomId`
+- `scope = room` requires non-empty `roomId`
+- `mode = edit` requires `sceneId`
+- `mode = browse` and `mode = create` require empty `sceneId`
 
 ## Context Rules
 
@@ -221,6 +280,15 @@ For edit flows, scope comes from the persisted scene.
 
 No scene surface should derive scope by guessing from arbitrary route params or from selected device actions.
 
+### Ownership rule in editor
+The first implementation pass does not support ownership migration:
+
+- create decides scope
+- edit shows scope as read-only
+- edit save preserves persisted `roomId`
+
+If ownership migration is needed later, it should be added as a distinct product feature rather than being bundled into the first unified editor pass.
+
 ## Container Design
 
 ### SceneCapsuleContainer
@@ -246,6 +314,8 @@ Rules:
 - global capsule shows only global scenes
 - room capsule shows only scenes bound to that room
 - capsule taps execute through one shared handler path
+- capsule surfaces include only manual scenes
+- capsule surfaces may apply a visible count limit, but only after filtering and ordering are applied
 
 ### SceneListContainer
 Purpose:
@@ -269,6 +339,8 @@ Rules:
 - global list consumes explicit global list context
 - room list consumes explicit room list context
 - no list behavior is allowed to inspect raw route strings
+- list surfaces include only manual scenes
+- list surfaces preserve canonical scene ordering and must not apply capsule count limits
 
 ### SceneEditorContainer
 Purpose:
@@ -292,6 +364,7 @@ Rules:
 - create room saves `roomId = roomId from context`
 - edit existing preserves persisted `roomId`
 - editor must not expose scope switching controls
+- edit context is always built from persisted scene ownership, not caller assumption
 
 ## Navigation Design
 Replace loosely typed scene navigation with explicit scene route objects.
@@ -299,8 +372,14 @@ Replace loosely typed scene navigation with explicit scene route objects.
 ### Scene list route
 Required fields:
 
-- `scope: global | room`
-- optional `roomId`
+```ts
+export interface SceneListRoute {
+  feature: 'scene';
+  surface: 'list';
+  scope: 'global' | 'room';
+  roomId?: string;
+}
+```
 
 Usage:
 
@@ -310,16 +389,24 @@ Usage:
 ### Scene editor route
 Required fields:
 
-- `mode: create | edit`
-- `scope: global | room`
-- optional `roomId`
-- optional `sceneId`
+```ts
+export interface SceneEditorRoute {
+  feature: 'scene';
+  surface: 'editor';
+  mode: 'create' | 'edit';
+  scope: 'global' | 'room';
+  roomId?: string;
+  sceneId?: string;
+}
+```
 
 Usage:
 
 - Home or global list create opens global create editor route
 - room capsule or room list create opens room create editor route
 - edit route is built from persisted scene scope plus `sceneId`
+
+Normalization helpers should validate route legality before a leaf scene surface consumes the route.
 
 ## Navigation Rule
 `Index.ets` should only receive explicit scene route objects and convert them into normalized scene context.
@@ -329,15 +416,26 @@ It should not:
 - interpret generic objects with string searches
 - leave scene scope interpretation to leaf pages
 
+Invalid routes fail closed:
+
+- room scope without `roomId`
+- global scope with `roomId`
+- edit mode without `sceneId`
+
 ## Data and Mapping Rules
 Keep `roomId` as the single source of truth for scene scope.
 
 Required rules:
 
-- Home capsule state is mapped from scenes with empty or missing `roomId`
-- room capsule state is mapped from scenes whose `roomId` matches the room
+- only manual scenes participate in scene-feature surfaces
+- deleted scenes are excluded from all scene-feature surfaces
+- canonical scene ordering is preserved across capsule and list surfaces
+- Home capsule state is mapped from manual scenes with empty or missing `roomId`
+- room capsule state is mapped from manual scenes whose `roomId` matches the room
 - list state is filtered entirely from normalized `SceneContext`
 - editor state displays ownership from normalized create context or persisted scene scope
+
+Capsule and list must share the same filtered source before any capsule-only slicing occurs.
 
 The feature must not infer scope from scene commands or target devices.
 
@@ -374,7 +472,16 @@ If a persisted room-scoped scene references a deleted room:
 
 - preserve stored scope
 - do not silently convert it to global
-- allow list and editor surfaces to present a missing-room label if needed
+- do not allow room-scoped routing to silently recover as another room or as global
+- global surfaces do not display the orphaned room scene because it is not global
+- editor may present a missing-room ownership label such as `Deleted room`
+
+First-pass behavior for orphaned room-scoped scenes:
+
+- edit may open for inspection
+- ownership remains read-only
+- save does not clear `roomId`
+- if save behavior proves too ambiguous during implementation, blocking save and allowing only back or delete is an acceptable first-pass fallback, but the plan must choose one explicit behavior before coding
 
 ## Testing Requirements
 
@@ -383,6 +490,9 @@ If a persisted room-scoped scene references a deleted room:
 - Home capsule shows only global scenes
 - room capsule shows only room-bound scenes
 - capsule tap uses one shared execution path
+- deleted scenes never appear
+- Home capsule and global list preserve the same scene ordering before capsule slicing
+- room capsule and room list preserve the same scene ordering before capsule slicing
 
 ### List layer
 
@@ -395,12 +505,21 @@ If a persisted room-scoped scene references a deleted room:
 - global create saves no `roomId`
 - room create saves current room `roomId`
 - edit preserves persisted `roomId`
+- editing a global scene never adds `roomId`
+- editing a room scene preserves `roomId` even if the editor was opened from another surface
 
 ### Navigation layer
 
 - list routes convert correctly into normalized scene contexts
 - editor routes convert correctly into normalized scene contexts
 - no scene surface depends on string parsing to recover room scope
+- room scope without `roomId` fails closed
+- global scope with `roomId` is rejected
+- edit mode without `sceneId` fails closed
+
+### Migration layer
+
+- existing scene without `roomId` appears as global scene
 
 ## Acceptance Criteria
 
@@ -422,5 +541,20 @@ Likely touched surfaces:
 - `apps/openharmony-control/entry/src/main/ets/model/page-view-state.ets`
 - `apps/openharmony-control/entry/src/main/ets/model/smart-home-mappers.ets`
 - new `scene-feature` directories for context, model, components, containers, and navigation
+
+Suggested initial file split:
+
+- `scene-feature/context/scene-context.ets`
+- `scene-feature/context/scene-routes.ets`
+- `scene-feature/context/scene-route-normalizer.ets`
+- `scene-feature/model/scene-view-state.ets`
+- `scene-feature/model/scene-mappers.ets`
+- `scene-feature/components/SceneChip.ets`
+- `scene-feature/components/SceneSection.ets`
+- `scene-feature/components/SceneListItem.ets`
+- `scene-feature/containers/SceneCapsuleContainer.ets`
+- `scene-feature/containers/SceneListContainer.ets`
+- `scene-feature/containers/SceneEditorContainer.ets`
+- `scene-feature/services/scene-actions.ets`
 
 This design intentionally keeps route names and outer page shells stable while moving business behavior into a dedicated scene-domain module.
