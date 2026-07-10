@@ -1,5 +1,6 @@
 import {
   AppPageId,
+  DeviceEditorContext,
   createGlobalSceneEditorRoute,
   RoomItemState,
   SceneEditorContext,
@@ -29,6 +30,7 @@ import { HomeInfoEditorView } from '../views/HomeInfoEditorView';
 import { EmergencyContactEditorView } from '../views/EmergencyContactEditorView';
 import { GenericRoomView } from '../views/GenericRoomView';
 import { LightControlView } from '../views/LightControlView';
+import { DeviceEditorView } from '../views/DeviceEditorView';
 import { ScenesListView } from '../views/ScenesListView';
 import { CreateAutomationView } from '../views/CreateAutomationView';
 import { FamilySettingsUpdateRequest } from '../services/device-api';
@@ -228,6 +230,13 @@ struct Index {
     return sceneEditorEditingSceneId(this.getSceneEditorContext());
   }
 
+  private getEditingDeviceId(): string {
+    if (!this.subPageParam) {
+      return '';
+    }
+    return (this.subPageParam as DeviceEditorContext).deviceId;
+  }
+
   // ── Sub-page overlay content ─────────────────────────────────────────────
 
   @Builder
@@ -323,6 +332,13 @@ struct Index {
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
+      } else if (this.currentSubPage === 'deviceEditor') {
+        DeviceEditorView({
+          deviceId: this.getEditingDeviceId(),
+          appState: this.appState,
+          onClose: () => this.popSubPage(),
+        })
+        .layoutWeight(1)
       } else if (this.currentSubPage === 'scenesList') {
         Scroll() {
           ScenesListView({ appState: this.appState, scenes: this.appState.scenes, routeParam: this.subPageParam })
@@ -376,15 +392,17 @@ struct Index {
   build() {
     Stack() {
       Column() {
-        AppHeader({
-          isSubPage: this.isOnSubPage(),
-          title: this.getAppHeaderTitle(),
-          showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room',
-          menuItems: this.getAppHeaderMenuItems(),
-          onBack: () => this.popSubPage(),
-          onAdd: () => this.openAddDeviceSheet(),
-          onMenu: () => this.toggleHeaderMenu(),
-        })
+        if (this.currentSubPage !== 'deviceEditor') {
+          AppHeader({
+            isSubPage: this.isOnSubPage(),
+            title: this.getAppHeaderTitle(),
+            showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room',
+            menuItems: this.getAppHeaderMenuItems(),
+            onBack: () => this.popSubPage(),
+            onAdd: () => this.openAddDeviceSheet(),
+            onMenu: () => this.toggleHeaderMenu(),
+          })
+        }
 
         if (this.isOnSubPage()) {
           this.SubPageOverlay()
