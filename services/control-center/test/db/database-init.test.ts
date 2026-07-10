@@ -106,11 +106,13 @@ describe('database init migrations', () => {
       expect(deviceColumns.some((column) => column.name === 'lifecycle_state')).toBe(true);
       expect(deviceColumns.some((column) => column.name === 'sort_order')).toBe(true);
       expect(deviceColumns.some((column) => column.name === 'confirmed_at')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'note')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'custom_icon')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'provider')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'external_device_id')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'original_name')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'source_capabilities_json')).toBe(true);
-      expect(schemaVersion.value).toBe('6');
+      expect(schemaVersion.value).toBe('7');
     } finally {
       if (!legacyClosed) {
         legacyDb.close();
@@ -120,7 +122,7 @@ describe('database init migrations', () => {
     }
   });
 
-  it('repairs missing automation columns even when schema_version already says 2', () => {
+  it('repairs critical columns even when schema_version already says 7', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'control-center-db-init-'));
     const dbPath = join(tempDir, 'legacy-inconsistent.db');
     const legacyDb = new Database(dbPath);
@@ -133,7 +135,7 @@ describe('database init migrations', () => {
           value TEXT NOT NULL
         );
         INSERT INTO metadata (key, value) VALUES ('global_version', '0');
-        INSERT INTO metadata (key, value) VALUES ('schema_version', '2');
+        INSERT INTO metadata (key, value) VALUES ('schema_version', '7');
 
         CREATE TABLE devices (
           id TEXT PRIMARY KEY,
@@ -200,10 +202,13 @@ describe('database init migrations', () => {
       const db = getDb();
       const automationColumns = db.prepare('PRAGMA table_info(automations)').all() as Array<{ name: string }>;
       const sceneColumns = db.prepare('PRAGMA table_info(scenes)').all() as Array<{ name: string }>;
+      const deviceColumns = db.prepare('PRAGMA table_info(devices)').all() as Array<{ name: string }>;
       expect(automationColumns.some((column) => column.name === 'icon')).toBe(true);
       expect(sceneColumns.some((column) => column.name === 'icon')).toBe(true);
       expect(sceneColumns.some((column) => column.name === 'created_at')).toBe(true);
       expect(sceneColumns.some((column) => column.name === 'sort_order')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'note')).toBe(true);
+      expect(deviceColumns.some((column) => column.name === 'custom_icon')).toBe(true);
     } finally {
       if (!legacyClosed) {
         legacyDb.close();
