@@ -22,6 +22,7 @@ export type AppPageId =
   | 'emergencyContactEditor'
   | 'scenesList'
   | 'lightControl'
+  | 'deviceEditor'
   | 'room';
 
 // ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
@@ -63,6 +64,25 @@ export type SceneEditorContext =
 export interface SceneEditorRouteTarget {
   page: 'sceneEditor';
   param: SceneEditorContext;
+}
+
+export interface DeviceEditorContext {
+  deviceId: string;
+}
+
+export interface DeviceEditorRouteTarget {
+  page: 'deviceEditor';
+  param: DeviceEditorContext;
+  valid: boolean;
+}
+
+export function createDeviceEditorRoute(deviceId: string): DeviceEditorRouteTarget {
+  const normalized = deviceId.trim();
+  return {
+    page: 'deviceEditor',
+    param: { deviceId: normalized },
+    valid: normalized.length > 0,
+  };
 }
 
 export function createGlobalSceneEditorContext(): SceneEditorCreateContext {

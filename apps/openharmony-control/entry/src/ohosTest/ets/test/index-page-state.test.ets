@@ -7,6 +7,7 @@ import {
   navigateToPage,
   navigateBack,
 } from '../../../main/ets/model/index-page-state';
+import { createDeviceEditorRoute } from '../../../main/ets/model/page-view-state';
 
 function includesAll(
   actual: AppPageRefreshTarget[],
@@ -45,6 +46,15 @@ export default function indexPageStateTest() {
       const targets = createRefreshPlan('automationToggleScene');
 
       expect(includesAll(targets, ['home', 'automation'])).assertTrue();
+    });
+
+    it('creates a valid typed device editor route', () => {
+      const route = createDeviceEditorRoute(' light-1 ');
+
+      expect(route.valid).assertTrue();
+      expect(route.page).assertEqual('deviceEditor');
+      expect(route.param.deviceId).assertEqual('light-1');
+      expect(createDeviceEditorRoute('   ').valid).assertFalse();
     });
   });
 }

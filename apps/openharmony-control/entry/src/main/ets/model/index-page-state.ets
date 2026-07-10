@@ -57,6 +57,7 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'emergencyContactEditor' ||
     page === 'scenesList' ||
     page === 'lightControl' ||
+    page === 'deviceEditor' ||
     page === 'room';
 }
 
