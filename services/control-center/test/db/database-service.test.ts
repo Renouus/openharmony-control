@@ -41,6 +41,24 @@ function fakeVendorProvider(updatedAt = 1720100000000): VendorDeviceProvider {
   };
 }
 
+function insertActiveVendorDevice(version = 1): void {
+  getDb().prepare(`
+    INSERT INTO devices (
+      id, name, custom_name, type, room_id, state_json, updated_at, version,
+      is_deleted, lifecycle_state, sort_order
+    ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0, 'active', ?)
+  `).run(
+    'tuya-vdevo178318782505115',
+    'Ceiling lighting',
+    'light',
+    'living-room',
+    JSON.stringify({ power: true, online: true, updatedAt: version }),
+    version,
+    version,
+    80,
+  );
+}
+
 describe('DatabaseService', () => {
   beforeEach(() => {
     initDatabase(':memory:');
@@ -127,6 +145,7 @@ describe('DatabaseService', () => {
 
   it('should include vendor devices in sync data when their version is newer than lastVersion', async () => {
     const db = getDb();
+    insertActiveVendorDevice();
     const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
 
     const syncResult = await service.getSyncData(0);
@@ -154,6 +173,7 @@ describe('DatabaseService', () => {
 
   it('should exclude vendor devices from incremental sync when lastVersion already covers them', async () => {
     const db = getDb();
+    insertActiveVendorDevice();
     const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
 
     const syncResult = await service.getSyncData(1720100000000);

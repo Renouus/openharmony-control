@@ -10,6 +10,7 @@ import {
   FamilyOverview,
   HomeSummary,
   PendingDeviceSnapshot,
+  PersistedSceneSnapshot,
   RoomItem,
   SceneSnapshot,
 } from '../services/device-api';
@@ -252,6 +253,29 @@ export function sceneIcon(sceneId: string): string {
   return 'self_care';
 }
 
+export function mapSceneChip(scene: SceneSnapshot, activeSceneId: string = ''): SceneChipState {
+  return {
+    id: scene.id,
+    label: scene.name,
+    icon: scene.icon ?? sceneIcon(scene.id),
+    active: scene.id === activeSceneId,
+  };
+}
+
+export function comparePersistedSceneSnapshots(left: PersistedSceneSnapshot, right: PersistedSceneSnapshot): number {
+  if (left.sortOrder !== right.sortOrder) {
+    return left.sortOrder - right.sortOrder;
+  }
+  if (left.createdAt !== right.createdAt) {
+    return left.createdAt - right.createdAt;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+export function sortPersistedSceneSnapshots(scenes: PersistedSceneSnapshot[]): PersistedSceneSnapshot[] {
+  return scenes.slice().sort(comparePersistedSceneSnapshots);
+}
+
 export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): HomeDeviceCardState {
   const kind = device.kind;
   const power = device.state.power ?? false;
@@ -396,15 +420,18 @@ export function mapHomeViewState(
   ];
 
   const finalActiveSceneId = activeSceneId ?? scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
-  const quickScenes: SceneChipState[] = scenes.map((scene: SceneSnapshot) => {
-    const chip: SceneChipState = {
-      id: scene.id,
-      label: scene.name,
-      icon: scene.icon ?? sceneIcon(scene.id),
-      active: scene.id === finalActiveSceneId,
-    };
-    return chip;
-  });
+  // 首页只显示全局场景，即 roomId 为空/undefined 的场景，不侵染任何特定房间的场景
+  const quickScenes: SceneChipState[] = scenes
+    .filter((scene: SceneSnapshot) => !scene.roomId)
+    .map((scene: SceneSnapshot) => {
+      const chip: SceneChipState = {
+        id: scene.id,
+        label: scene.name,
+        icon: scene.icon ?? sceneIcon(scene.id),
+        active: scene.id === finalActiveSceneId,
+      };
+      return chip;
+    });
 
   const lockedDoors = accessOverview.accessPoints.filter((p: AccessPointSnapshot) => p.locked).length;
   const activeLights = summary.lighting.active;
@@ -589,6 +616,7 @@ export function mapSceneCard(scene: SceneSnapshot): SceneCardState {
     id: scene.id,
     name: scene.name,
     icon: scene.icon,
+    roomId: scene.roomId,
     description: scene.description,
     enabled: scene.enabled,
     triggerLabel: scene.trigger.label,
@@ -833,33 +861,26 @@ export function mapRoomViews(
   scenes: SceneSnapshot[],
   activeSceneId?: string
 ): RoomViewStateData[] {
-  return rooms.map(room => {
-    const roomDevices = devices.filter(d => d.room === room.id);
-    const roomDeviceCards = roomDevices.map((d, index) => mapHomeDeviceCard(d, index === 0));
+  return rooms.map((room: RoomItem): RoomViewStateData => {
+    const roomDevices = devices.filter((d: DeviceSnapshot) => d.room === room.id);
+    const roomDeviceCards = roomDevices.map((d: DeviceSnapshot, index: number) => mapHomeDeviceCard(d, index === 0));
     const deviceCountLabel = `${roomDevices.length} 个设备`;
     const overviewChips = extractRoomOverviewChips(roomDevices);
     
     // Explicit scene filter rule: only show scenes strictly bound to this roomId.
-    // Assuming 'scene.roomId' exists in domain. (If missing, we approximate using action membership for the MVP but flag it)
     const roomScenes = scenes
-      .filter(s => {
-        // Enforcing strict attribution rule if domain supports it, otherwise fallback pattern:
-        if ((s as any).roomId) { return (s as any).roomId === room.id; }
-        // Fallback constraint to ensure it's not a generic scene.
-        const allActionsTargetRoom = s.commands.every(cmd => {
-           const d = devices.find(x => x.id === cmd.deviceId);
-           return d && d.room === room.id;
-        });
-        return s.commands.length > 0 && allActionsTargetRoom;
-      })
-      .map(scene => ({
-        id: scene.id,
-        label: scene.name,
-        icon: scene.icon ?? sceneIcon(scene.id),
-        active: scene.id === activeSceneId,
-      }));
+      .filter((s: SceneSnapshot) => s.roomId === room.id)
+      .map((scene: SceneSnapshot): SceneChipState => {
+        const sceneChip: SceneChipState = {
+          id: scene.id,
+          label: scene.name,
+          icon: scene.icon ?? sceneIcon(scene.id),
+          active: scene.id === activeSceneId,
+        };
+        return sceneChip;
+      });
 
-    return {
+    const result: RoomViewStateData = {
       roomId: room.id,
       name: room.name,
       deviceCountLabel,
@@ -867,6 +888,7 @@ export function mapRoomViews(
       roomScenes,
       devices: roomDeviceCards,
     };
+    return result;
   });
 }
 

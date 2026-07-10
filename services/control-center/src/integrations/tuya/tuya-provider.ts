@@ -38,7 +38,7 @@ export type CreateTuyaProviderInput = {
 export function createTuyaProvider(
   input: CreateTuyaProviderInput,
 ): VendorDeviceProvider {
-    const { config } = input;
+  const { config } = input;
   const client = input.client ?? new TuyaConnectorClient(config);
   const lastSnapshotSignature = new Map<string, string>();
   const lastSnapshotVersion = new Map<string, number>();
@@ -90,7 +90,7 @@ export function createTuyaProvider(
     const baseMappingArgs = {
       rawDeviceId: rawDeviceId,
       name: detail.name || configuredName || `Device ${rawDeviceId}`,
-      room: configured?.room,
+      room: configured?.room ?? "living-room",
       online: detail.online,
       status,
       updatedAt,
@@ -176,6 +176,14 @@ export function createTuyaProvider(
     return discoverConfiguredDevice(configured);
   }
 
+  function resolveConfiguredDevice(deviceId: string): TuyaConfiguredDevice | undefined {
+    const rawDeviceId = parseTuyaDeviceId(deviceId);
+    if (!rawDeviceId) {
+      return undefined;
+    }
+    return config.devices.find((device) => device.id === rawDeviceId);
+  }
+
   function translateTuyaCommand(
     kind: string,
     command: DeviceCommand,
@@ -217,20 +225,50 @@ export function createTuyaProvider(
     },
     ownsDevice: (deviceId) => parseTuyaDeviceId(deviceId) !== undefined,
     listDevices: async () => {
-      // Direct enumeration requires context resolution over unknown device sets 
-      // which discovery model supports, but projection layer owns active mapping.
-      // So returning empty here to satisfy contract without duplicating sync.
-      return [];
+      const devices = await Promise.all(
+        config.devices.map((configured) => loadConfiguredDevice(configured)),
+      );
+      return devices.filter((device) => device !== undefined);
     },
     getDevice: async (deviceId) => {
+      const configured = resolveConfiguredDevice(deviceId);
+      if (configured) {
+        return await loadConfiguredDevice(configured);
+      }
+
       const dbContext = await resolveTuyaDeviceContext(deviceId, client as TuyaConnectorClient);
       if (!dbContext) {
         return undefined;
       }
-      const configured = config.devices.find((d) => d.id === dbContext.tuyaDeviceId);
-      return mapConfiguredDevice(configured, dbContext.detail, dbContext.status, dbContext.kind);
+      const contextConfigured = config.devices.find((d) => d.id === dbContext.tuyaDeviceId);
+      return mapConfiguredDevice(contextConfigured, dbContext.detail, dbContext.status, dbContext.kind);
     },
     executeCommand: async (command: DeviceCommand): Promise<VendorExecutionResult> => {
+      const configured = resolveConfiguredDevice(command.deviceId);
+      if (configured) {
+        try {
+          const commands = translateTuyaCommand(configured.kind, command);
+          await client.sendCommands(configured.id, commands);
+          const refreshed = await loadConfiguredDevice(configured);
+          if (!refreshed) {
+            throw new Error(`Unsupported Tuya device kind: ${configured.kind}`);
+          }
+          return {
+            ok: true,
+            status: CommandStatus.Success,
+            deviceId: command.deviceId,
+            state: refreshed.state,
+          };
+        } catch (error) {
+          return {
+            ok: false,
+            code: "COMMAND_INVALID",
+            status: CommandStatus.CommandInvalid,
+            message: String(error),
+          };
+        }
+      }
+
       const dbContext = await resolveTuyaDeviceContext(command.deviceId, client as TuyaConnectorClient);
       if (!dbContext) {
         return {

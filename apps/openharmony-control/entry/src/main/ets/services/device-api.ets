@@ -188,6 +188,7 @@ export interface SceneSnapshot {
   id: string;
   name: string;
   icon?: string;
+  roomId?: string;
   description: string;
   enabled: boolean;
   trigger: SceneTrigger;
@@ -230,6 +231,7 @@ export class SceneTriggerDraft {
 export class ScenePayloadDraft {
   name: string = '';
   icon?: string;
+  roomId?: string;
   enabled: boolean = true;
   description: string = '';
   trigger: SceneTriggerDraft = new SceneTriggerDraft();

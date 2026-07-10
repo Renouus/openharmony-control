@@ -87,7 +87,7 @@ export async function resolveTuyaDeviceContext(
       omniDeviceId,
       tuyaDeviceId: tuyaId,
       detail: detail,
-      category: detail.category,
+      category: detail.category ?? "",
       productId: detail.product_id,
       kind: kind,
       status: status,

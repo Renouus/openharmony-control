@@ -40,10 +40,12 @@ export function mapSceneCardToDraft(scene: SceneCardState): SceneDraftData {
 export function buildScenePayloadDraft(
   draft: SceneDraftData,
   actionLabels: string[],
+  roomId?: string,
 ): ScenePayloadDraft {
   const payload = new ScenePayloadDraft();
   payload.name = draft.name;
   payload.icon = draft.icon;
+  payload.roomId = roomId;
   payload.enabled = true;
   payload.description = '鎵嬪姩瑙﹀彂鍦烘櫙';
 

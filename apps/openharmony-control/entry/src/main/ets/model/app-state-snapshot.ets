@@ -24,7 +24,7 @@ import {
   RoomViewStateData,
   RoomViewState,
 } from '../model/page-view-state';
-import { AutomationSnapshot } from '../services/device-api';
+import { AutomationSnapshot, PersistedSceneSnapshot } from '../services/device-api';
 
 @Observed
 export class AppStateSnapshot {
@@ -34,6 +34,7 @@ export class AppStateSnapshot {
   camera: CameraViewState = new CameraViewState();
   climate: ClimateViewState = new ClimateViewState();
   scenes: ScenesViewState = new ScenesViewState();
+  sceneSource: PersistedSceneSnapshot[] = [];
   automation: AutomationViewState = new AutomationViewState();
   automationSource: AutomationSnapshot[] = [];
   notifications: NotificationsViewState = new NotificationsViewState();
@@ -108,6 +109,10 @@ export class AppStateSnapshot {
     this.scenes.feedback = data.feedback;
   }
 
+  assignSceneSource(source: PersistedSceneSnapshot[]): void {
+    this.sceneSource = source;
+  }
+
   assignAutomation(data: AutomationViewStateData): void {
     this.automation.items = data.items;
     this.automation.feedback = data.feedback;
@@ -144,16 +149,34 @@ export class AppStateSnapshot {
   }
 
   assignRoomViews(dataList: RoomViewStateData[]): void {
-    // We recreate the instances to trigger UI updates reliably
-    this.roomViews = dataList.map((data) => {
-      const state = new RoomViewState();
-      state.roomId = data.roomId;
-      state.name = data.name;
-      state.deviceCountLabel = data.deviceCountLabel;
-      state.overviewChips = data.overviewChips;
-      state.roomScenes = data.roomScenes;
-      state.devices = data.devices;
-      return state;
-    });
+    // In-place mutation to avoid replacing the array reference, which causes
+    // a brief frame where the array is empty and subscribers see "room not found".
+    // This matches the same pattern used by assignHome, assignLighting, etc.
+    for (const data of dataList) {
+      const existing = this.roomViews.find(v => v.roomId === data.roomId);
+      if (existing) {
+        existing.name = data.name;
+        existing.deviceCountLabel = data.deviceCountLabel;
+        existing.overviewChips = data.overviewChips;
+        existing.roomScenes = data.roomScenes;
+        existing.devices = data.devices;
+      } else {
+        const state = new RoomViewState();
+        state.roomId = data.roomId;
+        state.name = data.name;
+        state.deviceCountLabel = data.deviceCountLabel;
+        state.overviewChips = data.overviewChips;
+        state.roomScenes = data.roomScenes;
+        state.devices = data.devices;
+        this.roomViews.push(state);
+      }
+    }
+    // Remove entries no longer in the list
+    const ids = dataList.map(d => d.roomId);
+    for (let i = this.roomViews.length - 1; i >= 0; i--) {
+      if (!ids.includes(this.roomViews[i].roomId)) {
+        this.roomViews.splice(i, 1);
+      }
+    }
   }
 }

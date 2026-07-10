@@ -1,5 +1,5 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { createRoomSceneEditorRoute, RoomViewState, SceneChipState, StatusChipState } from '../model/page-view-state';
+import { RoomViewState, StatusChipState } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { DeviceGridLayout } from '../components/DeviceGridLayout';
@@ -13,6 +13,7 @@ import {
   COLOR_ON_PRIMARY,
   COLOR_TERTIARY
 } from '../theme/smart-home-theme';
+import { SceneCapsuleContainer } from '../scene-feature/containers/SceneCapsuleContainer';
 
 @Component
 struct RoomStatusChip {
@@ -32,23 +33,6 @@ struct RoomStatusChip {
 }
 
 @Component
-struct RoomSceneChip {
-  @Prop scene: SceneChipState;
-  onTap: () => void = () => {};
-
-  build() {
-    Row({ space: 10 }) {
-      AppSymbol({ name: this.scene.icon, glyphSize: 18, color: this.scene.active ? COLOR_ON_PRIMARY : COLOR_TERTIARY })
-      Text(this.scene.label).fontSize(14).fontWeight(FontWeight.Medium).fontColor(this.scene.active ? COLOR_ON_PRIMARY : COLOR_ON_SURFACE)
-    }
-    .padding({ left: 22, right: 22, top: 12, bottom: 12 })
-    .borderRadius(24)
-    .backgroundColor(this.scene.active ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOW)
-    .onClick(() => this.onTap())
-  }
-}
-
-@Component
 export struct GenericRoomView {
   @ObjectLink appState: AppStateSnapshot;
   @Consume('controller') controller: AppController;
@@ -57,11 +41,6 @@ export struct GenericRoomView {
 
   private getRoomState(): RoomViewState | undefined {
     return this.appState.roomViews.find((roomState: RoomViewState) => roomState.roomId === this.roomId);
-  }
-
-  private openRoomSceneEditor(): void {
-    const route = createRoomSceneEditorRoute(this.roomId);
-    this.navStack.pushPathByName(route.page, route.param);
   }
 
   private handleDeviceTap(deviceId: string, kind: string): void {
@@ -111,58 +90,10 @@ export struct GenericRoomView {
               .width('100%')
             }
 
-            if (this.getRoomState()!.roomScenes.length > 0) {
-              Column({ space: 14 }) {
-                Row() {
-                  Text('场景')
-                    .fontSize(22)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(COLOR_ON_SURFACE)
-                    .fontFamily('serif')
-                    .layoutWeight(1)
-                  Button('+ 新建场景')
-                    .fontSize(12)
-                    .type(ButtonType.Capsule)
-                    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-                    .fontColor(COLOR_PRIMARY)
-                    .onClick(() => this.openRoomSceneEditor())
-                }
-                .width('100%')
-                Scroll() {
-                  Row({ space: 14 }) {
-                    ForEach(this.getRoomState()!.roomScenes, (scene: SceneChipState) => {
-                      RoomSceneChip({
-                        scene,
-                        onTap: () => this.controller.handleHomeRunScene(this.appState, scene.id)
-                      })
-                    }, (scene: SceneChipState) => `${scene.id}_${scene.active}`)
-                  }
-                  .padding({ bottom: 8 })
-                }
-                .scrollable(ScrollDirection.Horizontal)
-                .scrollBar(BarState.Off)
-                .width('100%')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .width('100%')
-            } else {
-              Row() {
-                Text('场景')
-                  .fontSize(22)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(COLOR_ON_SURFACE)
-                  .fontFamily('serif')
-                  .layoutWeight(1)
-                Button('+ 新建场景')
-                  .fontSize(12)
-                  .type(ButtonType.Capsule)
-                  .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-                  .fontColor(COLOR_PRIMARY)
-                  .onClick(() => this.openRoomSceneEditor())
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-            }
+            SceneCapsuleContainer({
+              appState: this.appState,
+              context: { surface: 'capsule', scope: 'room', mode: 'browse', roomId: this.roomId }
+            })
 
             if (this.getRoomState()!.devices.length > 0) {
               DeviceGridLayout({

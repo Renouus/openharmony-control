@@ -2,6 +2,7 @@ import { AppStateSnapshot } from '../model/app-state-snapshot';
 import {
   createEditSceneEditorRoute,
   createGlobalSceneEditorRoute,
+  createRoomSceneEditorRoute,
   DeviceActionState,
   SceneCardState,
   ScenesViewState
@@ -24,6 +25,7 @@ import {
 export struct ScenesListView {
   @ObjectLink appState: AppStateSnapshot;
   @ObjectLink scenes: ScenesViewState;
+  @Prop routeParam: Object | null = null;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
@@ -55,6 +57,31 @@ export struct ScenesListView {
     return icons[index % icons.length];
   }
 
+  // 用于确定是从哪个房间进来的
+  private targetRoomId(): string | null {
+    if (this.routeParam) {
+      if (typeof this.routeParam === 'object') {
+        const paramStr = JSON.stringify(this.routeParam);
+        if (paramStr.includes('"roomId"')) {
+          const matched = paramStr.match(/"roomId"\s*:\s*"([^"]+)"/);
+          if (matched && matched[1]) {
+            return matched[1];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // 根据当前上下文筛选需要显示的场景
+  private getFilteredScenes(): SceneCardState[] {
+    const roomId = this.targetRoomId();
+    if (!roomId) {
+      return this.scenes.items; // 全屋模式
+    }
+    return this.scenes.items.filter((scene: SceneCardState) => scene.roomId === roomId);
+  }
+
   build() {
     Column({ space: 24 }) {
       Text('Scenes')
@@ -65,7 +92,7 @@ export struct ScenesListView {
         .width('100%')
 
       Column({ space: 20 }) {
-        ForEach(this.scenes.items, (scene: SceneCardState, index: number) => {
+        ForEach(this.getFilteredScenes(), (scene: SceneCardState, index: number) => {
           Column() {
             Row() {
               Row({ space: 16 }) {
@@ -152,8 +179,14 @@ export struct ScenesListView {
         .border({ width: 1, color: COLOR_OUTLINE_VARIANT, style: BorderStyle.Dashed })
         .borderRadius(16)
         .onClick(() => {
-          const route = createGlobalSceneEditorRoute();
-          this.navStack.pushPathByName(route.page, route.param);
+          const roomId = this.targetRoomId();
+          if (roomId) {
+            const route = createRoomSceneEditorRoute(roomId);
+            this.navStack.pushPathByName(route.page, route.param);
+          } else {
+            const route = createGlobalSceneEditorRoute();
+            this.navStack.pushPathByName(route.page, route.param);
+          }
         })
       }
       .width('100%')

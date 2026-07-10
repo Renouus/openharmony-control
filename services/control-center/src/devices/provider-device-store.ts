@@ -260,6 +260,36 @@ export class ProviderDeviceStore {
     return this.listActiveDevices().find((device) => device.id === deviceId);
   }
 
+  public updateActiveDevice(
+    deviceId: string,
+    input: { displayName?: string; roomId: string; deviceType: DeviceKindName },
+  ): EnhancedDeviceDescriptor | undefined {
+    const now = Date.now();
+    const version = this.incrementVersion();
+    const displayName = input.displayName?.trim() ?? "";
+    const result = this.db
+      .prepare(`
+        UPDATE devices
+        SET custom_name = ?, room_id = ?, type = ?, device_type = ?, updated_at = ?, version = ?
+        WHERE id = ? AND lifecycle_state = 'active' AND is_deleted = 0
+      `)
+      .run(
+        displayName.length > 0 ? displayName : null,
+        input.roomId,
+        input.deviceType,
+        input.deviceType,
+        now,
+        version,
+        deviceId,
+      );
+
+    if (result.changes === 0) {
+      return undefined;
+    }
+
+    return this.listActiveDevices().find((device) => device.id === deviceId);
+  }
+
   public rejectDevice(deviceId: string): boolean {
     const now = Date.now();
     const version = this.incrementVersion();

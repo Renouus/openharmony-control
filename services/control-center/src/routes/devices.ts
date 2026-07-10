@@ -23,7 +23,7 @@ import type { DeviceSimulator } from "../devices/device-simulator";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import type { DeviceRegistry } from "../registry/device-registry";
 import { broadcastEvent } from "./websocket";
-import { mapDeviceRowToSyncDto } from "../db/device-sync-mapper";
+import { mapDeviceRowToSyncDto, mapVendorDeviceToSyncDto } from "../db/device-sync-mapper";
 import { getDb } from "../db/database";
 
 type DeviceRow = {
@@ -229,37 +229,29 @@ export async function registerDeviceRoutes(
     // 如果是第三方设备，使用新架构的数据源修改：
     if (options.vendorProvider?.ownsDevice(deviceId)) {
         const store = new ProviderDeviceStore(getDb());
-        store.joinHome(deviceId, {
-          displayName: customName || device.name,
+        const updated = store.updateActiveDevice(deviceId, {
+          displayName: customName ?? undefined,
           roomId: device.room,
           deviceType: device.kind
         });
+        if (!updated) {
+          return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
+        }
     } else {
         // 如果是本地模拟设备，走原来的逻辑
         upsertDeviceCustomName(device, customName);
     }
 
       const updatedDevice = await loadDevice(deviceId, registry, options.vendorProvider);
-      
-      // 方案二：后端修改完成后触发广播，通知所有客户端刷新
-      if (updatedDevice) {
-        // 由于 loadDevice 返回的是 EnhancedDeviceDescriptor，我们需要提取信息然后直接通过 WebSocket 广播给前端
-        broadcastEvent('DeviceStateUpdated', {
-            id: updatedDevice.id,
-            name: updatedDevice.name,
-            custom_name: updatedDevice.customName ?? null,
-            provider: updatedDevice.brand,
-            type: updatedDevice.kind,
-            room_id: updatedDevice.room,
-            state_json: JSON.stringify(updatedDevice.state),
-            updated_at: updatedDevice.state.updatedAt,
-            version: 0, // 对于 websocket 单点更新，前端可能不需要严格关注这个version
-            lifecycle_state: 'active',
-            sort_order: updatedDevice.displayOrder,
-            source_capabilities_json: JSON.stringify(updatedDevice.capabilities)
-        });
+      if (!updatedDevice) {
+        return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
       }
+      const payload = options.vendorProvider?.ownsDevice(deviceId)
+        ? mapVendorDeviceToSyncDto(updatedDevice)
+        : loadSyncDeviceRow(deviceId) ?? mapVendorDeviceToSyncDto(updatedDevice);
       
+      broadcastEvent("DeviceStateUpdated", payload);
+
       return reply.send({ device: updatedDevice });
   });
 
@@ -301,7 +293,9 @@ async function loadDevices(
 ): Promise<EnhancedDeviceDescriptor[]> {
   const dbDevices = loadDevicesFromDb();
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
-  const vendorDevices = await listManagedVendorDevices(getDb(), vendorProvider);
+  const vendorDevices = vendorProvider
+    ? await listManagedVendorDevices(getDb(), vendorProvider)
+    : [];
   return [...baseDevices, ...vendorDevices]
     .map(applyStoredCustomName)
     .filter((device): device is EnhancedDeviceDescriptor => device !== undefined)
@@ -348,6 +342,23 @@ function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
     return rows.map(mapDeviceRow);
   } catch {
     return [];
+  }
+}
+
+function loadSyncDeviceRow(deviceId: string) {
+  try {
+    const db = getDb();
+    const row = db
+      .prepare(`
+        SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted
+        FROM devices
+        WHERE id = ?
+      `)
+      .get(deviceId) as DeviceRow | undefined;
+
+    return row ? mapDeviceRowToSyncDto(row) : undefined;
+  } catch {
+    return undefined;
   }
 }
 

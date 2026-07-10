@@ -325,7 +325,7 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'scenesList') {
         Scroll() {
-          ScenesListView({ appState: this.appState, scenes: this.appState.scenes })
+          ScenesListView({ appState: this.appState, scenes: this.appState.scenes, routeParam: this.subPageParam })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -351,6 +351,7 @@ struct Index {
         SceneEditorView({
           appState: this.appState,
           editingSceneId: this.getEditingSceneId(),
+          editorContext: this.getSceneEditorContext(),
           onCancel: () => this.popSubPage(),
           onSave: async (payload) => {
             const sceneEditorContext = this.getSceneEditorContext();

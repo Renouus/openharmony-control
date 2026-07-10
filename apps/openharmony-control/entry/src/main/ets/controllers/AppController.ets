@@ -87,6 +87,7 @@ export class AppController {
     snapshot.assignCamera(await this.fetchCamera(feedback));
     snapshot.assignClimate(await this.fetchClimate(feedback));
     snapshot.assignScenes(await this.fetchScenes(feedback));
+    this.syncSceneSource(snapshot);
     await this.refreshAutomationState(snapshot, feedback);
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
@@ -103,6 +104,7 @@ export class AppController {
       switch (target) {
         case 'home':
           snapshot.assignHome(await this.fetchHome(feedback));
+          await this.syncRoomState(snapshot); // Ensure room view state gets synced whenever home gets synced (e.g., when devices change state after running scenes)
           break;
         case 'lighting':
           snapshot.assignLighting(await this.fetchLighting(feedback));
@@ -118,6 +120,7 @@ export class AppController {
           break;
         case 'scenesList':
           snapshot.assignScenes(await this.fetchScenes(feedback));
+          this.syncSceneSource(snapshot);
           break;
         case 'automation':
           await this.refreshAutomationState(snapshot, feedback);
@@ -224,12 +227,18 @@ export class AppController {
   }
 
   private async rebuildSceneDerivedState(snapshot: AppStateSnapshot, feedback: string): Promise<void> {
+    this.syncSceneSource(snapshot);
     snapshot.assignScenes(mapScenesViewState(this.sceneStore.visibleItems(), feedback));
     snapshot.assignHome(await this.homeViewModel.loadWithScenes(
       this.sceneStore.visibleItems(),
       feedback,
       this.activeSceneId,
     ));
+    await this.syncRoomState(snapshot);
+  }
+
+  private syncSceneSource(snapshot: AppStateSnapshot): void {
+    snapshot.assignSceneSource(this.sceneStore.visibleItems());
   }
 
   private async fetchAutomation(feedback: string = ''): Promise<AutomationViewStateData> {
@@ -456,7 +465,9 @@ export class AppController {
       await this.rebuildSceneDerivedState(snapshot, '场景已创建');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('创建场景失败'));
+      this.syncSceneSource(snapshot);
       snapshot.assignHome(await this.fetchHome('创建场景失败'));
+      await this.syncRoomState(snapshot);
     }
   }
 
@@ -467,7 +478,9 @@ export class AppController {
       await this.rebuildSceneDerivedState(snapshot, '场景已更新');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('更新场景失败'));
+      this.syncSceneSource(snapshot);
       snapshot.assignHome(await this.fetchHome('更新场景失败'));
+      await this.syncRoomState(snapshot);
     }
   }
 
@@ -479,7 +492,9 @@ export class AppController {
       await this.rebuildSceneDerivedState(snapshot, '场景已删除');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('删除场景失败'));
+      this.syncSceneSource(snapshot);
       snapshot.assignHome(await this.fetchHome('删除场景失败'));
+      await this.syncRoomState(snapshot);
     }
   }
 

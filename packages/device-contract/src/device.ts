@@ -209,6 +209,8 @@ export type SceneDescriptor = {
   icon?: string;
   description: string;
   enabled: boolean;
+  /** 场景归属房间 ID（可选）。设置后场景仅显示在对应房间视图中。 */
+  roomId?: string;
   trigger: {
     type: "time" | "location" | "manual";
     label: string;

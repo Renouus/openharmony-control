@@ -55,10 +55,59 @@ export default function sceneEditorMappersTest() {
       }, ['Dim living room', 'Lock front door']);
 
       expect(payload.icon).assertEqual('movie');
+      expect(payload.roomId === undefined).assertTrue();
       expect(payload.commands.length).assertEqual(2);
       expect(payload.commands[0].name).assertEqual('set-brightness');
       expect(payload.commands[0].payload.brightness).assertEqual(20);
       expect(payload.commands[1].payload.locked).assertEqual(true);
+    });
+
+    it('builds a room-scoped payload when the editor forces a room id', () => {
+      const payload = buildScenePayloadDraft({
+        name: 'Bedroom wind down',
+        icon: 'bedtime',
+        actions: [
+          {
+            id: 'light-action',
+            type: 'device',
+            deviceId: 'light-bedroom',
+            command: 'switch:false',
+          },
+        ],
+      }, ['Turn bedroom light off'], 'bedroom');
+
+      expect(payload.roomId).assertEqual('bedroom');
+      expect(payload.commands.length).assertEqual(1);
+      expect(payload.commands[0].payload.on).assertEqual(false);
+    });
+
+    it('preserves the persisted room id when editing an existing room scene', () => {
+      const scene: SceneCardState = {
+        id: 'movie-bedroom',
+        name: 'Bedroom movie',
+        icon: 'movie',
+        roomId: 'bedroom',
+        description: 'Relax in bedroom',
+        enabled: true,
+        triggerLabel: 'Run now',
+        triggerTypeLabel: 'manual',
+        actions: ['Turn bedroom light off'],
+        commands: [
+          { deviceId: 'light-bedroom', name: 'switch', payload: { on: false } },
+        ],
+        repeatLabel: 'Never',
+        canRunNow: true,
+        canToggle: true,
+        canEdit: true,
+        canDelete: true,
+      };
+
+      const draft = mapSceneCardToDraft(scene);
+      const payload = buildScenePayloadDraft(draft, ['Turn bedroom light off'], scene.roomId);
+
+      expect(payload.roomId).assertEqual('bedroom');
+      expect(payload.commands.length).assertEqual(1);
+      expect(payload.commands[0].payload.on).assertEqual(false);
     });
   });
 }

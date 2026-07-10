@@ -473,6 +473,75 @@ describe("scene routes", () => {
     expect(afterDelete.find((scene) => scene.id === created.id)).toBeUndefined();
   });
 
+  it("persists room ownership when creating a room-scoped scene", async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Bedroom sleep prep",
+        description: "Prepare bedroom devices",
+        enabled: true,
+        roomId: "bedroom",
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Bedroom AC on"],
+        commands: [
+          { deviceId: "ac-living-room", name: "switch", payload: { on: true } },
+        ],
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json()).toMatchObject({
+      scene: {
+        name: "Bedroom sleep prep",
+        roomId: "bedroom",
+      },
+    });
+  });
+
+  it("preserves stored room ownership when a scene update payload tries to move it", async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/scenes",
+      payload: {
+        name: "Bedroom wind down",
+        description: "Dim and cool the bedroom",
+        enabled: true,
+        roomId: "bedroom",
+        trigger: { type: "manual", label: "Run now" },
+        repeat: [],
+        actionsLabel: ["Dim bedroom"],
+        commands: [
+          { deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 25 } },
+        ],
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    const createdSceneId = createResponse.json().scene.id as string;
+
+    const updateResponse = await app.inject({
+      method: "PUT",
+      url: `/api/scenes/${createdSceneId}`,
+      payload: {
+        name: "Bedroom wind down updated",
+        roomId: "living-room",
+      },
+    });
+
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.json()).toMatchObject({
+      scene: {
+        id: createdSceneId,
+        name: "Bedroom wind down updated",
+        roomId: "bedroom",
+      },
+    });
+  });
+
   it("logs scene side-effect failures without changing successful scene execution", async () => {
     const logger = { error: vi.fn() };
     const service = new SceneService(

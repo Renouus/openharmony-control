@@ -1,4 +1,4 @@
-import { ActionDraft, DevicePanelState, SceneChipState } from '../model/page-view-state';
+import { ActionDraft, DevicePanelState, RoomItemState, SceneChipState, SceneEditorContext } from '../model/page-view-state';
 import {
   buildScenePayloadDraft,
   createEmptySceneDraft,
@@ -23,6 +23,7 @@ import { ScenePayloadDraft } from '../services/device-api';
 export struct SceneEditorView {
   @Prop appState: AppStateSnapshot;
   @Prop editingSceneId: string;
+  @Prop editorContext: SceneEditorContext | null = null;
   @State draft: SceneDraftData = createEmptySceneDraft();
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
@@ -39,11 +40,39 @@ export struct SceneEditorView {
 
   loadScene() {
     this.isLoading = true;
-    const scene = this.appState.scenes.items.find((item) => item.id === this.editingSceneId);
+    const scene = this.findEditingScene();
     if (scene) {
       this.draft = mapSceneCardToDraft(scene);
     }
     this.isLoading = false;
+  }
+
+  private findEditingScene() {
+    return this.appState.scenes.items.find((item) => item.id === this.editingSceneId);
+  }
+
+  private forcedRoomId(): string | undefined {
+    if (this.editorContext && this.editorContext.mode === 'create') {
+      return this.editorContext.scope === 'room' ? this.editorContext.roomId : undefined;
+    }
+    const scene = this.findEditingScene();
+    return scene ? scene.roomId : undefined;
+  }
+
+  private roomNameFor(roomId: string): string {
+    const room = this.appState.roomList.rooms.find((item: RoomItemState) => item.id === roomId);
+    if (room) {
+      return room.name;
+    }
+    return roomId;
+  }
+
+  private ownershipLabel(): string {
+    const roomId = this.forcedRoomId();
+    if (!roomId) {
+      return 'Ownership: Global';
+    }
+    return `Ownership: ${this.roomNameFor(roomId)}`;
   }
 
   getActionLabel(action: ActionDraft): string {
@@ -143,6 +172,7 @@ export struct SceneEditorView {
             const payload = buildScenePayloadDraft(
               this.draft,
               this.draft.actions.map((action: ActionDraft) => this.getActionLabel(action)),
+              this.forcedRoomId(),
             );
             this.onSave(payload);
           })
@@ -189,6 +219,12 @@ export struct SceneEditorView {
             .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
 
             Column({ space: 12 }) {
+              Text(this.ownershipLabel())
+                .fontSize(13)
+                .fontColor(COLOR_TEXT_MUTED)
+                .width('100%')
+                .padding({ left: 4 })
+
               Text('Actions')
                 .fontSize(16)
                 .fontWeight(FontWeight.Bold)

@@ -24,6 +24,7 @@ import {
   COLOR_TERTIARY,
   COLOR_TEXT_MUTED,
 } from '../theme/smart-home-theme';
+import { SceneCapsuleContainer } from '../scene-feature/containers/SceneCapsuleContainer';
 
 @Component
 struct StatusChip {
@@ -53,45 +54,6 @@ struct StatusChip {
     })
     .onClick(() => this.onTap())
     .animation({ duration: 200, curve: Curve.Friction })
-  }
-}
-
-@Component
-struct SceneChip {
-  @Prop scene: SceneChipState;
-  onTap: () => void = () => {};
-  @State isPressed: boolean = false;
-
-  build() {
-    Row({ space: 10 }) {
-      AppSymbol({
-        name: this.scene.icon,
-        glyphSize: 18,
-        color: this.scene.active ? COLOR_ON_PRIMARY : COLOR_TERTIARY,
-      })
-      Text(this.scene.label)
-        .fontSize(14)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(this.scene.active ? COLOR_ON_PRIMARY : COLOR_ON_SURFACE)
-    }
-    .padding({ left: 22, right: 22, top: 12, bottom: 12 })
-    .borderRadius(24)
-    .backgroundColor(this.scene.active ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOW)
-    .shadow(this.scene.active ? {
-      radius: 14, color: '#C2652A33', offsetX: 0, offsetY: 4,
-    } : {
-      radius: 12, color: '#3A302A0D', offsetX: 0, offsetY: 3,
-    })
-    .scale({ x: this.isPressed ? 0.95 : 1, y: this.isPressed ? 0.95 : 1 })
-    .onTouch((e: TouchEvent) => {
-      if (e.type === TouchType.Down) {
-        this.isPressed = true;
-      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        this.isPressed = false;
-      }
-    })
-    .onClick(() => this.onTap())
-    .animation({ duration: 250, curve: Curve.Friction })
   }
 }
 
@@ -248,41 +210,10 @@ struct HomeContent {
           .margin({ bottom: 24 })
       }
 
-      Column({ space: 14 }) {
-        Row({ space: 4 }) {
-          Text('场景')
-            .fontSize(22)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(COLOR_ON_SURFACE)
-            .fontFamily('serif')
-          Row() {
-            AppSymbol({ name: 'chevron_right', glyphSize: 18, color: COLOR_PRIMARY })
-          }
-          .padding(4)
-          .onClick(() => {
-            this.navStack.pushPathByName('scenesList', null);
-          })
-          Blank()
-        }
-        .width('100%')
-
-        Scroll() {
-          Row({ space: 14 }) {
-            ForEach(this.home.quickScenes, (scene: SceneChipState) => {
-              SceneChip({
-                scene,
-                onTap: () => this.controller.handleHomeRunScene(this.appState, scene.id),
-              })
-            }, (scene: SceneChipState) => `${scene.id}_${scene.active}`)
-          }
-          .justifyContent(FlexAlign.Start)
-          .padding({ left: 0, right: 20, top: 6, bottom: 16 })
-        }
-        .scrollable(ScrollDirection.Horizontal)
-        .scrollBar(BarState.Off)
-        .width('100%')
-      }
-      .width('100%')
+      SceneCapsuleContainer({
+        appState: this.appState,
+        context: { surface: 'capsule', scope: 'global', mode: 'browse' }
+      })
       .margin({ bottom: 32 })
 
       Column({ space: 32 }) {

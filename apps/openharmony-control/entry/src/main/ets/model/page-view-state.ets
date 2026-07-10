@@ -248,6 +248,7 @@ export interface SceneCardState {
   id: string;
   name: string;
   icon?: string;
+  roomId?: string;
   description: string;
   enabled: boolean;
   triggerLabel: string;

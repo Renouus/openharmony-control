@@ -8,6 +8,7 @@ import {
 } from "@smart-home/device-contract";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
+import { clientConnections } from "../src/routes/websocket";
 
 function fakeVendorProvider(): VendorDeviceProvider {
   return {
@@ -400,6 +401,53 @@ describe("device snapshot routes", () => {
         customName: "Hall Accent",
       },
     });
+  });
+
+  it("broadcasts vendor-backed rename updates using the sync dto shape", async () => {
+    insertManagedVendorDeviceRow("tuya-light-1", "Ceiling lighting", "light", "living-room", {
+      power: true,
+      brightness: 50,
+      colorTemperature: 4350,
+      updatedAt: 40,
+      online: true,
+    });
+
+    const wsMessages: Array<{ event: string; payload: unknown }> = [];
+    const fakeClient = {
+      readyState: 1,
+      send(data: string) {
+        wsMessages.push(JSON.parse(data));
+      },
+    };
+    clientConnections.set("test-client", fakeClient);
+
+    try {
+      const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+      const response = await app.inject({
+        method: "PUT",
+        url: "/api/devices/tuya-light-1",
+        payload: { customName: "Hall Accent" },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(wsMessages).toHaveLength(1);
+      expect(wsMessages[0]).toEqual({
+        event: "DeviceStateUpdated",
+        payload: expect.objectContaining({
+          id: "tuya-light-1",
+          name: "Ceiling lighting",
+          customName: "Hall Accent",
+          type: "light",
+          roomId: "living-room",
+          payload: expect.any(Object),
+          updatedAt: expect.any(Number),
+          version: expect.any(Number),
+          isDeleted: false,
+        }),
+      });
+    } finally {
+      clientConnections.delete("test-client");
+    }
   });
 
   it("keeps discovered provider devices pending until the user joins or rejects them", async () => {
