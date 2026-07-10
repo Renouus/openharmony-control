@@ -8,6 +8,7 @@ import {
   CommandHistoryEntry,
   DeviceApi,
   DevicePayload,
+  DeviceUpdateRequest,
   FamilyOverview,
   FamilySettingsSnapshot,
   FamilySettingsUpdateRequest,
@@ -50,6 +51,7 @@ export interface SmartHomeRepositoryPort {
   joinPendingDevice(deviceId: string, displayName: string, roomId: string, deviceType: string): Promise<DeviceSnapshot>;
   rejectPendingDevice(deviceId: string): Promise<void>;
   updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot>;
+  updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
   updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
@@ -241,7 +243,22 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   }
 
   async updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot> {
-    const device = await this.api.updateDevice(deviceId, customName);
+    const devices = await this.listDevices();
+    const existing = devices.find((device: DeviceSnapshot) => device.id === deviceId);
+    if (!existing) {
+      throw new Error('Device not found');
+    }
+    const update: DeviceUpdateRequest = {
+      customName,
+      note: existing.note ?? '',
+      customIcon: existing.customIcon ?? 'devices_other',
+      roomId: existing.room ?? ''
+    };
+    return await this.updateDevice(deviceId, update);
+  }
+
+  async updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot> {
+    const device = await this.api.updateDevice(deviceId, update);
     await this.performBackgroundSync(true);
     return device;
   }

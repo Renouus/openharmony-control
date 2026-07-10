@@ -9,6 +9,8 @@ export interface SyncDevicePayload {
   id: string;
   name: string;
   customName?: string | null;
+  note?: string | null;
+  customIcon?: string | null;
   type: string;
   roomId?: string | null;
   payload: Object;
@@ -102,8 +104,11 @@ export interface PendingDeviceListResponse {
   devices: PendingDeviceSnapshot[];
 }
 
-export class UpdateDeviceRequest {
-  customName?: string;
+export interface DeviceUpdateRequest {
+  customName: string;
+  note: string;
+  customIcon: string;
+  roomId: string;
 }
 
 export class JoinPendingDeviceRequest {
@@ -599,15 +604,13 @@ export class DeviceApi {
     }
   }
 
-  async updateDevice(deviceId: string, customName?: string): Promise<DeviceSnapshot> {
+  async updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot> {
     const client = http.createHttp();
     try {
-      const payload: UpdateDeviceRequest = {};
-      payload.customName = customName;
       const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
         method: http.RequestMethod.PUT,
         header: { 'Content-Type': 'application/json' },
-        extraData: JSON.stringify(payload),
+        extraData: JSON.stringify(update),
         expectDataType: http.HttpDataType.STRING,
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {

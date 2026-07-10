@@ -2,7 +2,7 @@ import { describe, expect, it } from '@ohos/hypium';
 import { LightingViewModel } from '../../../main/ets/viewmodel/lighting-view-model';
 import { SmartHomeRepositoryPort } from '../../../main/ets/services/smart-home-repository';
 import { DeviceSnapshot } from '../../../main/ets/model/device-view-model';
-import { AutomationEnablePayload, AutomationPayloadDraft, DevicePayload, SceneEnablePayload, ScenePayloadDraft } from '../../../main/ets/services/device-api';
+import { AutomationEnablePayload, AutomationPayloadDraft, DevicePayload, DeviceUpdateRequest, SceneEnablePayload, ScenePayloadDraft } from '../../../main/ets/services/device-api';
 
 class LightingRepositoryStub implements SmartHomeRepositoryPort {
   async getSummary() {
@@ -47,6 +47,7 @@ class LightingRepositoryStub implements SmartHomeRepositoryPort {
   async joinPendingDevice(_deviceId: string, _displayName: string, _roomId: string, _deviceType: string) { throw new Error('not used'); }
   async rejectPendingDevice(_deviceId: string) {}
   async updateDeviceName(_deviceId: string, _customName: string) { throw new Error('not used'); }
+  async updateDevice(_deviceId: string, _update: DeviceUpdateRequest): Promise<DeviceSnapshot> { throw new Error('not used'); }
   async listScenes() { return []; }
   async listAutomations() { return []; }
   async listRooms() { return []; }

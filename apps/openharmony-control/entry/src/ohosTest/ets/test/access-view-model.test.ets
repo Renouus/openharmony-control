@@ -1,7 +1,8 @@
 import { describe, expect, it } from '@ohos/hypium';
 import { AccessViewModel } from '../../../main/ets/viewmodel/access-view-model';
 import { SmartHomeRepositoryPort } from '../../../main/ets/services/smart-home-repository';
-import { AccessOverview, AutomationEnablePayload, AutomationPayloadDraft, DevicePayload, SceneEnablePayload, ScenePayloadDraft } from '../../../main/ets/services/device-api';
+import { AccessOverview, AutomationEnablePayload, AutomationPayloadDraft, DevicePayload, DeviceUpdateRequest, SceneEnablePayload, ScenePayloadDraft } from '../../../main/ets/services/device-api';
+import { DeviceSnapshot } from '../../../main/ets/model/device-view-model';
 
 class AccessRepositoryStub implements SmartHomeRepositoryPort {
   private shared: boolean = false;
@@ -20,6 +21,7 @@ class AccessRepositoryStub implements SmartHomeRepositoryPort {
   async joinPendingDevice(_deviceId: string, _displayName: string, _roomId: string, _deviceType: string) { throw new Error('not used'); }
   async rejectPendingDevice(_deviceId: string) {}
   async updateDeviceName(_deviceId: string, _customName: string) { throw new Error('not used'); }
+  async updateDevice(_deviceId: string, _update: DeviceUpdateRequest): Promise<DeviceSnapshot> { throw new Error('not used'); }
   async listScenes() { return []; }
   async listAutomations() { return []; }
   async listRooms() { return []; }

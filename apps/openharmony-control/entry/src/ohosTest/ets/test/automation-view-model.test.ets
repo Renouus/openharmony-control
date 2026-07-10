@@ -6,10 +6,12 @@ import {
   AutomationPayloadDraft,
   AutomationSnapshot,
   DevicePayload,
+  DeviceUpdateRequest,
   SceneEnablePayload,
   ScenePayloadDraft,
   SceneSnapshot,
 } from '../../../main/ets/services/device-api';
+import { DeviceSnapshot } from '../../../main/ets/model/device-view-model';
 import { filterNotificationEntries, mapScenesViewState } from '../../../main/ets/model/smart-home-mappers';
 import { HistoryRowState } from '../../../main/ets/model/page-view-state';
 import { AppStateSnapshot } from '../../../main/ets/model/app-state-snapshot';
@@ -34,6 +36,7 @@ class AutomationRepositoryStub implements SmartHomeRepositoryPort {
   async joinPendingDevice(_deviceId: string, _displayName: string, _roomId: string, _deviceType: string) { throw new Error('not used'); }
   async rejectPendingDevice(_deviceId: string) {}
   async updateDeviceName(_deviceId: string, _customName: string) { throw new Error('not used'); }
+  async updateDevice(_deviceId: string, _update: DeviceUpdateRequest): Promise<DeviceSnapshot> { throw new Error('not used'); }
 
   async listRooms() { return []; }
 

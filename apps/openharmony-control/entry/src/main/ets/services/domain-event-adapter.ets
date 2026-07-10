@@ -98,6 +98,8 @@ export class DomainEventAdapter {
       id: payload.id,
       name: payload.name,
       customName: payload.customName ?? undefined,
+      note: payload.note ?? undefined,
+      customIcon: payload.customIcon ?? undefined,
       type: payload.type,
       roomId: payload.roomId ?? '',
       payload: payload.payload,
