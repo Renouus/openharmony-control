@@ -144,6 +144,7 @@ export function sceneEditorEditingSceneId(context: SceneEditorContext | null): s
 export interface HomeDeviceCardState {
   id: string;
   name: string;
+  icon: string;
   kind: string;       // 'door-lock' | 'light' | 'air-conditioner' | 'fan' | 'other'
   statusLabel: string;
   power: boolean;
@@ -163,7 +164,11 @@ export interface HomeRoomSectionState {
 export interface DevicePanelState {
   id: string;
   name: string;
+  originalName: string;
+  roomId: string;
   roomName: string;
+  note: string;
+  icon: string;
   kind: string;
   statusLabel: string;
   online: boolean;

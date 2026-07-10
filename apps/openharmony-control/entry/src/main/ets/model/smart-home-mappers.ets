@@ -50,6 +50,7 @@ import {
   SummaryCardState,
 } from './page-view-state';
 import { ROOM_ORDER } from '../theme/smart-home-theme';
+import { resolvedDeviceIcon } from './device-editor-state';
 
 export function formatDeviceStatus(device: DeviceSnapshot): string {
   if (!device.state.online) {
@@ -234,7 +235,11 @@ export function mapDevicePanel(device: DeviceSnapshot): DevicePanelState {
   return {
     id: device.id,
     name: displayDeviceName(device),
+    originalName: device.name,
+    roomId: device.room ?? 'living-room',
     roomName: roomName(device.room ?? 'living-room'),
+    note: device.note ?? '',
+    icon: resolvedDeviceIcon(device.customIcon, device.kind),
     kind: device.kind,
     statusLabel: formatDeviceStatus(device),
     online: device.state.online,
@@ -291,6 +296,7 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   const card: HomeDeviceCardState = {
     id: device.id,
     name: displayDeviceName(device),
+    icon: resolvedDeviceIcon(device.customIcon, device.kind),
     kind,
     statusLabel,
     power,

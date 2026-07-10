@@ -28,6 +28,7 @@ import {
   AutomationSnapshot,
   AutomationPayloadDraft,
   DeviceApi,
+  DeviceUpdateRequest,
   FamilySettingsUpdateRequest,
   PersistedScene,
   ScenePayloadDraft,
@@ -47,6 +48,11 @@ import { normalizeRepositoryError } from '../services/smart-home-repository';
 const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
 
 export interface DeviceCreationResult {
+  success: boolean;
+  message: string;
+}
+
+export interface DeviceUpdateResult {
   success: boolean;
   message: string;
 }
@@ -588,6 +594,20 @@ export class AppController {
       await this.refreshTargets(snapshot, ['home', 'lighting'], '设备名称已更新');
     } catch {
       await this.refreshTargets(snapshot, ['home', 'lighting'], '更新设备名称失败');
+    }
+  }
+
+  async handleUpdateDevice(
+    snapshot: AppStateSnapshot,
+    deviceId: string,
+    update: DeviceUpdateRequest,
+  ): Promise<DeviceUpdateResult> {
+    try {
+      await this.repository.updateDevice(deviceId, update);
+      await this.refreshAll(snapshot, '设备信息已更新');
+      return { success: true, message: '设备信息已更新' };
+    } catch (error) {
+      return { success: false, message: normalizeRepositoryError(error as Object) };
     }
   }
 
