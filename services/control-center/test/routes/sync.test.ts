@@ -179,6 +179,10 @@ describe('GET /api/sync', () => {
           trigger: expect.any(Object),
           commands: expect.any(Array),
         }),
+        expect.objectContaining({
+          id: 'movie',
+          roomId: 'living-room',
+        }),
       ]),
     );
   });
