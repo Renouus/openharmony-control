@@ -86,7 +86,7 @@ function mapActionToSceneCommand(action: ActionDraft): SceneCommandDraft | undef
   }
 
   const parts = action.command.split(':');
-  const commandName = parts[0];
+  const commandName = normalizeSceneCommandName(parts[0]);
   const commandValue = parts.length > 1 ? parts[1] : '';
   const payload = createCommandPayload(commandName, commandValue);
   if (payload === undefined) {
@@ -98,6 +98,22 @@ function mapActionToSceneCommand(action: ActionDraft): SceneCommandDraft | undef
   command.name = commandName;
   command.payload = payload;
   return command;
+}
+
+function normalizeSceneCommandName(name: string): string {
+  if (name === 'power') {
+    return 'switch';
+  }
+  if (name === 'brightness') {
+    return 'set-brightness';
+  }
+  if (name === 'targetTemperature') {
+    return 'set-target-temperature';
+  }
+  if (name === 'locked') {
+    return 'lock';
+  }
+  return name;
 }
 
 function serializeCommandPayload(name: string, payload: SceneCommandPayload): string | undefined {

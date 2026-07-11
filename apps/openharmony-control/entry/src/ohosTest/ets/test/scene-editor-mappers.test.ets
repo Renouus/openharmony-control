@@ -62,6 +62,29 @@ export default function sceneEditorMappersTest() {
       expect(payload.commands[1].payload.locked).assertEqual(true);
     });
 
+    it('normalizes action picker command aliases into persisted scene commands', () => {
+      const payload = buildScenePayloadDraft({
+        name: 'Whole home reset',
+        icon: 'home',
+        actions: [
+          { id: 'power', type: 'device', deviceId: 'light-1', command: 'power:true' },
+          { id: 'brightness', type: 'device', deviceId: 'light-1', command: 'brightness:75' },
+          { id: 'temperature', type: 'device', deviceId: 'ac-1', command: 'targetTemperature:24' },
+          { id: 'lock', type: 'device', deviceId: 'door-1', command: 'locked:true' },
+        ],
+      }, ['Power on', 'Brightness 75', 'Temperature 24', 'Lock door']);
+
+      expect(payload.commands.length).assertEqual(4);
+      expect(payload.commands[0].name).assertEqual('switch');
+      expect(payload.commands[0].payload.on).assertEqual(true);
+      expect(payload.commands[1].name).assertEqual('set-brightness');
+      expect(payload.commands[1].payload.brightness).assertEqual(75);
+      expect(payload.commands[2].name).assertEqual('set-target-temperature');
+      expect(payload.commands[2].payload.targetTemperature).assertEqual(24);
+      expect(payload.commands[3].name).assertEqual('lock');
+      expect(payload.commands[3].payload.locked).assertEqual(true);
+    });
+
     it('builds a room-scoped payload when the editor forces a room id', () => {
       const payload = buildScenePayloadDraft({
         name: 'Bedroom wind down',
