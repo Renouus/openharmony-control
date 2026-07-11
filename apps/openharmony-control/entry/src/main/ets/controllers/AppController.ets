@@ -92,6 +92,7 @@ export class AppController {
     // must retry the backend instead of permanently trusting that empty cache.
     await this.sceneStore.refresh(this.repository);
     snapshot.assignHome(await this.fetchHome(feedback));
+    await this.syncRoomState(snapshot);
     snapshot.assignLighting(await this.fetchLighting(feedback));
     snapshot.assignAccess(await this.fetchAccess(feedback));
     snapshot.assignCamera(await this.fetchCamera(feedback));
@@ -101,8 +102,6 @@ export class AppController {
     await this.refreshAutomationState(snapshot, feedback);
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
-    
-    await this.syncRoomState(snapshot);
   }
 
   async refreshTargets(
@@ -163,8 +162,7 @@ export class AppController {
       snapshot.assignRoomList(mapRoomList(rooms, devices));
       snapshot.assignRoomViews(mapRoomViews(rooms, devices, scenes, this.activeSceneId));
     } catch {
-      snapshot.assignRoomList([]);
-      snapshot.assignRoomViews([]);
+      // Preserve the last valid room state during transient startup or network failures.
     }
   }
 

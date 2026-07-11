@@ -42,6 +42,7 @@ export class AppStateSnapshot {
   familySettings: FamilySettingsState = new FamilySettingsState();
   roomList: RoomListState = new RoomListState();
   roomViews: RoomViewState[] = [];
+  roomsInitialized: boolean = false;
 
   // In-place mutation so @Observed proxies propagate changes to @ObjectLink subscribers
   assignHome(data: HomeViewStateData): void {
@@ -178,5 +179,6 @@ export class AppStateSnapshot {
         this.roomViews.splice(i, 1);
       }
     }
+    this.roomsInitialized = true;
   }
 }

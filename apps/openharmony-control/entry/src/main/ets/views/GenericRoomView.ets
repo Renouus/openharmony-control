@@ -63,9 +63,22 @@ export struct GenericRoomView {
   build() {
     Column() {
       if (!this.getRoomState()) {
-        Text('房间不存在')
-          .fontSize(18)
+        if (!this.appState.roomsInitialized) {
+          Column({ space: 12 }) {
+            LoadingProgress()
+              .width(36)
+              .height(36)
+              .color(COLOR_PRIMARY)
+            Text('房间加载中...')
+              .fontSize(16)
+              .fontColor(COLOR_TEXT_MUTED)
+          }
           .margin(40)
+        } else {
+          Text('房间不存在')
+            .fontSize(18)
+            .margin(40)
+        }
       } else {
         Scroll() {
           Column({ space: 24 }) {
