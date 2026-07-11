@@ -77,8 +77,10 @@ export struct ScenesListView {
   private getFilteredScenes(): SceneCardState[] {
     const roomId = this.targetRoomId();
     if (!roomId) {
-      return this.scenes.items; // 全屋模式
+      // 修复：当从首页进入全局视角时，只能看到未挂载房间的“全局场景”
+      return this.scenes.items.filter((scene: SceneCardState) => !scene.roomId); 
     }
+    // 当从房间进入时，只看挂载在该房间下的场景
     return this.scenes.items.filter((scene: SceneCardState) => scene.roomId === roomId);
   }
 
