@@ -129,6 +129,7 @@ export class DomainEventAdapter {
       icon: payload.icon,
       description: payload.description,
       enabled: payload.enabled,
+      roomId: payload.roomId,
       trigger: payload.trigger,
       repeat: payload.repeat,
       actionsLabel: payload.actionsLabel,

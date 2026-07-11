@@ -35,6 +35,7 @@ export interface SyncScenePayload {
   icon?: string;
   description: string;
   enabled: boolean;
+  roomId?: string;
   trigger: SceneTrigger;
   repeat: string[];
   actionsLabel: string[];
