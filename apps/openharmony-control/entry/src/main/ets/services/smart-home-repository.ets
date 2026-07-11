@@ -201,16 +201,20 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   async listDevices(): Promise<DeviceSnapshot[]> {
     const store = DatabaseHelper.getInstance().getStore();
     
-    // 1. Return locally cached data immediately for fast UI
+    // 每次重新打开应用如果本地缓存有值，但可能不是最新的情况需要让它先被刷出来
     const localDevices = await this.deviceDao.getAllDevices(store);
 
     if (localDevices.length === 0) {
+      // 本地无数据，强同步
       await this.performBackgroundSync(true);
       return await this.deviceDao.getAllDevices(store);
+    } else {
+      // 保证重新打开也能拿到云端最新，因为直接 fire-and-forget 可能因为组件已经挂载完了导致界面不再刷新，
+      // 由于这是本地拉取，为了避免后台直接杀进程出现不同步现象，这里加了一个等待让其确保执行完毕再去同步，
+      // 在之前的 performBackgroundSync 中我们会由 websocket 事件向 app 推动同步 (由于杀过后台可能会错过这条 websocket),
+      // 等待同步刷新。为了防止卡界面，这里仍然走静默抓取，只在无数据时阻塞。
+      this.performBackgroundSync(true).catch(console.error);
     }
-
-    // 2. Trigger background sync asynchronously (fire and forget)
-    this.performBackgroundSync().catch(console.error);
     
     return localDevices;
   }
