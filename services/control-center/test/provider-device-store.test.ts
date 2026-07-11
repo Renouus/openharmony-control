@@ -1,0 +1,154 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import {
+  ProviderDeviceStore,
+  type DiscoveredProviderDevice,
+} from "../src/devices/provider-device-store";
+
+const discoveredLight: DiscoveredProviderDevice = {
+  provider: "tuya",
+  externalDeviceId: "light-1",
+  externalProductId: "prod-light",
+  externalCategory: "xdd",
+  originalName: "Smart Light",
+  originalIcon: "lightbulb",
+  online: true,
+  deviceType: "light",
+  roomHint: "living-room",
+  state: {
+    power: true,
+    brightness: 50,
+    colorTemperature: 4000,
+    online: true,
+    updatedAt: 100,
+  },
+  capabilities: ["switch", "brightness", "color-temperature"],
+  status: [{ code: "switch_led", value: true }],
+  functions: [{ code: "switch_led", type: "Boolean" }],
+  raw: { id: "light-1", name: "Smart Light" },
+};
+
+const discoveredThirdPartySensor: DiscoveredProviderDevice = {
+  provider: "acme",
+  externalDeviceId: "tuya-sensor-9",
+  externalProductId: "prod-sensor",
+  externalCategory: "pir",
+  originalName: "Entry Sensor",
+  originalIcon: "sensor",
+  online: false,
+  deviceType: "motion-sensor",
+  roomHint: "entry",
+  state: {
+    motionDetected: false,
+    online: false,
+    updatedAt: 200,
+  },
+  capabilities: ["motion-detection"],
+  status: [{ code: "pir", value: false }],
+  functions: [{ code: "pir", type: "Boolean" }],
+  raw: { id: "tuya-sensor-9", name: "Entry Sensor" },
+};
+
+describe("ProviderDeviceStore", () => {
+  beforeEach(() => initDatabase(":memory:"));
+  afterEach(() => closeDatabase());
+
+  it("upserts discovered devices as pending without active projection", () => {
+    const store = new ProviderDeviceStore(getDb());
+    const result = store.upsertDiscoveredDevices([discoveredLight]);
+
+    expect(result).toMatchObject({
+      provider: "tuya",
+      createdPending: 1,
+      updatedSources: 0,
+      ignoredRejected: 0,
+    });
+    expect(store.listPendingDevices()).toEqual([
+      expect.objectContaining({
+        id: "tuya-light-1",
+        provider: "tuya",
+        originalName: "Smart Light",
+        displayName: "Smart Light",
+        deviceType: "light",
+        online: true,
+        capabilities: ["switch", "brightness", "color-temperature"],
+      }),
+    ]);
+    expect(getDb().prepare("SELECT id FROM devices").all()).toHaveLength(1);
+    expect(
+      getDb()
+        .prepare("SELECT lifecycle_state FROM devices WHERE id = ?")
+        .get("tuya-light-1"),
+    ).toMatchObject({
+      lifecycle_state: "pending",
+    });
+  });
+
+  it("joinHome activates a pending device without overwriting provider name later", () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredLight]);
+    const joined = store.joinHome("tuya-light-1", {
+      displayName: "Bedroom Bedside Lamp",
+      roomId: "bedroom",
+      deviceType: "light",
+    });
+    const updated = store.updateActiveDevice("tuya-light-1", {
+      displayName: "Desk Light",
+      note: "Do not unplug",
+      customIcon: "outlet",
+      roomId: "study",
+      deviceType: "light",
+    });
+
+    expect(joined).toBeDefined();
+    expect(updated).toMatchObject({
+      id: "tuya-light-1",
+      customName: "Desk Light",
+      note: "Do not unplug",
+      customIcon: "outlet",
+      room: "study",
+      kind: "light",
+    });
+
+    store.upsertDiscoveredDevices([
+      { ...discoveredLight, originalName: "Cloud Renamed Light" },
+    ]);
+    const active = store.listActiveDevices();
+    expect(active[0]).toMatchObject({
+      id: "tuya-light-1",
+      name: "Cloud Renamed Light",
+      customName: "Desk Light",
+      note: "Do not unplug",
+      customIcon: "outlet",
+      room: "study",
+    });
+  });
+
+  it("rejected devices are not repeatedly returned as pending", () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredLight]);
+    store.rejectDevice("tuya-light-1");
+    const result = store.upsertDiscoveredDevices([discoveredLight]);
+
+    expect(result.ignoredRejected).toBe(1);
+    expect(store.listPendingDevices()).toEqual([]);
+  });
+
+  it("uses persisted provider metadata for active device brand", () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredThirdPartySensor]);
+    store.joinHome("acme-tuya-sensor-9", {
+      displayName: "Entry Motion Sensor",
+      roomId: "hallway",
+      deviceType: "motion-sensor",
+    });
+
+    expect(store.listActiveDevices()).toEqual([
+      expect.objectContaining({
+        id: "acme-tuya-sensor-9",
+        brand: "acme",
+        kind: "motion-sensor",
+      }),
+    ]);
+  });
+});

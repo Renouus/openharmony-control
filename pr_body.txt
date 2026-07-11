@@ -1,0 +1,11 @@
+## Summary
+- Split Automation and Scene creation flows.
+- Implemented `CreateAutomationView` with a Single Page Form + Bottom Sheet design.
+- Added data models (`RoutineDraft`, `ConditionDraft`, `ActionDraft`) and synced state for conditions and actions.
+- Integrated the new flow into `AutomationView` and global action menu (`Index.ets`).
+
+## Test Plan
+- [ ] Verify "新建自动化" button navigates to the Create Automation view correctly.
+- [ ] Verify condition/action cards update immediately upon selection from the bottom sheets.
+- [ ] Ensure validation errors trigger properly if name is missing or lists are empty.
+- [ ] Verify the input boxes and titles align correctly with the top of the viewport.

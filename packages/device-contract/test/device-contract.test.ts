@@ -1,0 +1,95 @@
+import { describe, expect, it } from "vitest";
+import {
+  AccessPointId,
+  CameraId,
+  ClimateMode,
+  createCommand,
+  DeviceCapability,
+  DeviceIcon,
+  DeviceHealthName,
+  DeviceKind,
+  isAccessPointId,
+  isCameraId,
+  isClimateMode,
+  isCommandStatus,
+  isDeviceIcon,
+  isSceneId,
+  isTemperatureTarget,
+} from "../src/device";
+
+describe("device contract", () => {
+  it("creates a command with request identity and timestamp", () => {
+    const command = createCommand("light-living-room", "switch", { on: true });
+
+    expect(command.deviceId).toBe("light-living-room");
+    expect(command.name).toBe("switch");
+    expect(command.requestId).toMatch(/^cmd-/);
+    expect(command.timestamp).toBeGreaterThan(0);
+  });
+
+  it("keeps target temperature commands inside the competition demo range", () => {
+    expect(isTemperatureTarget({ targetTemperature: 24 })).toBe(true);
+    expect(isTemperatureTarget({ targetTemperature: 12 })).toBe(false);
+  });
+
+  it("names capability and kind constants used across service and app", () => {
+    expect(DeviceKind.AirConditioner).toBe("air-conditioner");
+    expect(DeviceCapability.EnvironmentReading).toBe("environment-reading");
+  });
+
+  it("accepts only supported editable device icons", () => {
+    expect(Object.values(DeviceIcon)).toEqual([
+      "lightbulb",
+      "lock",
+      "thermostat",
+      "sensors",
+      "videocam",
+      "outlet",
+      "air",
+      "devices_other",
+    ]);
+    expect(isDeviceIcon("outlet")).toBe(true);
+    expect(isDeviceIcon("uploaded-image")).toBe(false);
+  });
+
+  it("accepts known command statuses", () => {
+    expect(isCommandStatus("SUCCESS")).toBe(true);
+    expect(isCommandStatus("DEVICE_OFFLINE")).toBe(true);
+    expect(isCommandStatus("BOGUS")).toBe(false);
+  });
+
+  it("accepts supported scene ids", () => {
+    expect(isSceneId("home")).toBe(true);
+    expect(isSceneId("away")).toBe(true);
+    expect(isSceneId("sleep")).toBe(true);
+    expect(isSceneId("movie")).toBe(true);
+    expect(isSceneId("party")).toBe(true);
+    expect(isSceneId("")).toBe(false);
+  });
+
+  it("keeps device health names stable for ArkTS display mapping", () => {
+    const health: DeviceHealthName[] = ["online", "offline", "warning"];
+    expect(health).toEqual(["online", "offline", "warning"]);
+  });
+
+  it("keeps access point ids stable for the access prototype", () => {
+    expect(isAccessPointId("front-door")).toBe(true);
+    expect(isAccessPointId("garage")).toBe(true);
+    expect(isAccessPointId("back-door")).toBe(true);
+    expect(isAccessPointId("unknown")).toBe(false);
+    expect(AccessPointId.FrontDoor).toBe("front-door");
+  });
+
+  it("keeps camera ids stable for the camera prototype", () => {
+    expect(isCameraId("entry-camera")).toBe(true);
+    expect(isCameraId("garden-camera")).toBe(true);
+    expect(isCameraId("unknown")).toBe(false);
+    expect(CameraId.Entry).toBe("entry-camera");
+  });
+
+  it("keeps climate modes stable for ArkTS controls", () => {
+    const modes: ClimateMode[] = ["heat", "cool", "auto", "off"];
+    expect(modes.every(isClimateMode)).toBe(true);
+  });
+}
+);
