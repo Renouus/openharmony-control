@@ -48,11 +48,13 @@ export struct SceneCapsuleRow {
             }, (scene: SceneChipState) => `${scene.id}_${scene.active}`)
           }
           .justifyContent(FlexAlign.Start)
+          .alignItems(VerticalAlign.Center)
           .padding({ left: 0, right: 20, top: 6, bottom: 16 })
         }
         .scrollable(ScrollDirection.Horizontal)
         .scrollBar(BarState.Off)
         .width('100%')
+        .align(Alignment.Start)
       } else {
         Column({ space: 10 }) {
           Row({ space: 10 }) {
