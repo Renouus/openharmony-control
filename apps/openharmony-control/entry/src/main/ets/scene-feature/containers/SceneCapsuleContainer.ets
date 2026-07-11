@@ -8,10 +8,16 @@ import { SceneCapsuleRow } from '../components/SceneCapsuleRow';
 import { openSceneCreate, openSceneList, runScene } from '../services/scene-actions';
 import { SceneRunGuard } from '../services/scene-run-guard';
 
+const EMPTY_SCENE_CONTEXT: SceneContext = {
+  surface: 'capsule',
+  scope: 'global',
+  mode: 'browse',
+};
+
 @Component
 export struct SceneCapsuleContainer {
   @ObjectLink appState: AppStateSnapshot;
-  context: SceneContext = { surface: 'capsule', scope: 'global', mode: 'browse' };
+  @Prop context: SceneContext = EMPTY_SCENE_CONTEXT;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
   private runGuard: SceneRunGuard = new SceneRunGuard();
@@ -32,7 +38,6 @@ export struct SceneCapsuleContainer {
         openSceneList(this.navStack, this.context);
       },
       onCreate: () => {
-        console.info('DEBUG: SceneCapsuleContainer.onCreate context is: ' + JSON.stringify(this.context));
         openSceneCreate(this.navStack, this.context);
       },
     })

@@ -295,14 +295,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async listPersistedScenes(): Promise<PersistedScene[]> {
     const store = DatabaseHelper.getInstance().getStore();
-    try {
-      const remoteScenes = await this.api.listScenes();
-      await this.sceneDao.replaceAll(store, remoteScenes.map((scene: PersistedSceneSnapshot) => this.toSceneSyncItem(scene)));
-      return await this.sceneDao.getVisibleScenes(store);
-    } catch (error) {
-      console.error('Failed to refresh scenes from API:', error);
-      return await this.sceneDao.getVisibleScenes(store);
-    }
+    return await this.sceneDao.getVisibleScenes(store);
   }
 
   async listAutomations(): Promise<AutomationSnapshot[]> {

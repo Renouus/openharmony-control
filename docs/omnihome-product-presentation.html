@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OmniHome 智能家居控制系统 | 产品方案介绍</title>
+    <style>
+      :root {
+        --bg: #07111f;
+        --bg-soft: #0d1a2d;
+        --panel: rgba(13, 25, 45, 0.78);
+        --panel-strong: rgba(9, 20, 37, 0.92);
+        --line: rgba(121, 178, 255, 0.2);
+        --line-strong: rgba(121, 178, 255, 0.42);
+        --text: #eef6ff;
+        --muted: #95a9c6;
+        --accent: #77d4ff;
+        --accent-2: #77ffcc;
+        --accent-3: #7f8dff;
+        --warning: #ffd166;
+        --danger: #ff8899;
+        --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+        --radius-xl: 30px;
+        --radius-lg: 22px;
+        --radius-md: 16px;
+        --content-width: 1180px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(91, 168, 255, 0.22), transparent 32%),
+          radial-gradient(circle at 85% 12%, rgba(81, 255, 191, 0.16), transparent 28%),
+          radial-gradient(circle at 50% 120%, rgba(125, 102, 255, 0.2), transparent 38%),
+          linear-gradient(180deg, #08121f 0%, #07111f 35%, #06101d 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size: 56px 56px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.08));
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      .progress {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 60;
+        width: 100%;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .progress > span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+        box-shadow: 0 0 24px rgba(119, 212, 255, 0.75);
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(18px);
+        background: rgba(6, 12, 24, 0.72);
+        border-bottom: 1px solid rgba(130, 187, 255, 0.12);
+      }
+
+      .topbar-inner,
+      .section-inner,
+      .hero-inner,
+      .footer-inner {
+        width: min(var(--content-width), calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .topbar-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 18px 0;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background:
+          linear-gradient(145deg, rgba(119, 212, 255, 0.22), rgba(127, 141, 255, 0.18)),
+          rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(119, 212, 255, 0.34);
+        box-shadow: inset 0 0 24px rgba(119, 212, 255, 0.2);
+        position: relative;
+      }
+
+      .brand-mark::before,
+      .brand-mark::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+      }
+
+      .brand-mark::before {
+        inset: 9px 10px 19px 10px;
+        border: 2px solid rgba(119, 212, 255, 0.9);
+      }
+
+      .brand-mark::after {
+        width: 10px;
+        height: 10px;
+        right: 8px;
+        bottom: 8px;
+        background: var(--accent-2);
+        box-shadow: 0 0 18px rgba(119, 255, 204, 0.88);
+      }
+
+      .brand-text strong {
+        display: block;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .brand-text span {
+        display: block;
+        margin-top: 2px;
+        font-size: 0.84rem;
+        color: var(--muted);
+      }
+
+      .nav {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .nav a {
+        padding: 10px 14px;
+        font-size: 0.92rem;
+        color: var(--muted);
+        border-radius: 999px;
+        transition: 180ms ease;
+      }
+
+      .nav a:hover,
+      .nav a.active {
+        color: var(--text);
+        background: rgba(119, 212, 255, 0.12);
+        box-shadow: inset 0 0 0 1px rgba(119, 212, 255, 0.18);
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 90px 0 36px;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        right: -120px;
+        top: 30px;
+        width: 520px;
+        height: 520px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(119, 212, 255, 0.18), transparent 66%);
+        filter: blur(20px);
+        pointer-events: none;
+      }
+
+      .hero-inner {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        gap: 30px;
+        align-items: stretch;
+      }
+
+      .hero-copy,
+      .hero-visual,
+      .glass,
+      .section-card,
+      .metric,
+      .point-card,
+      .team-card,
+      .gallery-card,
+      .data-card,
+      .quote-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(16px);
+      }
+
+      .hero-copy {
+        border-radius: var(--radius-xl);
+        padding: 34px 34px 30px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        color: #dff7ff;
+        background: rgba(119, 212, 255, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(119, 212, 255, 0.18);
+        font-size: 0.88rem;
+        letter-spacing: 0.05em;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent-2);
+        box-shadow: 0 0 16px rgba(119, 255, 204, 0.8);
+      }
+
+      h1 {
+        margin: 22px 0 14px;
+        font-size: clamp(2.8rem, 6vw, 5.2rem);
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+
+      .hero-subtitle {
+        margin: 0;
+        color: #c9d9f0;
+        font-size: 1.16rem;
+        line-height: 1.9;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 18px;
+        border-radius: 999px;
+        font-size: 0.96rem;
+        font-weight: 600;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+      }
+
+      .button.primary {
+        color: #041220;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        box-shadow: 0 16px 36px rgba(84, 184, 255, 0.26);
+      }
+
+      .button.secondary {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 28px;
+      }
+
+      .hero-grid .metric {
+        padding: 18px 18px 16px;
+        border-radius: var(--radius-md);
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 1.9rem;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .metric span {
+        display: block;
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.65;
+      }
+
+      .hero-visual {
+        position: relative;
+        min-height: 630px;
+        border-radius: 36px;
+        overflow: hidden;
+        padding: 22px;
+      }
+
+      .hero-visual::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(3, 12, 24, 0.08), rgba(3, 12, 24, 0.62)),
+          radial-gradient(circle at 18% 18%, rgba(119, 212, 255, 0.28), transparent 22%),
+          radial-gradient(circle at 90% 8%, rgba(127, 141, 255, 0.22), transparent 20%);
+      }
+
+      .visual-screen {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        border-radius: 28px;
+        overflow: hidden;
+        border: 1px solid rgba(151, 203, 255, 0.2);
+        background: linear-gradient(180deg, rgba(8, 17, 31, 0.3), rgba(8, 17, 31, 0.8));
+      }
+
+      .visual-screen img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .floating-panel {
+        position: absolute;
+        z-index: 2;
+        border-radius: 18px;
+        padding: 16px 18px;
+        color: #ebf7ff;
+        background: rgba(7, 20, 37, 0.78);
+        border: 1px solid rgba(119, 212, 255, 0.18);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .floating-panel strong {
+        display: block;
+        font-size: 1.35rem;
+        margin-bottom: 8px;
+      }
+
+      .floating-panel span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.7;
+      }
+
+      .fp-left {
+        left: 22px;
+        bottom: 26px;
+        width: 220px;
+      }
+
+      .fp-right {
+        right: 22px;
+        top: 24px;
+        width: 210px;
+      }
+
+      section {
+        padding: 46px 0;
+      }
+
+      .section-header {
+        margin-bottom: 26px;
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 22px;
+      }
+
+      .section-label {
+        display: inline-block;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--accent);
+      }
+
+      .section-title {
+        margin: 10px 0 0;
+        font-size: clamp(2rem, 4vw, 3.25rem);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .section-desc {
+        max-width: 640px;
+        margin: 10px 0 0;
+        color: var(--muted);
+        line-height: 1.9;
+        font-size: 1rem;
+      }
+
+      .section-kicker {
+        max-width: 340px;
+        color: #d7e5fb;
+        line-height: 1.8;
+        font-size: 0.98rem;
+      }
+
+      .problem-grid,
+      .point-grid,
+      .team-grid,
+      .gallery-grid,
+      .data-grid,
+      .architecture-grid,
+      .solution-grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .problem-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .point-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .solution-grid {
+        grid-template-columns: 0.95fr 1.05fr;
+      }
+
+      .architecture-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .gallery-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .data-grid {
+        grid-template-columns: 1.08fr 0.92fr;
+      }
+
+      .team-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .section-card,
+      .point-card,
+      .gallery-card,
+      .data-card,
+      .team-card,
+      .quote-card {
+        border-radius: var(--radius-lg);
+      }
+
+      .section-card,
+      .point-card,
+      .team-card,
+      .quote-card,
+      .data-card {
+        padding: 24px;
+      }
+
+      .problem-index {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: rgba(119, 212, 255, 0.12);
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      h3 {
+        margin: 18px 0 10px;
+        font-size: 1.22rem;
+        letter-spacing: -0.02em;
+      }
+
+      p,
+      li {
+        color: var(--muted);
+        line-height: 1.85;
+      }
+
+      ul {
+        margin: 12px 0 0;
+        padding-left: 18px;
+      }
+
+      .solution-map {
+        position: relative;
+        min-height: 460px;
+        overflow: hidden;
+      }
+
+      .solution-core {
+        position: absolute;
+        inset: 50% auto auto 50%;
+        transform: translate(-50%, -50%);
+        width: min(340px, 76%);
+        border-radius: 28px;
+        padding: 28px;
+        background:
+          linear-gradient(145deg, rgba(119, 212, 255, 0.16), rgba(127, 141, 255, 0.14)),
+          rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(119, 212, 255, 0.28);
+        box-shadow: 0 24px 52px rgba(0, 0, 0, 0.24);
+      }
+
+      .solution-core strong {
+        display: block;
+        font-size: 1.4rem;
+      }
+
+      .solution-node {
+        position: absolute;
+        width: 210px;
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(6, 16, 29, 0.9);
+        border: 1px solid rgba(119, 212, 255, 0.18);
+      }
+
+      .solution-node strong {
+        display: block;
+        font-size: 1rem;
+        margin-bottom: 6px;
+      }
+
+      .solution-node span {
+        color: var(--muted);
+        display: block;
+        font-size: 0.88rem;
+        line-height: 1.7;
+      }
+
+      .node-a { top: 26px; left: 24px; }
+      .node-b { top: 26px; right: 24px; }
+      .node-c { bottom: 26px; left: 24px; }
+      .node-d { bottom: 26px; right: 24px; }
+
+      .solution-line {
+        position: absolute;
+        background: linear-gradient(90deg, rgba(119, 212, 255, 0.22), rgba(119, 255, 204, 0.26));
+        box-shadow: 0 0 18px rgba(119, 212, 255, 0.12);
+      }
+
+      .line-1,
+      .line-2,
+      .line-3,
+      .line-4 {
+        height: 1px;
+        width: 180px;
+      }
+
+      .line-1 { top: 128px; left: 190px; transform: rotate(24deg); }
+      .line-2 { top: 128px; right: 190px; transform: rotate(-24deg); }
+      .line-3 { bottom: 128px; left: 190px; transform: rotate(-24deg); }
+      .line-4 { bottom: 128px; right: 190px; transform: rotate(24deg); }
+
+      .visual-frame {
+        overflow: hidden;
+        border-radius: 20px;
+        border: 1px solid rgba(151, 203, 255, 0.14);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .visual-frame img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .architecture-card .visual-frame {
+        margin-top: 16px;
+      }
+
+      .point-card {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .point-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -40px -40px auto;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(119, 212, 255, 0.12), transparent 70%);
+      }
+
+      .point-tag {
+        display: inline-flex;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        letter-spacing: 0.06em;
+        color: #d9f8ff;
+        background: rgba(119, 212, 255, 0.1);
+      }
+
+      .gallery-card {
+        overflow: hidden;
+      }
+
+      .gallery-card img {
+        width: 100%;
+        aspect-ratio: 16 / 11;
+        object-fit: cover;
+        border-bottom: 1px solid rgba(151, 203, 255, 0.12);
+      }
+
+      .gallery-card .copy {
+        padding: 18px 18px 20px;
+      }
+
+      .gallery-card h3 {
+        margin-top: 0;
+      }
+
+      .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .data-stat {
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(151, 203, 255, 0.12);
+      }
+
+      .data-stat strong {
+        display: block;
+        font-size: 2rem;
+        letter-spacing: -0.04em;
+      }
+
+      .data-stat span {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .timeline-item {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 16px;
+        align-items: start;
+        padding: 14px 0;
+        border-top: 1px solid rgba(151, 203, 255, 0.08);
+      }
+
+      .timeline-item:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .timeline-item strong {
+        color: var(--accent);
+      }
+
+      .status-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(151, 203, 255, 0.1);
+      }
+
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+      }
+
+      .ok { background: var(--accent-2); box-shadow: 0 0 16px rgba(119, 255, 204, 0.65); }
+      .warn { background: var(--warning); box-shadow: 0 0 16px rgba(255, 209, 102, 0.45); }
+      .risk { background: var(--danger); box-shadow: 0 0 16px rgba(255, 136, 153, 0.45); }
+
+      .team-role {
+        color: var(--accent);
+        font-size: 0.84rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .team-card h3 {
+        margin-bottom: 8px;
+      }
+
+      .quote-card {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 24px;
+        align-items: center;
+      }
+
+      .quote-card strong {
+        display: block;
+        font-size: clamp(1.8rem, 4vw, 2.8rem);
+        line-height: 1.18;
+        letter-spacing: -0.04em;
+      }
+
+      .quote-card .pill-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .quote-card .pill {
+        padding: 10px 14px;
+        border-radius: 999px;
+        color: #d8ebff;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(151, 203, 255, 0.12);
+        font-size: 0.9rem;
+      }
+
+      .footer {
+        padding: 28px 0 52px;
+      }
+
+      .footer-inner {
+        color: var(--muted);
+        font-size: 0.92rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(22px);
+        transition: opacity 500ms ease, transform 500ms ease;
+      }
+
+      .reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (max-width: 1080px) {
+        .hero-inner,
+        .solution-grid,
+        .data-grid,
+        .quote-card {
+          grid-template-columns: 1fr;
+        }
+
+        .problem-grid,
+        .team-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .gallery-grid,
+        .architecture-grid,
+        .point-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-visual {
+          min-height: 520px;
+        }
+
+        .line-1,
+        .line-2,
+        .line-3,
+        .line-4 {
+          display: none;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .topbar-inner {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .nav {
+          justify-content: flex-start;
+        }
+
+        .hero {
+          padding-top: 56px;
+        }
+
+        .hero-copy,
+        .hero-visual,
+        .section-card,
+        .point-card,
+        .team-card,
+        .data-card,
+        .quote-card {
+          padding: 20px;
+        }
+
+        .hero-grid,
+        .metric-strip,
+        .problem-grid,
+        .team-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .timeline-item {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+
+        .section-header {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .hero-visual {
+          min-height: 430px;
+        }
+
+        .fp-left,
+        .fp-right {
+          position: static;
+          width: auto;
+          margin-top: 14px;
+        }
+
+        .solution-map {
+          min-height: auto;
+          display: grid;
+          gap: 14px;
+        }
+
+        .solution-core,
+        .solution-node {
+          position: static;
+          transform: none;
+          width: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="progress"><span id="progressBar"></span></div>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-text">
+            <strong>OmniHome</strong>
+            <span>智能家居控制系统产品方案介绍</span>
+          </div>
+        </div>
+        <nav class="nav" id="nav">
+          <a href="#hero">首页</a>
+          <a href="#scenarios">需求场景</a>
+          <a href="#solution">整体方案</a>
+          <a href="#architecture">架构设计</a>
+          <a href="#innovation">技术亮点</a>
+          <a href="#effects">实现效果</a>
+          <a href="#testing">测试验证</a>
+          <a href="#team">团队介绍</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="hero">
+        <div class="hero-inner">
+          <div class="hero-copy reveal">
+            <div class="eyebrow">OpenHarmony 智能家居产品路演</div>
+            <h1>让家庭设备从“可连接”走向“可统一控制”</h1>
+            <p class="hero-subtitle">
+              OmniHome 以 OpenHarmony 客户端为统一交互入口，以 Fastify 控制中心为业务中枢，
+              通过共享契约、增量同步与实时推送能力，构建一套可演示、可验证、可演进的智能家居控制系统方案。
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#solution">查看整体方案</a>
+              <a class="button secondary" href="#effects">查看实现效果</a>
+            </div>
+            <div class="hero-grid">
+              <div class="metric">
+                <strong>49</strong>
+                <span>自动化测试通过数，覆盖契约、控制、门禁、摄像头、气候与安全链路。</span>
+              </div>
+              <div class="metric">
+                <strong>7</strong>
+                <span>核心设计图谱，包括上下文图、架构图、DFD、时序图、ER 图与部署图。</span>
+              </div>
+              <div class="metric">
+                <strong>9</strong>
+                <span>面向家庭智能控制的关键能力域，覆盖总览、门禁、场景、通知与环境调节。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-visual reveal">
+            <div class="visual-screen">
+              <img src="../stitch-dashboard.png" alt="OmniHome 首页总览预览" />
+            </div>
+            <div class="floating-panel fp-right">
+              <strong>统一入口</strong>
+              <span>首页总览、门禁、气候、通知与自动化在同一控制中枢内协同运行。</span>
+            </div>
+            <div class="floating-panel fp-left">
+              <strong>实时回显</strong>
+              <span>命令执行、状态同步、事件广播与历史留痕构成闭环展示能力。</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scenarios">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Needs & Scenarios</span>
+              <h2 class="section-title">需求场景分析</h2>
+              <p class="section-desc">
+                在真实家庭场景中，用户并不缺设备，而是缺少一个统一、可靠、可联动的控制入口。
+                OmniHome 关注的不只是“连上设备”，而是让状态、命令和反馈形成完整体验。
+              </p>
+            </div>
+            <div class="section-kicker">
+              面向课程答辩与原型展示，我们将核心问题拆解为入口统一、状态感知、联动执行和家庭协同四类场景。
+            </div>
+          </div>
+
+          <div class="problem-grid">
+            <article class="section-card reveal">
+              <div class="problem-index">01</div>
+              <h3>设备入口分散</h3>
+              <p>灯光、门锁、摄像头和空调往往来自不同入口，用户需要频繁切换页面甚至切换应用。</p>
+            </article>
+            <article class="section-card reveal">
+              <div class="problem-index">02</div>
+              <h3>状态信息割裂</h3>
+              <p>单个页面能看到局部状态，但无法快速判断全屋设备、环境与风险提示的整体态势。</p>
+            </article>
+            <article class="section-card reveal">
+              <div class="problem-index">03</div>
+              <h3>控制反馈滞后</h3>
+              <p>只完成按钮请求远远不够，系统还需要处理验签、执行、回写、广播与历史留痕。</p>
+            </article>
+            <article class="section-card reveal">
+              <div class="problem-index">04</div>
+              <h3>联动能力薄弱</h3>
+              <p>家庭场景真正需要的是场景与自动化，而不是用户重复点击多个设备来完成一次动作组合。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="solution">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Product Solution</span>
+              <h2 class="section-title">产品整体方案设计</h2>
+              <p class="section-desc">
+                整体方案围绕“一个客户端入口、一个业务控制中枢、一套统一契约、一条可靠状态闭环”展开，
+                让展示、控制、同步与扩展拥有清晰结构边界。
+              </p>
+            </div>
+          </div>
+
+          <div class="solution-grid">
+            <article class="section-card reveal">
+              <h3>方案主线</h3>
+              <p>
+                OmniHome 采用 OpenHarmony 客户端 + Fastify 控制中心 + 共享契约层 + SQLite / 设备适配层的组合方案。
+                它既保留了原型开发的轻量与可验证性，也为后续替换真实 IoT 设备网关与数据服务保留了工程化扩展空间。
+              </p>
+              <ul>
+                <li>OpenHarmony 客户端承载统一交互入口与本地视图状态。</li>
+                <li>控制中心服务负责命令执行、场景调度、历史记录和事件广播。</li>
+                <li>共享契约层统一设备模型、命令结构与安全信封。</li>
+                <li>SQLite 与设备适配层负责状态来源、持久化与版本同步支撑。</li>
+              </ul>
+            </article>
+
+            <article class="section-card solution-map reveal">
+              <div class="solution-core">
+                <strong>OmniHome 控制中枢</strong>
+                <p>通过统一交互入口整合设备状态读取、命令执行、场景联动、家庭通知与系统演示能力。</p>
+              </div>
+              <div class="solution-node node-a">
+                <strong>OpenHarmony 客户端</strong>
+                <span>总览、门禁、灯光、气候、通知与家庭协同页面。</span>
+              </div>
+              <div class="solution-node node-b">
+                <strong>Fastify 控制中心</strong>
+                <span>设备路由、场景规则、命令签名、历史追踪与 WebSocket 广播。</span>
+              </div>
+              <div class="solution-node node-c">
+                <strong>共享契约层</strong>
+                <span>统一定义设备模型、命令结构、场景定义与安全信封。</span>
+              </div>
+              <div class="solution-node node-d">
+                <strong>SQLite / 适配层</strong>
+                <span>业务数据、版本元数据、模拟设备状态与后续真实适配接口。</span>
+              </div>
+              <span class="solution-line line-1"></span>
+              <span class="solution-line line-2"></span>
+              <span class="solution-line line-3"></span>
+              <span class="solution-line line-4"></span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Architecture</span>
+              <h2 class="section-title">整体方案设计架构</h2>
+              <p class="section-desc">
+                架构层面不仅要说明“系统有哪些模块”，更要说明“数据如何流动、命令如何闭环、状态如何同步、能力如何扩展”。
+              </p>
+            </div>
+          </div>
+
+          <div class="architecture-grid">
+            <article class="section-card architecture-card reveal">
+              <h3>系统上下文图</h3>
+              <p>从用户、客户端、控制中心到设备与数据基础设施，明确系统边界与交互对象。</p>
+              <div class="visual-frame">
+                <img src="generated_design_assets/context.png" alt="系统上下文图" />
+              </div>
+            </article>
+
+            <article class="section-card architecture-card reveal">
+              <h3>系统总体架构图</h3>
+              <p>展示表现层、应用服务层、共享契约层与数据设备层之间的分层协作关系。</p>
+              <div class="visual-frame">
+                <img src="generated_design_assets/architecture.png" alt="系统总体架构图" />
+              </div>
+            </article>
+
+            <article class="section-card architecture-card reveal">
+              <h3>DFD 0 层数据流图</h3>
+              <p>说明家庭用户、系统核心过程、业务数据库和设备状态源之间的输入、输出和状态交换。</p>
+              <div class="visual-frame">
+                <img src="generated_design_assets/dataflow.png" alt="DFD 0 层数据流图" />
+              </div>
+            </article>
+
+            <article class="section-card architecture-card reveal">
+              <h3>核心控制链路时序图</h3>
+              <p>展示控制请求从前端发起到服务验签、设备执行、数据库写入与前端回显的完整时序过程。</p>
+              <div class="visual-frame">
+                <img src="generated_design_assets/sequence.png" alt="核心控制链路时序图" />
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="innovation">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Technology & Innovation</span>
+              <h2 class="section-title">技术与创新要点</h2>
+              <p class="section-desc">
+                我们没有把系统做成单纯的静态页面拼装，而是把共享模型、安全命令链路、增量同步与实时广播纳入统一设计主线。
+              </p>
+            </div>
+          </div>
+
+          <div class="point-grid">
+            <article class="point-card reveal">
+              <span class="point-tag">Shared Contract</span>
+              <h3>共享契约驱动前后端一致性</h3>
+              <p>将设备描述、增强快照、命令结构、场景定义与安全信封集中到共享契约包，降低接口演化带来的联调成本。</p>
+            </article>
+            <article class="point-card reveal">
+              <span class="point-tag">Secure Command Flow</span>
+              <h3>签名命令链路保障控制安全</h3>
+              <p>控制请求采用“先签名、后执行”的双阶段模式，并结合 nonce 与时间窗口重放保护，适用于门锁等高敏感设备控制。</p>
+            </article>
+            <article class="point-card reveal">
+              <span class="point-tag">Incremental Sync</span>
+              <h3>版本驱动的增量同步机制</h3>
+              <p>依托 metadata.global_version 与实体 version 字段，前端仅拉取变化数据，避免全量刷新造成的状态不一致与开销浪费。</p>
+            </article>
+            <article class="point-card reveal">
+              <span class="point-tag">Real-time Feedback</span>
+              <h3>WebSocket 实时事件回推</h3>
+              <p>设备变化、场景执行与异常演示通过 WebSocket 主动广播，使控制结果和状态变化能以接近实时的方式回显到界面。</p>
+            </article>
+            <article class="point-card reveal">
+              <span class="point-tag">Replaceable Adapter</span>
+              <h3>设备适配层可替换设计</h3>
+              <p>当前采用模拟设备形成完整演示闭环，未来可平滑替换为真实 IoT 网关或驱动适配层，而不破坏上层交互结构。</p>
+            </article>
+            <article class="point-card reveal">
+              <span class="point-tag">Demonstrable System</span>
+              <h3>异常演示能力纳入正式方案</h3>
+              <p>离线故障、环境调整与授权拒绝不再是临时调试入口，而是产品演示和答辩展示的重要组成部分。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="effects">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Implementation Effects</span>
+              <h2 class="section-title">产品实现效果展示</h2>
+              <p class="section-desc">
+                目前系统已经具备较完整的原型效果，覆盖首页总览、门禁控制、灯光管理、气候调节、自动化场景与家庭动态等关键页面。
+              </p>
+            </div>
+          </div>
+
+          <div class="gallery-grid">
+            <article class="gallery-card reveal">
+              <img src="../stitch-dashboard.png" alt="首页总览页面" />
+              <div class="copy">
+                <h3>首页总览</h3>
+                <p>集中展示在线设备、环境数据、健康提示和多个控制入口，是用户进入系统后的主页面。</p>
+              </div>
+            </article>
+            <article class="gallery-card reveal">
+              <img src="../stitch-access.png" alt="门禁控制页面" />
+              <div class="copy">
+                <h3>门禁与访客授权</h3>
+                <p>展示主门锁状态、访客权限和其他入口点信息，强化家庭出入与安防场景表达。</p>
+              </div>
+            </article>
+            <article class="gallery-card reveal">
+              <img src="../stitch-lighting.png" alt="灯光控制页面" />
+              <div class="copy">
+                <h3>灯光控制中心</h3>
+                <p>覆盖灯光开关、亮度和色温控制，适合展示命令执行与状态回写的核心交互链路。</p>
+              </div>
+            </article>
+            <article class="gallery-card reveal">
+              <img src="../stitch-hvac.png" alt="气候调节页面" />
+              <div class="copy">
+                <h3>气候与环境调节</h3>
+                <p>展示温湿度、AQI、目标温度和运行模式，体现对连续型设备状态的建模能力。</p>
+              </div>
+            </article>
+            <article class="gallery-card reveal">
+              <img src="../stitch-automation.png" alt="自动化页面" />
+              <div class="copy">
+                <h3>场景与自动化</h3>
+                <p>支持预设场景、规则启停与联动配置，突出系统从单设备控制向家庭智能联动的升级。</p>
+              </div>
+            </article>
+            <article class="gallery-card reveal">
+              <img src="../stitch-family.png" alt="家庭动态页面" />
+              <div class="copy">
+                <h3>家庭与通知</h3>
+                <p>展示家庭成员动态、广播消息和活动记录，让系统具备协同与留痕能力。</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="testing">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Validation</span>
+              <h2 class="section-title">产品实现效果与测试数据</h2>
+              <p class="section-desc">
+                当前验证重点落在共享契约、控制中心服务和接口链路的自动化质量保障上，
+                同时对 OpenHarmony 端的交互流程和展示效果完成了原型层面的联调支撑。
+              </p>
+            </div>
+          </div>
+
+          <div class="data-grid">
+            <article class="data-card reveal">
+              <h3>自动化测试结果</h3>
+              <div class="metric-strip">
+                <div class="data-stat">
+                  <strong>49</strong>
+                  <span>通过测试总数</span>
+                </div>
+                <div class="data-stat">
+                  <strong>9</strong>
+                  <span>契约测试</span>
+                </div>
+                <div class="data-stat">
+                  <strong>40</strong>
+                  <span>服务测试</span>
+                </div>
+              </div>
+
+              <div class="timeline">
+                <div class="timeline-item">
+                  <strong>Contract</strong>
+                  <p>验证 access、camera、climate 等共享契约与设备快照结构的稳定性。</p>
+                </div>
+                <div class="timeline-item">
+                  <strong>Command</strong>
+                  <p>验证门锁开关、灯光控制、签名命令执行、历史记录写入与未授权请求拒绝。</p>
+                </div>
+                <div class="timeline-item">
+                  <strong>Scenario</strong>
+                  <p>验证门禁、摄像头、家庭广播、气候控制、环境故障演示等核心业务接口。</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="data-card reveal">
+              <h3>当前验证结论</h3>
+              <div class="status-list">
+                <div class="status-item">
+                  <span class="status-dot ok"></span>
+                  <div>
+                    <strong>TypeScript 类型检查通过</strong>
+                    <p>共享契约包与控制中心服务在 `npm.cmd run typecheck` 下通过校验。</p>
+                  </div>
+                </div>
+                <div class="status-item">
+                  <span class="status-dot ok"></span>
+                  <div>
+                    <strong>控制链路与安全拒绝可验证</strong>
+                    <p>签名命令、故障离线与 `COMMAND_UNAUTHORIZED` 场景具备自动化覆盖。</p>
+                  </div>
+                </div>
+                <div class="status-item">
+                  <span class="status-dot warn"></span>
+                  <div>
+                    <strong>HAP 打包仍受本地 SDK 环境影响</strong>
+                    <p>当前文档仅对源码、接口和原型能力做可信验证，不把 DevEco 打包问题描述为功能缺陷。</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="team">
+        <div class="section-inner">
+          <div class="section-header reveal">
+            <div>
+              <span class="section-label">Team</span>
+              <h2 class="section-title">团队介绍</h2>
+              <p class="section-desc">
+                该项目以“产品方案 + 客户端交互 + 控制中心服务 + 测试与演示验证”的协同方式推进，
+                各角色共同支撑从方案定义到效果展示的完整交付。
+              </p>
+            </div>
+          </div>
+
+          <div class="team-grid">
+            <article class="team-card reveal">
+              <span class="team-role">Product</span>
+              <h3>产品策划</h3>
+              <p>负责需求场景拆解、方案结构定义、展示主线设计与演示逻辑组织。</p>
+            </article>
+            <article class="team-card reveal">
+              <span class="team-role">OpenHarmony</span>
+              <h3>客户端开发</h3>
+              <p>负责 ArkTS 页面、交互流程、页面状态组织与多场景原型效果实现。</p>
+            </article>
+            <article class="team-card reveal">
+              <span class="team-role">Backend</span>
+              <h3>后端与数据</h3>
+              <p>负责 Fastify 控制中心、共享契约、命令安全、数据同步与持久化结构设计。</p>
+            </article>
+            <article class="team-card reveal">
+              <span class="team-role">QA & Demo</span>
+              <h3>测试与演示</h3>
+              <p>负责自动化测试、演示故障注入、效果验证、文档整理与答辩展示支撑。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-inner">
+          <div class="quote-card reveal">
+            <div>
+              <span class="section-label">Conclusion</span>
+              <strong>OmniHome 不只是一个原型界面，而是一套具备产品逻辑、架构逻辑与验证逻辑的智能家居方案。</strong>
+              <div class="pill-list">
+                <span class="pill">统一控制入口</span>
+                <span class="pill">安全命令链路</span>
+                <span class="pill">实时状态回显</span>
+                <span class="pill">场景自动化扩展</span>
+              </div>
+            </div>
+            <div>
+              <p>
+                面向课程汇报与产品方案展示，OmniHome 已形成从需求场景、整体架构、实现效果到测试验证的完整叙事闭环。
+                未来可继续沿真实设备接入、规则引擎增强、身份权限控制和云边协同方向演进。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <span>OmniHome 智能家居控制系统 · HTML 产品方案介绍页</span>
+        <span>资料来源：architecture.md / test-report.md / user-guide.md / generated_design_assets / stitch 原型截图</span>
+      </div>
+    </footer>
+
+    <script>
+      const progressBar = document.getElementById("progressBar");
+      const navLinks = Array.from(document.querySelectorAll("#nav a"));
+      const sections = navLinks
+        .map((link) => document.querySelector(link.getAttribute("href")))
+        .filter(Boolean);
+
+      const updateProgress = () => {
+        const scrollTop = window.scrollY;
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        const ratio = maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
+        progressBar.style.width = ratio + "%";
+      };
+
+      const updateActiveLink = () => {
+        let currentId = sections[0]?.id;
+        sections.forEach((section) => {
+          const rect = section.getBoundingClientRect();
+          if (rect.top <= 140) {
+            currentId = section.id;
+          }
+        });
+        navLinks.forEach((link) => {
+          const active = link.getAttribute("href") === "#" + currentId;
+          link.classList.toggle("active", active);
+        });
+      };
+
+      const revealObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.16 }
+      );
+
+      document.querySelectorAll(".reveal").forEach((el) => revealObserver.observe(el));
+
+      window.addEventListener("scroll", () => {
+        updateProgress();
+        updateActiveLink();
+      });
+      window.addEventListener("resize", updateProgress);
+
+      updateProgress();
+      updateActiveLink();
+    </script>
+  </body>
+</html>
