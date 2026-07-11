@@ -8,7 +8,7 @@ import {
   SceneEditorContext,
   sceneEditorEditingSceneId
 } from '../model/page-view-state';
-import { isSubPageId } from '../model/index-page-state';
+import { isSubPageId, SubPageHistory, SubPageRoute } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
@@ -66,6 +66,7 @@ struct Index {
   @State currentTab: number = 0;
   @State currentSubPage: string = '';   // 子页面标识（空字符串 = 不在子页面）
   @State subPageParam: Object | null = null;
+  private subPageHistory: SubPageHistory = new SubPageHistory();
   @State isLoading: boolean = false;
   @State isRefreshing: boolean = false;
   @State isHeaderMenuOpen: boolean = false;
@@ -107,18 +108,29 @@ struct Index {
 
   private pushSubPage(page: AppPageId | string, param: Object | null = null): void {
     this.closeTransientUi();
+    if (this.currentSubPage.length > 0) {
+      this.subPageHistory.push(this.currentSubPage, this.subPageParam);
+    }
     this.currentSubPage = page;
     this.subPageParam = param;
   }
 
   private popSubPage(): void {
+    const previous: SubPageRoute | undefined = this.subPageHistory.pop();
+    if (previous !== undefined) {
+      this.currentSubPage = previous.page;
+      this.subPageParam = previous.param;
+      return;
+    }
     this.currentSubPage = '';
     this.subPageParam = null;
   }
 
   private setTabPage(page: AppPageId): void {
     this.closeTransientUi();
-    this.popSubPage();
+    this.subPageHistory.clear();
+    this.currentSubPage = '';
+    this.subPageParam = null;
     animateTo({ duration: 300, curve: Curve.Friction }, () => {
       this.currentTab = tabIndexForPage(page);
     });

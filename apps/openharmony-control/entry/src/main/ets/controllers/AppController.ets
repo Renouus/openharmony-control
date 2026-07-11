@@ -87,6 +87,10 @@ export class AppController {
   // ── Refresh helpers (return plain data; AppStateSnapshot.assign*() applies it) ──
 
   async refreshAll(snapshot: AppStateSnapshot, feedback: string = ''): Promise<void> {
+    // A first request can legitimately fall back to an empty local database
+    // while networking or startup sync is still becoming ready. Full refreshes
+    // must retry the backend instead of permanently trusting that empty cache.
+    await this.sceneStore.refresh(this.repository);
     snapshot.assignHome(await this.fetchHome(feedback));
     snapshot.assignLighting(await this.fetchLighting(feedback));
     snapshot.assignAccess(await this.fetchAccess(feedback));

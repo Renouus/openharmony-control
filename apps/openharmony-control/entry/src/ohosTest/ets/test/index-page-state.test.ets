@@ -6,6 +6,7 @@ import {
   createRefreshPlan,
   navigateToPage,
   navigateBack,
+  SubPageHistory,
 } from '../../../main/ets/model/index-page-state';
 import { createDeviceEditorRoute } from '../../../main/ets/model/page-view-state';
 
@@ -34,6 +35,17 @@ export default function indexPageStateTest() {
 
       expect(backState.activePage).assertEqual('access');
       expect(backState.currentTab).assertEqual(0);
+    });
+
+    it('restores the previous subpage parameter when navigating back', () => {
+      const history = new SubPageHistory();
+      history.push('room', 'bedroom-1');
+
+      const previous = history.pop();
+
+      expect(previous?.page).assertEqual('room');
+      expect(previous?.param as string).assertEqual('bedroom-1');
+      expect(history.size()).assertEqual(0);
     });
 
     it('refreshes home together with lighting after lighting detail edits', () => {
