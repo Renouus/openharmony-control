@@ -6,6 +6,7 @@ import { mapSceneCapsuleState } from '../model/scene-mappers';
 import { SceneCapsuleState } from '../model/scene-view-state';
 import { SceneCapsuleRow } from '../components/SceneCapsuleRow';
 import { openSceneCreate, openSceneList, runScene } from '../services/scene-actions';
+import { SceneRunGuard } from '../services/scene-run-guard';
 
 const EMPTY_SCENE_CONTEXT: SceneContext = {
   surface: 'capsule',
@@ -19,6 +20,7 @@ export struct SceneCapsuleContainer {
   @Prop context: SceneContext = EMPTY_SCENE_CONTEXT;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
+  private runGuard: SceneRunGuard = new SceneRunGuard();
 
   private capsuleState(): SceneCapsuleState {
     return mapSceneCapsuleState(this.appState, this.context, this.appState.sceneSource);
@@ -28,7 +30,9 @@ export struct SceneCapsuleContainer {
     SceneCapsuleRow({
       capsule: this.capsuleState(),
       onItemTap: (sceneId: string) => {
-        runScene(this.controller, this.appState, sceneId);
+        this.runGuard.run(async () => {
+          await runScene(this.controller, this.appState, sceneId);
+        });
       },
       onViewMore: () => {
         openSceneList(this.navStack, this.context);
