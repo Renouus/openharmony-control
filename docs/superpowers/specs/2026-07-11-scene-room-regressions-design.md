@@ -25,6 +25,9 @@ Keep the root capsule column start-aligned and the outer horizontal Scroll at fu
 
 - Include `roomId: row.room_id ?? undefined` in backend scene sync records.
 - Add a backend regression test proving room ownership survives `/api/sync`.
+- Upgrade the app-local schema to version 7 and add `room_id` to the `scenes` table for both fresh installs and upgrades.
+- Preserve `roomId` through `DomainEventAdapter`, `SceneEventPayload`, and `SceneDao` result/value mapping.
+- Add app-side regression coverage proving a room-scoped sync payload remains room-scoped after adaptation and local persistence mapping.
 - After a successful scene run, use a forced full device/state synchronization so frontend state is not dependent on an outdated incremental cursor.
 - Keep the existing single-flight tap guard to prevent overlapping executions.
 
@@ -38,11 +41,13 @@ Keep the root capsule column start-aligned and the outer horizontal Scroll at fu
 
 - A failed scene execution must not mark the scene active.
 - A failed post-run synchronization reports existing repository feedback and does not remove scene ownership.
+- A schema upgrade preserves existing scene rows; existing rows receive a null `room_id` until the next full backend sync restores authoritative ownership.
 - A transient initial room fetch does not replace valid room state with empty arrays.
 
 ## Tests and Verification
 
 - Extend backend sync tests to assert room-scoped scenes include `roomId`.
+- Extend app sync adapter/DAO tests to assert `roomId` survives every local boundary.
 - Add or extend pure mapper/controller tests for initial room-state preservation where supported.
 - Compile ArkTS regression tests covering the capsule and room loading helpers.
 - Run targeted backend sync tests, root `npm.cmd test`, root typecheck, app `UnitTestBuild`, and `PreviewBuild` when the preview environment permits it.
