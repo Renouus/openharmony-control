@@ -24,6 +24,7 @@ type SceneSyncRow = {
   icon: string | null;
   description: string | null;
   enabled: number;
+  room_id: string | null;
   created_at: number;
   updated_at: number;
   sort_order: number;
