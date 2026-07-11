@@ -1,7 +1,8 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { HomeDeviceCardState, HomeViewState } from '../model/page-view-state';
+import { DevicePanelState, HomeDeviceCardState, HomeViewState } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
+import { DeviceNoteBanner } from '../components/DeviceNoteBanner';
 import {
   COLOR_PRIMARY,
   COLOR_ON_SURFACE,
@@ -10,7 +11,6 @@ import {
   COLOR_SURFACE_CONTAINER_HIGH,
   COLOR_OUTLINE_VARIANT,
   COLOR_ON_PRIMARY,
-  COLOR_TEXT_MUTED,
 } from '../theme/smart-home-theme';
 
 @Component
@@ -21,9 +21,6 @@ export struct LightControlView {
   @Consume('controller') controller: AppController;
 
   @State colorTemp: number = 4000;
-  @State isRenameSheetOpen: boolean = false;
-  @State renameDraft: string = '';
-  @State isRenameSubmitting: boolean = false;
 
   private getDevice(): HomeDeviceCardState | undefined {
     for (const room of this.home.rooms) {
@@ -35,9 +32,8 @@ export struct LightControlView {
     return undefined;
   }
 
-  private openRenameSheet(): void {
-    this.renameDraft = this.getDevice()?.name ?? '';
-    this.isRenameSheetOpen = true;
+  private getDevicePanel(): DevicePanelState | undefined {
+    return this.appState.home.devices.find((device: DevicePanelState) => device.id === this.deviceId);
   }
 
   private getGradientColor(): string {
@@ -79,32 +75,11 @@ export struct LightControlView {
 
           Column({ space: 32 }) {
             Column({ space: 8 }) {
-              Row({ space: 12 }) {
-                Text(this.getDevice()?.name ?? '')
-                  .fontSize(28)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(COLOR_ON_SURFACE)
-                  .layoutWeight(1)
-
-                Button() {
-                  AppSymbol({ name: 'edit', glyphSize: 18, color: COLOR_ON_SURFACE })
-                }
-                .width(40)
-                .height(40)
-                .padding(0)
-                .borderRadius(20)
-                .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-                .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '40' })
-                .onClick(() => {
-                  this.openRenameSheet();
-                })
-                .bindSheet($$this.isRenameSheetOpen, this.RenameSheetBuilder(), {
-                  height: 320,
-                  dragBar: true,
-                  backgroundColor: COLOR_SURFACE_CONTAINER_HIGH,
-                })
-              }
-              .width('100%')
+              Text(this.getDevice()?.name ?? '')
+                .fontSize(28)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(COLOR_ON_SURFACE)
+                .width('100%')
 
               Text(this.getDevice()?.statusLabel ?? '')
                 .fontSize(14)
@@ -112,6 +87,8 @@ export struct LightControlView {
             }
             .alignItems(HorizontalAlign.Start)
             .margin({ top: 16 })
+
+            DeviceNoteBanner({ note: this.getDevicePanel()?.note ?? '' })
 
             Stack() {
               DataPanel({
@@ -249,81 +226,6 @@ export struct LightControlView {
       }
     }
     .width('100%')
-  }
-
-  @Builder
-  private RenameSheetBuilder() {
-    Column({ space: 22 }) {
-      Row()
-        .width(48)
-        .height(5)
-        .borderRadius(3)
-        .backgroundColor(COLOR_OUTLINE_VARIANT)
-        .margin({ top: 6 })
-
-      Row() {
-        Text('Edit device name')
-          .fontSize(28)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_SURFACE)
-          .fontFamily('serif')
-          .layoutWeight(1)
-
-        Button('Close')
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_TEXT_MUTED)
-          .backgroundColor('#00000000')
-          .padding({ left: 0, right: 0 })
-          .height(32)
-          .onClick(() => {
-            this.isRenameSheetOpen = false;
-          })
-      }
-      .width('100%')
-
-      Column({ space: 14 }) {
-        Text('Device name')
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(COLOR_ON_SURFACE)
-          .width('100%')
-
-        TextInput({ placeholder: 'Enter a new name', text: this.renameDraft })
-          .height(52)
-          .fontSize(15)
-          .borderRadius(16)
-          .backgroundColor('#FFFFFF')
-          .border({ width: 1, color: COLOR_OUTLINE_VARIANT + '80' })
-          .maxLength(30)
-          .onChange((value: string) => {
-            this.renameDraft = value;
-          })
-      }
-      .width('100%')
-
-      Button(this.isRenameSubmitting ? 'Saving...' : 'Save')
-        .width('100%')
-        .height(52)
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(COLOR_ON_PRIMARY)
-        .backgroundColor(this.renameDraft.trim().length === 0 ? COLOR_OUTLINE_VARIANT : COLOR_PRIMARY)
-        .borderRadius(26)
-        .margin({ top: 12 })
-        .enabled(this.renameDraft.trim().length > 0 && !this.isRenameSubmitting)
-        .onClick(async () => {
-          this.isRenameSubmitting = true;
-          await this.controller.handleUpdateDeviceName(this.appState, this.deviceId, this.renameDraft.trim());
-          this.isRenameSubmitting = false;
-          this.isRenameSheetOpen = false;
-        })
-    }
-    .width('100%')
-    .padding({ left: 24, right: 24, top: 14, bottom: 28 })
-    .backgroundColor(COLOR_SURFACE_CONTAINER_LOW)
-    .borderRadius({ topLeft: 32, topRight: 32 })
-    .shadow({ radius: 32, color: '#3A302A1A', offsetX: 0, offsetY: -6 })
   }
 
   @Builder

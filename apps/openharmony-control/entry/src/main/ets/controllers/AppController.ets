@@ -588,15 +588,6 @@ export class AppController {
     }
   }
 
-  async handleUpdateDeviceName(snapshot: AppStateSnapshot, deviceId: string, customName: string): Promise<void> {
-    try {
-      await this.repository.updateDeviceName(deviceId, customName);
-      await this.refreshTargets(snapshot, ['home', 'lighting'], '设备名称已更新');
-    } catch {
-      await this.refreshTargets(snapshot, ['home', 'lighting'], '更新设备名称失败');
-    }
-  }
-
   async handleUpdateDevice(
     snapshot: AppStateSnapshot,
     deviceId: string,

@@ -50,7 +50,6 @@ export interface SmartHomeRepositoryPort {
   createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot>;
   joinPendingDevice(deviceId: string, displayName: string, roomId: string, deviceType: string): Promise<DeviceSnapshot>;
   rejectPendingDevice(deviceId: string): Promise<void>;
-  updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot>;
   updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
@@ -240,21 +239,6 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   async rejectPendingDevice(deviceId: string): Promise<void> {
     await this.api.rejectPendingDevice(deviceId);
     await this.performBackgroundSync(true);
-  }
-
-  async updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot> {
-    const devices = await this.listDevices();
-    const existing = devices.find((device: DeviceSnapshot) => device.id === deviceId);
-    if (!existing) {
-      throw new Error('Device not found');
-    }
-    const update: DeviceUpdateRequest = {
-      customName,
-      note: existing.note ?? '',
-      customIcon: existing.customIcon ?? 'devices_other',
-      roomId: existing.room ?? ''
-    };
-    return await this.updateDevice(deviceId, update);
   }
 
   async updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot> {

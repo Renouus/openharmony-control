@@ -1,6 +1,8 @@
 import {
   AppPageId,
   DeviceEditorContext,
+  DevicePanelState,
+  createDeviceEditorRoute,
   createGlobalSceneEditorRoute,
   RoomItemState,
   SceneEditorContext,
@@ -31,6 +33,7 @@ import { EmergencyContactEditorView } from '../views/EmergencyContactEditorView'
 import { GenericRoomView } from '../views/GenericRoomView';
 import { LightControlView } from '../views/LightControlView';
 import { DeviceEditorView } from '../views/DeviceEditorView';
+import { DeviceNoteBanner } from '../components/DeviceNoteBanner';
 import { ScenesListView } from '../views/ScenesListView';
 import { CreateAutomationView } from '../views/CreateAutomationView';
 import { FamilySettingsUpdateRequest } from '../services/device-api';
@@ -204,7 +207,33 @@ struct Index {
         }
       ];
     }
+    if (this.isDeviceControlPage() && this.selectedControlDeviceId().length > 0) {
+      return [{
+        value: '编辑设备',
+        action: () => {
+          const route = createDeviceEditorRoute(this.selectedControlDeviceId());
+          if (route.valid) {
+            this.pushSubPage(route.page, route.param);
+          }
+        }
+      }];
+    }
     return [];
+  }
+
+  private isDeviceControlPage(): boolean {
+    return this.currentSubPage === 'access' ||
+      this.currentSubPage === 'lightControl' ||
+      this.currentSubPage === 'climate';
+  }
+
+  private selectedControlDeviceId(): string {
+    return typeof this.subPageParam === 'string' ? this.subPageParam : '';
+  }
+
+  private selectedDevicePanel(): DevicePanelState | undefined {
+    const deviceId = this.selectedControlDeviceId();
+    return this.appState.home.devices.find((device: DevicePanelState) => device.id === deviceId);
   }
 
   private handleTopRefresh(): void {
@@ -252,14 +281,17 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'access') {
         Scroll() {
-          AccessView({
-            appState: this.appState,
-            access: this.appState.access,
-            camera: this.appState.camera,
-            onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
-            onShareGuest: () => this.controller.handleShareGuest(this.appState),
-            onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
-          })
+          Column({ space: 12 }) {
+            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+            AccessView({
+              appState: this.appState,
+              access: this.appState.access,
+              camera: this.appState.camera,
+              onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
+              onShareGuest: () => this.controller.handleShareGuest(this.appState),
+              onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
+            })
+          }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -273,12 +305,15 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'climate') {
         Scroll() {
-          ClimateView({
-            appState: this.appState,
-            onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, mode),
-            onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, delta),
-            onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState)
-          })
+          Column({ space: 12 }) {
+            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+            ClimateView({
+              appState: this.appState,
+              onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, mode),
+              onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, delta),
+              onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState)
+            })
+          }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -396,7 +431,9 @@ struct Index {
           AppHeader({
             isSubPage: this.isOnSubPage(),
             title: this.getAppHeaderTitle(),
-            showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room',
+            showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room' ||
+              (this.isDeviceControlPage() && this.selectedControlDeviceId().length > 0),
+            showAddAction: !this.isOnSubPage() || this.currentSubPage === 'room',
             menuItems: this.getAppHeaderMenuItems(),
             onBack: () => this.popSubPage(),
             onAdd: () => this.openAddDeviceSheet(),

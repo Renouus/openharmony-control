@@ -17,6 +17,7 @@ export struct SmallDeviceCard {
   @Prop device: HomeDeviceCardState;
   @Prop fillHeight: boolean = false;
   onTap: () => void = () => {};
+  onEdit: () => void = () => {};
 
   private isOn(): boolean {
     if (this.device.kind === 'door-lock') {
@@ -29,13 +30,14 @@ export struct SmallDeviceCard {
     if (this.device.kind === 'door-lock') {
       return this.device.locked ? 'lock' : 'lock_open';
     }
-    if (this.device.kind === 'air-conditioner') {
-      return 'ac_unit';
+    return this.device.icon;
+  }
+
+  @Builder
+  private EditMenu() {
+    Menu() {
+      MenuItem({ content: '编辑设备' }).onClick(() => this.onEdit())
     }
-    if (this.device.kind === 'environment-sensor') {
-      return 'thermostat';
-    }
-    return 'lightbulb';
   }
 
   build() {
@@ -87,6 +89,7 @@ export struct SmallDeviceCard {
       }
     })
     .onClick(() => this.onTap())
+    .bindContextMenu(this.EditMenu(), ResponseType.LongPress)
     .animation({ duration: 250, curve: Curve.Friction })
   }
 }
@@ -95,6 +98,7 @@ export struct SmallDeviceCard {
 export struct LargeDeviceCard {
   @Prop device: HomeDeviceCardState;
   onTap: () => void = () => {};
+  onEdit: () => void = () => {};
 
   private usesPrimaryShell(): boolean {
     return this.device.kind === 'door-lock' || (this.device.kind !== 'air-conditioner' && this.device.power);
@@ -104,10 +108,14 @@ export struct LargeDeviceCard {
     if (this.device.kind === 'door-lock') {
       return this.device.locked ? 'lock' : 'lock_open';
     }
-    if (this.device.kind === 'air-conditioner') {
-      return 'ac_unit';
+    return this.device.icon;
+  }
+
+  @Builder
+  private EditMenu() {
+    Menu() {
+      MenuItem({ content: '编辑设备' }).onClick(() => this.onEdit())
     }
-    return 'lightbulb';
   }
 
   private isAc(): boolean {
@@ -184,6 +192,7 @@ export struct LargeDeviceCard {
       }
     })
     .onClick(() => this.onTap())
+    .bindContextMenu(this.EditMenu(), ResponseType.LongPress)
     .animation({ duration: 250, curve: Curve.Friction })
   }
 }
@@ -199,6 +208,7 @@ interface DeviceChunk {
 export struct DeviceGridLayout {
   @Prop devices: HomeDeviceCardState[];
   onDeviceTap: (deviceId: string, kind: string) => void = () => {};
+  onDeviceEdit: (deviceId: string) => void = () => {};
 
   private getChunks(): DeviceChunk[] {
     const chunks: DeviceChunk[] = [];
@@ -245,7 +255,8 @@ export struct DeviceGridLayout {
             if (chunk.large) {
               LargeDeviceCard({
                 device: chunk.large,
-                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind)
+                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind),
+                onEdit: () => this.onDeviceEdit(chunk.large!.id)
               })
               .layoutWeight(1)
             } else {
@@ -259,7 +270,8 @@ export struct DeviceGridLayout {
                   SmallDeviceCard({
                     device: smallDev,
                     fillHeight: !!chunk.large && chunk.smalls.length === 2,
-                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind)
+                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind),
+                    onEdit: () => this.onDeviceEdit(smallDev.id)
                   })
                   .layoutWeight(!!chunk.large && chunk.smalls.length === 2 ? 1 : 0)
                 }, (dev: HomeDeviceCardState) => dev.id)
@@ -278,7 +290,8 @@ export struct DeviceGridLayout {
                   SmallDeviceCard({
                     device: smallDev,
                     fillHeight: !!chunk.large && chunk.smalls.length === 2,
-                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind)
+                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind),
+                    onEdit: () => this.onDeviceEdit(smallDev.id)
                   })
                   .layoutWeight(!!chunk.large && chunk.smalls.length === 2 ? 1 : 0)
                 }, (dev: HomeDeviceCardState) => dev.id)
@@ -294,7 +307,8 @@ export struct DeviceGridLayout {
             if (chunk.large) {
               LargeDeviceCard({
                 device: chunk.large,
-                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind)
+                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind),
+                onEdit: () => this.onDeviceEdit(chunk.large!.id)
               })
               .layoutWeight(1)
             } else {

@@ -1,5 +1,5 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { RoomViewState, StatusChipState } from '../model/page-view-state';
+import { RoomViewState, StatusChipState, createDeviceEditorRoute } from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { DeviceGridLayout } from '../components/DeviceGridLayout';
@@ -45,11 +45,18 @@ export struct GenericRoomView {
 
   private handleDeviceTap(deviceId: string, kind: string): void {
     if (kind === 'door-lock') {
-      this.navStack.pushPathByName('access', null);
+      this.navStack.pushPathByName('access', deviceId);
     } else if (kind === 'light') {
       this.navStack.pushPathByName('lightControl', deviceId);
     } else {
-      this.navStack.pushPathByName('climate', null);
+      this.navStack.pushPathByName('climate', deviceId);
+    }
+  }
+
+  private handleDeviceEdit(deviceId: string): void {
+    const route = createDeviceEditorRoute(deviceId);
+    if (route.valid) {
+      this.navStack.pushPathByName(route.page, route.param);
     }
   }
 
@@ -98,7 +105,8 @@ export struct GenericRoomView {
             if (this.getRoomState()!.devices.length > 0) {
               DeviceGridLayout({
                 devices: this.getRoomState()!.devices,
-                onDeviceTap: (deviceId: string, kind: string) => this.handleDeviceTap(deviceId, kind)
+                onDeviceTap: (deviceId: string, kind: string) => this.handleDeviceTap(deviceId, kind),
+                onDeviceEdit: (deviceId: string) => this.handleDeviceEdit(deviceId)
               })
             } else {
               Text('暂无设备')

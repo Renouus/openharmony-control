@@ -78,6 +78,16 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.sun_max');
     case 'devices':
       return $r('sys.symbol.square_grid_2x2');
+    case 'sensors':
+      return $r('sys.symbol.square_grid_2x2');
+    case 'devices_other':
+      return $r('sys.symbol.square_grid_2x2');
+    case 'outlet':
+      return $r('sys.symbol.power');
+    case 'air':
+      return $r('sys.symbol.snowflake');
+    case 'description':
+      return $r('sys.symbol.book_open_fill');
     case 'ac_unit':
       return $r('sys.symbol.snowflake');
     case 'mode_heat':

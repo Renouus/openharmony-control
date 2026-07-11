@@ -5,6 +5,7 @@ import {
   HomeViewState,
   SceneChipState,
   StatusChipState,
+  createDeviceEditorRoute,
 } from '../model/page-view-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
@@ -108,6 +109,7 @@ struct RoomSection {
   @Prop room: HomeRoomSectionState;
   onRoomTap: (roomId: string) => void = () => {};
   onDeviceTap: (deviceId: string, kind: string) => void = () => {};
+  onDeviceEdit: (deviceId: string) => void = () => {};
 
   build() {
     Column({ space: 12 }) {
@@ -125,7 +127,8 @@ struct RoomSection {
       if (this.room.devices.length > 0) {
         DeviceGridLayout({
           devices: this.room.devices,
-          onDeviceTap: (deviceId: string, kind: string) => this.onDeviceTap(deviceId, kind)
+          onDeviceTap: (deviceId: string, kind: string) => this.onDeviceTap(deviceId, kind),
+          onDeviceEdit: (deviceId: string) => this.onDeviceEdit(deviceId)
         })
       }
     }
@@ -141,13 +144,20 @@ struct HomeContent {
 
   private handleDeviceTap(deviceId: string, kind: string): void {
     if (kind === 'door-lock') {
-      this.navStack.pushPathByName('access', null);
+      this.navStack.pushPathByName('access', deviceId);
     } else if (kind === 'light') {
       this.navStack.pushPathByName('lightControl', deviceId);
     } else if (kind === 'air-conditioner') {
-      this.navStack.pushPathByName('climate', null);
+      this.navStack.pushPathByName('climate', deviceId);
     } else {
-      this.navStack.pushPathByName('climate', null);
+      this.navStack.pushPathByName('climate', deviceId);
+    }
+  }
+
+  private handleDeviceEdit(deviceId: string): void {
+    const route = createDeviceEditorRoute(deviceId);
+    if (route.valid) {
+      this.navStack.pushPathByName(route.page, route.param);
     }
   }
 
@@ -222,6 +232,7 @@ struct HomeContent {
             room,
             onRoomTap: (roomId: string) => this.handleRoomTap(roomId),
             onDeviceTap: (deviceId: string, kind: string) => this.handleDeviceTap(deviceId, kind),
+            onDeviceEdit: (deviceId: string) => this.handleDeviceEdit(deviceId),
           })
         }, (room: HomeRoomSectionState) => `${room.roomId}_${room.devices.map((d: HomeDeviceCardState) => `${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`).join('-')}`)
       }
