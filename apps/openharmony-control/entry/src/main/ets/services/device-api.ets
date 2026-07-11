@@ -237,7 +237,7 @@ export class SceneTriggerDraft {
 export class ScenePayloadDraft {
   name: string = '';
   icon?: string;
-  roomId?: string;
+  roomId?: string = undefined;
   enabled: boolean = true;
   description: string = '';
   trigger: SceneTriggerDraft = new SceneTriggerDraft();

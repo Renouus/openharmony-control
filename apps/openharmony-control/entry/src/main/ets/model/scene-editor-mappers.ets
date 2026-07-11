@@ -45,7 +45,9 @@ export function buildScenePayloadDraft(
   const payload = new ScenePayloadDraft();
   payload.name = draft.name;
   payload.icon = draft.icon;
-  payload.roomId = roomId;
+  if (roomId && roomId.length > 0) {
+    payload.roomId = roomId;
+  }
   payload.enabled = true;
   payload.description = '鎵嬪姩瑙﹀彂鍦烘櫙';
 

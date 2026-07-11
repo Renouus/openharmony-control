@@ -364,7 +364,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async runScene(sceneId: string): Promise<void> {
     await this.api.runScene(sceneId);
-    await this.performBackgroundSync(true);
+    await this.performBackgroundSync();
   }
 
   async createScene(payload: ScenePayloadDraft): Promise<PersistedScene> {
@@ -454,6 +454,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       icon: scene.icon,
       description: scene.description,
       enabled: scene.enabled,
+      roomId: scene.roomId,
       trigger: scene.trigger,
       repeat: scene.repeat,
       actionsLabel: scene.actionsLabel,
