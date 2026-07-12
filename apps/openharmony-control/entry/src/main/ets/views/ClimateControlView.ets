@@ -109,14 +109,24 @@ export struct ClimateControlView {
 
   private adjustTarget(delta: number): void {
     this.controller.handleClimateTarget(this.appState, this.deviceId, delta)
-      .then(() => {})
-      .catch(() => {});
+      .then(() => {
+        this.feedback = this.home.feedback;
+      })
+      .catch((e: Object) => {
+        this.feedback = '温度调节失败，请稍后重试';
+        console.error('OmniHomeLog', `adjustTarget failed: ${e}`);
+      });
   }
 
   private togglePower(): void {
     this.controller.handleClimatePowerToggle(this.appState, this.deviceId)
-      .then(() => {})
-      .catch(() => {});
+      .then(() => {
+        this.feedback = this.home.feedback;
+      })
+      .catch((e: Object) => {
+        this.feedback = '开关切换失败，请稍后重试';
+        console.error('OmniHomeLog', `togglePower failed: ${e}`);
+      });
   }
 
   private selectMode(mode: string): void {
@@ -124,13 +134,23 @@ export struct ClimateControlView {
     const deviceMode = this.getDeviceMode();
     if (isPowered && deviceMode === mode) {
       this.controller.handleClimateMode(this.appState, this.deviceId, 'off')
-        .then(() => {})
-        .catch(() => {});
+        .then(() => {
+          this.feedback = this.home.feedback;
+        })
+        .catch((e: Object) => {
+          this.feedback = '模式切换失败，请稍后重试';
+          console.error('OmniHomeLog', `selectMode(off) failed: ${e}`);
+        });
       return;
     }
     this.controller.handleClimateMode(this.appState, this.deviceId, mode)
-      .then(() => {})
-      .catch(() => {});
+      .then(() => {
+        this.feedback = this.home.feedback;
+      })
+      .catch((e: Object) => {
+        this.feedback = '模式切换失败，请稍后重试';
+        console.error('OmniHomeLog', `selectMode failed: ${e}`);
+      });
   }
 
   build() {

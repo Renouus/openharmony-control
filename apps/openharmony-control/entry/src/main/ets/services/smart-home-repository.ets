@@ -93,6 +93,10 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly syncDao: SyncDao;
   private readonly wsClient: WebSocketClient;
 
+  // 节流：避免 listDevices 频繁触发后台增量同步
+  private lastDeviceSyncAt: number = 0;
+  private static readonly DEVICE_SYNC_THROTTLE_MS: number = 30000;
+
   constructor(api: DeviceApi) {
     this.api = api;
     this.deviceDao = new DeviceDao();
@@ -203,22 +207,30 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async listDevices(): Promise<DeviceSnapshot[]> {
     const store = DatabaseHelper.getInstance().getStore();
-    
+
     // 每次重新打开应用如果本地缓存有值，但可能不是最新的情况需要让它先被刷出来
     const localDevices = await this.deviceDao.getAllDevices(store);
 
     if (localDevices.length === 0) {
-      // 本地无数据，强同步
+      // 本地无数据，必须强同步以获得初始数据
       await this.performBackgroundSync(true);
+      this.lastDeviceSyncAt = Date.now();
       return await this.deviceDao.getAllDevices(store);
-    } else {
-      // 保证重新打开也能拿到云端最新，因为直接 fire-and-forget 可能因为组件已经挂载完了导致界面不再刷新，
-      // 由于这是本地拉取，为了避免后台直接杀进程出现不同步现象，这里加了一个等待让其确保执行完毕再去同步，
-      // 在之前的 performBackgroundSync 中我们会由 websocket 事件向 app 推动同步 (由于杀过后台可能会错过这条 websocket),
-      // 等待同步刷新。为了防止卡界面，这里仍然走静默抓取，只在无数据时阻塞。
-      this.performBackgroundSync(true).catch(console.error);
     }
-    
+
+    // 本地已有数据：先返回缓存让界面快速渲染，后台增量同步只拉取上次同步后的变更。
+    // 节流 30 秒，避免 createDevice → listDevices → listDevices 链式调用引发重复同步。
+    // WebSocket 事件和 sync_completed 回调会独立驱动数据刷新，不依赖此处的后台同步。
+    const now = Date.now();
+    if (now - this.lastDeviceSyncAt > SmartHomeRepository.DEVICE_SYNC_THROTTLE_MS) {
+      this.lastDeviceSyncAt = now;
+      this.performBackgroundSync(false).catch((e: Object) => {
+        console.error('OmniHomeLog', `Incremental device sync failed: ${e}`);
+        // 同步失败时重置时间戳，允许下次 listDevices 立即重试
+        this.lastDeviceSyncAt = 0;
+      });
+    }
+
     return localDevices;
   }
 

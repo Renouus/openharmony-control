@@ -59,15 +59,25 @@ export struct LockControlView {
           fontColor: COLOR_PRIMARY,
           action: () => {
             this.controller.handleAccessToggleLock(this.appState, this.deviceId, false)
-              .then(() => {})
-              .catch(() => {});
+              .then(() => {
+                this.feedback = this.home.feedback;
+              })
+              .catch((e: Object) => {
+                this.feedback = '开锁失败，请稍后重试';
+                console.error('OmniHomeLog', `toggleLock(unlock) failed: ${e}`);
+              });
           }
         }
       });
     } else {
       this.controller.handleAccessToggleLock(this.appState, this.deviceId, true)
-        .then(() => {})
-        .catch(() => {});
+        .then(() => {
+          this.feedback = this.home.feedback;
+        })
+        .catch((e: Object) => {
+          this.feedback = '锁定失败，请稍后重试';
+          console.error('OmniHomeLog', `toggleLock(lock) failed: ${e}`);
+        });
     }
   }
 

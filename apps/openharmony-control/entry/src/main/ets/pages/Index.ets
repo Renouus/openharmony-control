@@ -104,17 +104,26 @@ struct Index {
     );
     this.isLoading = true;
     try {
-      // 启动时主动触发一次云端同步数据，防止重新打开后因为未能触发 sync_completed 回调而渲染出空页面
-      this.controller.syncProviderDevices().finally(() => {
-        // 同步完成后尝试重载一次界面，防止极端情况网络过慢一直卡 Loading
-        this.controller.refreshAll(this.appState).finally(() => {
-          this.isLoading = false;
-        });
-      });
+      // 先用本地缓存快速渲染首屏（即使云端同步尚未完成也能展示已有数据）
       await this.controller.refreshAll(this.appState);
     } catch (e) {
-      // silently handled
+      // 首屏加载失败时记录日志，不阻塞后续同步流程
+      console.error('OmniHomeLog', `Startup refreshAll failed: ${e}`);
+    } finally {
+      // 无论成功或失败都关闭加载指示器，避免永久旋转
+      this.isLoading = false;
     }
+    // 后台触发云端同步，不阻塞界面；sync_completed 事件 (@Watch) 会驱动后续刷新
+    this.controller.syncProviderDevices()
+      .then((success: boolean) => {
+        if (success) {
+          return this.controller.refreshAll(this.appState);
+        }
+        return Promise.resolve();
+      })
+      .catch((e: Object) => {
+        console.error('OmniHomeLog', `Startup background sync failed: ${e}`);
+      });
   }
 
   // ── Navigation helpers ───────────────────────────────────────────────────
