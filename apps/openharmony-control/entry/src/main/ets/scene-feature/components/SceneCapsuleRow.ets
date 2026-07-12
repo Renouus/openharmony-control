@@ -21,7 +21,7 @@ export struct SceneCapsuleRow {
   build() {
     Column({ space: 14 }) {
       Row({ space: 4 }) {
-        Text(this.capsule.title)
+        Text('场景')
           .fontSize(22)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
@@ -68,11 +68,11 @@ export struct SceneCapsuleRow {
             .justifyContent(FlexAlign.Center)
 
             Column({ space: 2 }) {
-              Text('No scenes yet')
+              Text('本房间内没有场景')
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(COLOR_ON_SURFACE)
-              Text('Create one for this space.')
+              Text('在本房间内创建场景')
                 .fontSize(12)
                 .fontColor(COLOR_TEXT_MUTED)
             }
@@ -81,10 +81,6 @@ export struct SceneCapsuleRow {
           }
           .width('100%')
 
-          Text('Create Scene')
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(COLOR_PRIMARY)
         }
         .width('100%')
         .padding(16)

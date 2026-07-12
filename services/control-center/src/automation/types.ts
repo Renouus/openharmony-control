@@ -52,5 +52,6 @@ export type AutomationEvent = {
     parentExecutionId?: string;
     automationId?: string;
     routeOrigin?: string;
+    time?: string;
   };
 };

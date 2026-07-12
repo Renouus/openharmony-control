@@ -31,7 +31,7 @@ export const DEVICE_CAPABILITIES: Record<string, DeviceCapability> = {
   'air-conditioner': {
     conditions: [
       { property: 'power', type: 'boolean', label: '开关状态' },
-      { property: 'temperature', type: 'number', label: '当前温度', range: [16, 30] }
+      { property: 'targetTemperature', type: 'number', label: '目标温度', range: [16, 30] }
     ],
     actions: [
       { command: 'power', type: 'boolean', label: '开关控制' },
@@ -43,7 +43,7 @@ export const DEVICE_CAPABILITIES: Record<string, DeviceCapability> = {
       { property: 'locked', type: 'boolean', label: '门锁状态' }
     ],
     actions: [
-      { command: 'locked', type: 'boolean', label: '控制门锁' }
+      { command: 'lock', type: 'boolean', label: '控制门锁' }
     ]
   }
 };

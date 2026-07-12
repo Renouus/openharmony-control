@@ -47,6 +47,14 @@ describe("TimeTriggerAdapter", () => {
       expect.objectContaining({
         type: "time",
         source: "system",
+        metadata: expect.objectContaining({
+          time: "22:00",
+          routeOrigin: "timer",
+        }),
+      }),
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
         metadata: expect.not.objectContaining({
           automationId: "night-rule",
         }),

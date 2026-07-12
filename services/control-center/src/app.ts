@@ -105,19 +105,20 @@ export function buildApp(
   );
 
   const replayGuard = new ReplayGuard();
-  const sceneService = new SceneService(
-    registry,
-    sceneRegistry,
-    history,
-    simulators,
-    app.log,
-  );
   let automationRuntime = createNoopAutomationRuntime();
   const deviceStateTriggerAdapter = new DeviceStateTriggerAdapter((event) =>
     automationRuntime.dispatch(event),
   );
   const sensorEventTriggerAdapter = new SensorEventTriggerAdapter((event) =>
     automationRuntime.dispatch(event),
+  );
+  const sceneService = new SceneService(
+    registry,
+    sceneRegistry,
+    history,
+    simulators,
+    app.log,
+    deviceStateTriggerAdapter,
   );
   const deviceCommandService = new DeviceCommandService(
     registry,
@@ -140,8 +141,11 @@ export function buildApp(
       realExecutionLogService,
       new RegistryDeviceStateReader(registry),
     );
-    void automationRuntime.loadEnabledAutomations();
-  } catch {
+    void automationRuntime.loadEnabledAutomations().catch((loadError) => {
+      app.log.error({ err: loadError }, "[automation] failed to load enabled automations at startup");
+    });
+  } catch (e) {
+    app.log.error({ err: e }, "[automation] FATAL: runtime init failed, falling back to noop runtime");
     automationRuntime = createNoopAutomationRuntime();
   }
   app.decorate("automationRuntime", automationRuntime);
@@ -174,6 +178,7 @@ export function buildApp(
       sceneRegistry,
       history,
       simulators,
+      deviceStateTriggerAdapter,
     });
     await registerAutomationRoutes(scope);
     await registerDemoRoutes(

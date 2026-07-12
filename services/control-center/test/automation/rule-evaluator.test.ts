@@ -210,10 +210,41 @@ describe("RuleEvaluator", () => {
           automationId: "auto-night",
           chainDepth: 0,
           routeOrigin: "timer",
+          time: "22:00",
         },
       },
     );
 
     expect(decision.ok).toBe(true);
+  });
+
+  it("does not cross-trigger a different time rule when one time fires", () => {
+    const evaluator = new RuleEvaluator();
+    const ruleAt22 = {
+      id: "auto-night",
+      enabled: true,
+      cooldownMs: 0,
+      trigger: { type: "time" as const, config: { time: "22:00" } },
+      actions: [{ type: "scene_run" as const, config: { sceneId: "sleep" } }],
+    };
+    const ruleAt23 = {
+      id: "auto-late",
+      enabled: true,
+      cooldownMs: 0,
+      trigger: { type: "time" as const, config: { time: "23:00" } },
+      actions: [{ type: "scene_run" as const, config: { sceneId: "away" } }],
+    };
+
+    const event22 = {
+      eventId: "event-22",
+      type: "time" as const,
+      source: "system" as const,
+      timestamp: 1,
+      metadata: { chainDepth: 0, routeOrigin: "timer", time: "22:00" },
+    };
+
+    expect(evaluator.shouldExecute(ruleAt22, event22).ok).toBe(true);
+    expect(evaluator.shouldExecute(ruleAt23, event22).ok).toBe(false);
+    expect(evaluator.shouldExecute(ruleAt23, event22).reason).toBe("TRIGGER_CONDITION_NOT_MET");
   });
 });

@@ -9,6 +9,7 @@ type AutomationRow = {
   action_json: string;
   enabled: number;
   is_deleted: number;
+  cooldown_ms: number;
 };
 
 export class AutomationRepository {
@@ -16,7 +17,7 @@ export class AutomationRepository {
 
   listEnabledRules(): AutomationRule[] {
     const rows = this.db.prepare(`
-      SELECT id, trigger_type, trigger_json, action_json, enabled, is_deleted
+      SELECT id, trigger_type, trigger_json, action_json, enabled, is_deleted, cooldown_ms
       FROM automations
       WHERE enabled = 1 AND is_deleted = 0
       ORDER BY updated_at ASC, id ASC
@@ -27,7 +28,7 @@ export class AutomationRepository {
 
   getRuleById(id: string): AutomationRule | undefined {
     const row = this.db.prepare(`
-      SELECT id, trigger_type, trigger_json, action_json, enabled, is_deleted
+      SELECT id, trigger_type, trigger_json, action_json, enabled, is_deleted, cooldown_ms
       FROM automations
       WHERE id = ?
       LIMIT 1
@@ -51,7 +52,7 @@ export class AutomationRepository {
       trigger: toRuntimeTrigger(row.trigger_type, row.trigger_json),
       conditionGroup: toRuntimeConditionGroup(row.trigger_type, row.trigger_json),
       actions: toRuntimeActions(row.action_json),
-      cooldownMs: 0,
+      cooldownMs: typeof row.cooldown_ms === "number" && Number.isFinite(row.cooldown_ms) ? row.cooldown_ms : 0,
     };
   }
 }

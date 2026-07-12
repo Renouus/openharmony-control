@@ -104,7 +104,7 @@ export struct SceneEditorView {
   @Builder
   IconPickerSheet() {
     Column() {
-      Text('Select icon')
+      Text('选择图标')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(COLOR_ON_SURFACE)
@@ -150,13 +150,13 @@ export struct SceneEditorView {
           .onClick(() => {
             this.onCancel();
           })
-        Text(this.editingSceneId ? 'Edit Scene' : 'New Scene')
+        Text(this.editingSceneId ? '编辑场景' : '新增场景')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-          Text('Save')
+          Text('保存')
             .fontSize(16)
             .fontColor(COLOR_PRIMARY)
             .onClick(() => {
@@ -229,7 +229,7 @@ export struct SceneEditorView {
                 .width('100%')
                 .padding({ left: 4 })
 
-              Text('Actions')
+              Text('动作')
                 .fontSize(16)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(COLOR_ON_SURFACE)

@@ -65,7 +65,7 @@ export struct LightDeviceCard {
 
       Column({ space: 8 }) {
         Row() {
-          Text('Brightness')
+          Text('亮度')
             .fontSize(12)
             .fontColor(COLOR_TEXT_MUTED)
             .fontWeight(FontWeight.Bold)

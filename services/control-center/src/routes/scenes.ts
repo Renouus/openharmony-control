@@ -9,12 +9,14 @@ import type { CommandHistory } from "../history/command-history";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { SceneRegistry } from "../scenes/scene-registry";
 import { SceneService } from "../services/scene-service";
+import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
 
 export type SceneRouteOptions = {
   registry: DeviceRegistry;
   sceneRegistry: SceneRegistry;
   history: CommandHistory;
   simulators: Map<string, DeviceSimulator>;
+  deviceStateTriggerAdapter?: DeviceStateTriggerAdapter;
 };
 
 export async function registerSceneRoutes(
@@ -27,6 +29,7 @@ export async function registerSceneRoutes(
     options.history,
     options.simulators,
     app.log,
+    options.deviceStateTriggerAdapter,
   );
 
   app.get("/api/scenes", async () => ({

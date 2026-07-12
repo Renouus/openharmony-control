@@ -44,7 +44,9 @@ export class RuleEvaluator {
 
   private matchesCondition(condition: AutomationCondition, event: AutomationEvent, stateReader?: DeviceStateReader): { matches: boolean; unavailable: boolean } {
     if (condition.type === "time") {
-      return { matches: condition.type === event.type, unavailable: false };
+      const expected = this.readString(condition.time ?? condition.at);
+      const actual = this.readString(event.metadata.time);
+      return { matches: expected !== undefined && expected === actual, unavailable: false };
     }
 
     const expectedDeviceId = this.readString(condition.deviceId);
@@ -54,9 +56,14 @@ export class RuleEvaluator {
       state = { ...(storedState ?? {}), ...(event.after ?? {}) };
     }
 
-    const property = this.readString(condition.property);
+    let property = this.readString(condition.property);
     if (!property) {
       return { matches: expectedDeviceId ? expectedDeviceId === event.deviceId : true, unavailable: false };
+    }
+
+    // 智能代沟修复：兼容前端保存的 "power" 到真实硬件设备的 "on"
+    if (property === "power" && state && state["on"] !== undefined) {
+      property = "on";
     }
 
     if (!state || state[property] === undefined) {
