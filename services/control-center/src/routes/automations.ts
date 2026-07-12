@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   collectAutomationTransportDeviceIds,
+  isValidAutomationConditionGroup,
   normalizeAutomationTransport,
 } from '../automation/automation-normalization';
 import type { AutomationRuntime } from '../automation/automation-runtime';
@@ -47,6 +48,9 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
     if (!body?.name || !body.triggerType || !body.triggerJson || !body.actionJson) {
       return reply.code(400).send({ code: 'INVALID_PAYLOAD' });
     }
+    if (!isValidAutomationConditionGroup(body.triggerJson)) {
+      return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
+    }
     const normalized = normalizeAutomationTransport({
       triggerType: body.triggerType,
       triggerJson: body.triggerJson,
@@ -87,6 +91,9 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
   app.put('/api/automations/:automationId', async (request, reply) => {
     const { automationId } = request.params as { automationId: string };
     const body = request.body as Partial<AutomationDescriptor>;
+    if (body.triggerJson && !isValidAutomationConditionGroup(body.triggerJson)) {
+      return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
+    }
     let automation: AutomationDescriptor | undefined;
     try {
       automation = updateAutomation(automationId, body);

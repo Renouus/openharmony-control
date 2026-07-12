@@ -97,5 +97,25 @@ export default function automationEditorMappersTest() {
       expect(payload.actionJson).assertContain('"type":"scene_run"');
       expect(payload.actionJson).assertContain('"sceneId":"away"');
     });
+
+    it('round-trips any logic with every condition', () => {
+      const automation: AutomationSnapshot = {
+        id: 'entry-any',
+        name: 'Entry Any',
+        triggerType: 'device_state_changed',
+        triggerJson: '{"logic":"any","conditions":[{"type":"device_state_changed","deviceId":"door-front","property":"locked","operator":"==","threshold":"false"},{"type":"device_state_changed","deviceId":"light-entry","property":"power","operator":"==","threshold":"false"}]}',
+        actionJson: '[{"type":"device_command","deviceId":"light-entry","command":"power:on"}]',
+        enabled: true,
+      };
+
+      const draft = hydrateAutomationDraft(automation);
+      expect(draft.conditionLogic).assertEqual('any');
+      expect(draft.conditions.length).assertEqual(2);
+
+      const payload = buildAutomationPayloadDraft(draft, () => 'Condition', () => 'Action');
+      expect(payload.triggerJson).assertContain('"logic":"any"');
+      expect(payload.triggerJson).assertContain('"conditions"');
+      expect(payload.triggerJson).assertContain('"deviceId":"light-entry"');
+    });
   });
 }

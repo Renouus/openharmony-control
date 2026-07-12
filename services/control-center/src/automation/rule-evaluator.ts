@@ -1,7 +1,9 @@
 import type { AutomationEvent, AutomationRule } from "./types";
+import type { AutomationCondition, AutomationConditionGroup } from "./types";
+import type { DeviceStateReader } from "./device-state-reader";
 
 export class RuleEvaluator {
-  shouldExecute(rule: AutomationRule, event: AutomationEvent): { ok: boolean; reason?: string } {
+  shouldExecute(rule: AutomationRule, event: AutomationEvent, stateReader?: DeviceStateReader): { ok: boolean; reason?: string } {
     if (event.metadata.automationId === rule.id && event.source === "automation") {
       return { ok: false, reason: "SELF_TRIGGER_BLOCKED" };
     }
@@ -10,38 +12,59 @@ export class RuleEvaluator {
       return { ok: false, reason: "CHAIN_DEPTH_EXCEEDED" };
     }
 
-    if (rule.trigger.type !== event.type) {
+    const group = this.readConditionGroup(rule);
+    if (!group.conditions.some((condition) => condition.type === event.type &&
+      (condition.type === "time" || !condition.deviceId || condition.deviceId === event.deviceId))) {
       return { ok: false, reason: "TRIGGER_TYPE_MISMATCH" };
     }
 
-    if (!this.matchesTriggerConfig(rule, event)) {
-      return { ok: false, reason: "TRIGGER_CONDITION_NOT_MET" };
+    let unavailable = false;
+    const matches = group.conditions.map((condition) => {
+      const result = this.matchesCondition(condition, event, stateReader);
+      unavailable = unavailable || result.unavailable;
+      return result.matches;
+    });
+    const matched = group.logic === "any" ? matches.some(Boolean) : matches.every(Boolean);
+    if (!matched) {
+      return { ok: false, reason: unavailable ? "CONDITION_STATE_UNAVAILABLE" : "TRIGGER_CONDITION_NOT_MET" };
     }
 
     return { ok: true };
   }
 
-  private matchesTriggerConfig(rule: AutomationRule, event: AutomationEvent): boolean {
-    const config = rule.trigger.config;
+  private readConditionGroup(rule: AutomationRule): AutomationConditionGroup {
+    if (rule.conditionGroup) {
+      return rule.conditionGroup;
+    }
+    return {
+      logic: "all",
+      conditions: [{ type: rule.trigger.type, ...rule.trigger.config } as AutomationCondition],
+    };
+  }
 
-    if (rule.trigger.type === "time") {
-      return true;
+  private matchesCondition(condition: AutomationCondition, event: AutomationEvent, stateReader?: DeviceStateReader): { matches: boolean; unavailable: boolean } {
+    if (condition.type === "time") {
+      return { matches: condition.type === event.type, unavailable: false };
     }
 
-    const expectedDeviceId = this.readString(config.deviceId);
-    if (expectedDeviceId && expectedDeviceId !== event.deviceId) {
-      return false;
+    const expectedDeviceId = this.readString(condition.deviceId);
+    const storedState = expectedDeviceId ? stateReader?.read(expectedDeviceId) : undefined;
+    let state = storedState;
+    if (expectedDeviceId && expectedDeviceId === event.deviceId) {
+      state = { ...(storedState ?? {}), ...(event.after ?? {}) };
     }
 
-    const property = this.readString(config.property);
+    const property = this.readString(condition.property);
     if (!property) {
-      return true;
+      return { matches: expectedDeviceId ? expectedDeviceId === event.deviceId : true, unavailable: false };
     }
 
-    const operator = this.readString(config.operator) ?? "==";
-    const threshold = config.threshold;
-    const actual = event.after?.[property];
-    return this.compare(actual, operator, threshold);
+    if (!state || state[property] === undefined) {
+      return { matches: false, unavailable: true };
+    }
+
+    const operator = this.readString(condition.operator) ?? "==";
+    return { matches: this.compare(state[property], operator, condition.threshold), unavailable: false };
   }
 
   private compare(actual: unknown, operator: string, threshold: unknown): boolean {

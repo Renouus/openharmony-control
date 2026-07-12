@@ -93,7 +93,7 @@ describe('automation routes', () => {
     expect(finalList.json().automations.find((automation: { id: string }) => automation.id === created.id)).toBeUndefined();
   });
 
-  it('executes a device_command automation after a matching device_state_changed event', async () => {
+  it('executes an all-condition device command and records success after a matching event', async () => {
     const app = buildApp();
 
     const createResponse = await app.inject({
@@ -103,7 +103,13 @@ describe('automation routes', () => {
         icon: 'auto_awesome',
         name: 'Unlock On Light',
         triggerType: 'device',
-        triggerJson: '[{"type":"device","deviceId":"light-living-room","property":"power","operator":"==","threshold":"true"}]',
+        triggerJson: JSON.stringify({
+          logic: 'all',
+          conditions: [
+            { type: 'device', deviceId: 'light-living-room', property: 'power', operator: '==', threshold: true },
+            { type: 'device', deviceId: 'light-entry', property: 'power', operator: '==', threshold: false },
+          ],
+        }),
         actionJson: '[{"type":"device","deviceId":"door-front","command":"lock:false","label":"Unlock front door"}]',
         enabled: true,
       },
@@ -135,6 +141,15 @@ describe('automation routes', () => {
     const devicesResponse = await app.inject({ method: 'GET', url: '/api/devices' });
     const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');
     expect(door.state.locked).toBe(false);
+
+    const log = getDb().prepare(`
+      SELECT status, reason
+      FROM automation_execution_logs
+      WHERE automation_id = ? AND status = 'success'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(createResponse.json().automation.id) as { status: string; reason: string };
+    expect(log).toEqual({ status: 'success', reason: 'EXECUTED' });
   });
 
   it('rejects pending devices when creating automations', async () => {
@@ -179,5 +194,59 @@ describe('automation routes', () => {
       code: 'PENDING_DEVICE_NOT_ALLOWED',
       deviceId: 'tuya-light-1',
     });
+  });
+
+  it('does not execute an all-condition action when another device condition is false', async () => {
+    const app = buildApp();
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/automations',
+      payload: {
+        name: 'Blocked Entry Rule',
+        triggerType: 'device_state_changed',
+        triggerJson: JSON.stringify({
+          logic: 'all',
+          conditions: [
+            { type: 'device', deviceId: 'light-living-room', property: 'power', operator: '==', threshold: true },
+            { type: 'device', deviceId: 'light-entry', property: 'power', operator: '==', threshold: true },
+          ],
+        }),
+        actionJson: '[{"type":"device_command","deviceId":"door-front","command":"lock:false"}]',
+        enabled: true,
+      },
+    });
+    const signResponse = await app.inject({
+      method: 'POST',
+      url: '/api/demo/sign-command',
+      payload: { requestId: 'blocked-light-on', timestamp: Date.now(), deviceId: 'light-living-room', name: 'switch', payload: { on: true } },
+    });
+    await app.inject({ method: 'POST', url: '/api/commands', payload: signResponse.json() });
+
+    const devicesResponse = await app.inject({ method: 'GET', url: '/api/devices' });
+    const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');
+    expect(door.state.locked).toBe(true);
+    const successCount = getDb().prepare(`
+      SELECT COUNT(*) AS total FROM automation_execution_logs
+      WHERE automation_id = ? AND status = 'success'
+    `).get(createResponse.json().automation.id) as { total: number };
+    expect(successCount.total).toBe(0);
+  });
+
+  it('rejects an invalid boolean condition group', async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/automations',
+      payload: {
+        name: 'Invalid Boolean Rule',
+        triggerType: 'device_state_changed',
+        triggerJson: JSON.stringify({ logic: 'xor', conditions: [] }),
+        actionJson: '[{"type":"device_command","deviceId":"door-front","command":"lock:false"}]',
+        enabled: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
   });
 });

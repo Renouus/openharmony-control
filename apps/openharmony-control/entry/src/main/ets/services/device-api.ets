@@ -285,6 +285,11 @@ export class AutomationTriggerDraftItem {
   label: string = '';
 }
 
+export class AutomationTriggerGroupDraft {
+  logic: 'all' | 'any' = 'all';
+  conditions: AutomationTriggerDraftItem[] = [];
+}
+
 export class AutomationActionDraftItem {
   id: string = '';
   type: string = '';
