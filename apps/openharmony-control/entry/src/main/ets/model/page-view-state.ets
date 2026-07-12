@@ -724,6 +724,7 @@ export { createEmptyClimateViewStateData as createEmptyClimateViewState };
 export class RoutineDraft {
   name: string = '';
   icon?: string;
+  conditionLogic: 'all' | 'any' = 'all';
   conditions: ConditionDraft[] = [];
   actions: ActionDraft[] = [];
 }

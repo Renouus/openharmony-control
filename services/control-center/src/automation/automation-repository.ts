@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import type { AutomationRule } from "./types";
-import { toRuntimeActions, toRuntimeTrigger } from "./automation-normalization";
+import { toRuntimeActions, toRuntimeConditionGroup, toRuntimeTrigger } from "./automation-normalization";
 
 type AutomationRow = {
   id: string;
@@ -49,6 +49,7 @@ export class AutomationRepository {
       id: row.id,
       enabled: row.enabled === 1 && row.is_deleted === 0,
       trigger: toRuntimeTrigger(row.trigger_type, row.trigger_json),
+      conditionGroup: toRuntimeConditionGroup(row.trigger_type, row.trigger_json),
       actions: toRuntimeActions(row.action_json),
       cooldownMs: 0,
     };

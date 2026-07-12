@@ -4,6 +4,7 @@ import { ExecutionLogService } from "./execution-log-service";
 import { RuleEvaluator } from "./rule-evaluator";
 import { TimeTriggerAdapter } from "./triggers/time-trigger-adapter";
 import type { AutomationEvent, AutomationRule } from "./types";
+import type { DeviceStateReader } from "./device-state-reader";
 
 export class AutomationRuntime {
   private readonly loadedRules = new Map<string, AutomationRule>();
@@ -15,6 +16,7 @@ export class AutomationRuntime {
     private readonly ruleEvaluator = new RuleEvaluator(),
     private readonly actionExecutor?: ActionExecutor,
     private readonly logService?: ExecutionLogService,
+    private readonly stateReader?: DeviceStateReader,
   ) {
     this.timeTriggerAdapter = new TimeTriggerAdapter((event) => this.dispatch(event));
   }
@@ -51,7 +53,7 @@ export class AutomationRuntime {
 
   async dispatch(_event: AutomationEvent): Promise<void> {
     for (const rule of this.loadedRules.values()) {
-      const decision = this.ruleEvaluator.shouldExecute(rule, _event);
+      const decision = this.ruleEvaluator.shouldExecute(rule, _event, this.stateReader);
       if (!decision.ok) {
         if (decision.reason && decision.reason !== "TRIGGER_TYPE_MISMATCH" && this.logService) {
           const executionId = _event.metadata.executionId ?? `${rule.id}-${_event.eventId}`;
