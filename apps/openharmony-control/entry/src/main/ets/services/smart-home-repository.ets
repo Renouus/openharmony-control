@@ -416,13 +416,56 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.syncDevicesAfterMutation();
   }
 
+  private pendingAutomationRefresh?: Promise<void>;
+
   private async refreshAutomations(): Promise<void> {
+    if (this.pendingAutomationRefresh) {
+      return this.pendingAutomationRefresh;
+    }
+    this.pendingAutomationRefresh = this.doRefreshAutomations();
+    try {
+      await this.pendingAutomationRefresh;
+    } finally {
+      this.pendingAutomationRefresh = undefined;
+    }
+  }
+
+  private async doRefreshAutomations(): Promise<void> {
     const store = DatabaseHelper.getInstance().getStore();
     const remoteAutomations = await this.api.listAutomations();
-    await this.automationDao.replaceAll(
-      store,
-      remoteAutomations.map((automation: AutomationSnapshot) => this.toAutomationSyncItem(automation)),
-    );
+    const remoteIds = new Set<string>();
+
+    const localAutomations = await this.automationDao.getAllSyncItems(store);
+    const localMap = new Map<string, AutomationSyncItem>();
+    localAutomations.forEach((a: AutomationSyncItem) => localMap.set(a.id, a));
+
+    const syncItems: AutomationSyncItem[] = remoteAutomations.map((automation: AutomationSnapshot): AutomationSyncItem => {
+      const local = localMap.get(automation.id);
+      return {
+        id: automation.id,
+        icon: automation.icon,
+        name: automation.name,
+        triggerType: automation.triggerType,
+        triggerJson: automation.triggerJson,
+        actionJson: automation.actionJson,
+        enabled: automation.enabled,
+        updatedAt: local ? local.updatedAt : 0,
+        version: local ? local.version : 0,
+        isDeleted: false,
+      };
+    });
+
+    for (const item of syncItems) {
+      remoteIds.add(item.id);
+    }
+
+    await this.automationDao.upsertAll(store, syncItems);
+
+    for (const local of localAutomations) {
+      if (!remoteIds.has(local.id)) {
+        await this.automationDao.markDeleted(store, local.id, local.version);
+      }
+    }
   }
 
   private toRoomSyncItem(room: RoomItem): RoomSyncItem {
@@ -467,8 +510,8 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       triggerJson: automation.triggerJson,
       actionJson: automation.actionJson,
       enabled: automation.enabled,
-      updatedAt: Date.now(),
-      version: Date.now(),
+      updatedAt: 0,
+      version: 0,
       isDeleted: false,
     };
   }

@@ -3,6 +3,7 @@
   AutomationViewStateData,
   CameraViewStateData,
   ClimateViewStateData,
+  DevicePanelState,
   FamilyViewStateData,
   FamilySettingsStateData,
   HomeViewStateData,
@@ -394,9 +395,10 @@ export class AppController {
 
   // ====== Access handlers ======
 
-  async handleAccessToggleLock(snapshot: AppStateSnapshot, locked: boolean): Promise<void> {
+  async handleAccessToggleLock(snapshot: AppStateSnapshot, deviceId: string, locked: boolean): Promise<void> {
+    const effectiveDeviceId = deviceId.length > 0 ? deviceId : snapshot.access.primary.id;
     const feedback = await this.accessViewModel.togglePrimaryLock(
-      snapshot.access.primary.id, locked);
+      effectiveDeviceId, locked);
     return this.refreshPlannedTargets(snapshot, 'accessToggleLock', feedback);
   }
 
@@ -414,23 +416,37 @@ export class AppController {
 
   // ====== Climate handlers ======
 
-  async handleClimateMode(snapshot: AppStateSnapshot, mode: string): Promise<void> {
-    await this.homeViewModel.toggleDevicePower('ac-living-room', mode !== 'off');
+  async handleClimateMode(snapshot: AppStateSnapshot, deviceId: string, mode: string): Promise<void> {
+    const effectiveDeviceId = deviceId.length > 0 ? deviceId : 'ac-living-room';
+    await this.homeViewModel.toggleDevicePower(effectiveDeviceId, mode !== 'off');
     const feedback = await this.climateViewModel.updateMode(mode);
     return this.refreshPlannedTargets(snapshot, 'climateMode', feedback);
   }
 
-  async handleClimateTarget(snapshot: AppStateSnapshot, delta: number): Promise<void> {
-    const nextTarget = Math.max(16, Math.min(30,
-      snapshot.climate.targetTemperature + delta));
-    await this.homeViewModel.toggleDevicePower('ac-living-room', true);
-    const feedback = await this.climateViewModel.updateTargetTemperature(nextTarget);
+  async handleClimateTarget(snapshot: AppStateSnapshot, deviceId: string, delta: number): Promise<void> {
+    const effectiveDeviceId = deviceId.length > 0 ? deviceId : 'ac-living-room';
+    let currentTarget: number;
+    if (deviceId.length > 0) {
+      const device = snapshot.home.devices.find((d: DevicePanelState) => d.id === deviceId);
+      currentTarget = device !== undefined ? device.targetTemperature : 24;
+    } else {
+      currentTarget = snapshot.climate.targetTemperature;
+    }
+    const nextTarget = Math.max(16, Math.min(30, currentTarget + delta));
+    await this.homeViewModel.toggleDevicePower(effectiveDeviceId, true);
+    const feedback = await this.homeViewModel.setTargetTemperature(effectiveDeviceId, nextTarget);
     return this.refreshPlannedTargets(snapshot, 'climateTarget', feedback);
   }
 
-  async handleClimatePowerToggle(snapshot: AppStateSnapshot): Promise<void> {
-    const nextMode = snapshot.climate.isPowered ? 'off' : 'auto';
-    return this.handleClimateMode(snapshot, nextMode);
+  async handleClimatePowerToggle(snapshot: AppStateSnapshot, deviceId: string): Promise<void> {
+    let nextMode: string;
+    if (deviceId.length > 0) {
+      const device = snapshot.home.devices.find((d: DevicePanelState) => d.id === deviceId);
+      nextMode = (device !== undefined && device.power) ? 'off' : 'auto';
+    } else {
+      nextMode = snapshot.climate.isPowered ? 'off' : 'auto';
+    }
+    return this.handleClimateMode(snapshot, deviceId, nextMode);
   }
 
   // ====== Automation handlers ======

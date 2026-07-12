@@ -23,8 +23,10 @@ import { NotificationsView } from '../views/NotificationsView';
 import { FamilyView } from '../views/FamilyView';
 import { LightingView } from '../views/LightingView';
 import { AccessView } from '../views/AccessView';
+import { LockControlView } from '../views/LockControlView';
 import { CameraView } from '../views/CameraView';
 import { ClimateView } from '../views/ClimateView';
+import { ClimateControlView } from '../views/ClimateControlView';
 import { SceneEditorView } from '../views/SceneEditorView';
 import { RoutineEditorView } from '../views/RoutineEditorView';
 import { FamilySettingsView } from '../views/FamilySettingsView';
@@ -61,6 +63,11 @@ struct Index {
   @Provide('controller') controller: AppController = new AppController();
   @Provide('navStack') navStack: NavProxy = new NavProxy();
   @State appState: AppStateSnapshot = new AppStateSnapshot();
+
+  // ── Scroll position preservation ────────────────────────────────────────
+  private mainScrollController: Scroller = new Scroller();
+  private mainScrollOffset: number = 0;
+  private shouldRestoreScroll: boolean = false;
 
   // ── Local UI state ──────────────────────────────────────────────────────
   @State currentTab: number = 0;
@@ -114,6 +121,14 @@ struct Index {
 
   private pushSubPage(page: AppPageId | string, param: Object | null = null): void {
     this.closeTransientUi();
+    if (this.currentSubPage.length === 0) {
+      try {
+        const offset = this.mainScrollController.currentOffset();
+        this.mainScrollOffset = offset.yOffset;
+      } catch (e) {
+        // Scroller might not be bound yet
+      }
+    }
     if (this.currentSubPage.length > 0) {
       this.subPageHistory.push(this.currentSubPage, this.subPageParam);
     }
@@ -128,6 +143,7 @@ struct Index {
       this.subPageParam = previous.param;
       return;
     }
+    this.shouldRestoreScroll = true;
     this.currentSubPage = '';
     this.subPageParam = null;
   }
@@ -300,15 +316,23 @@ struct Index {
       } else if (this.currentSubPage === 'access') {
         Scroll() {
           Column({ space: 12 }) {
-            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
-            AccessView({
-              appState: this.appState,
-              access: this.appState.access,
-              camera: this.appState.camera,
-              onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
-              onShareGuest: () => this.controller.handleShareGuest(this.appState),
-              onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
-            })
+            if (this.selectedControlDeviceId().length > 0) {
+              LockControlView({
+                deviceId: this.selectedControlDeviceId(),
+                appState: this.appState,
+                home: this.appState.home,
+              })
+            } else {
+              DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+              AccessView({
+                appState: this.appState,
+                access: this.appState.access,
+                camera: this.appState.camera,
+                onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, '', locked),
+                onShareGuest: () => this.controller.handleShareGuest(this.appState),
+                onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
+              })
+            }
           }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
@@ -324,13 +348,21 @@ struct Index {
       } else if (this.currentSubPage === 'climate') {
         Scroll() {
           Column({ space: 12 }) {
-            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
-            ClimateView({
-              appState: this.appState,
-              onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, mode),
-              onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, delta),
-              onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState)
-            })
+            if (this.selectedControlDeviceId().length > 0) {
+              ClimateControlView({
+                deviceId: this.selectedControlDeviceId(),
+                appState: this.appState,
+                home: this.appState.home,
+              })
+            } else {
+              DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+              ClimateView({
+                appState: this.appState,
+                onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, '', mode),
+                onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, '', delta),
+                onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState, '')
+              })
+            }
           }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
@@ -438,6 +470,14 @@ struct Index {
     .width('100%')
     .layoutWeight(1)
     .backgroundColor(COLOR_BG)
+    .gesture(
+      PanGesture({ direction: PanDirection.Right, distance: 80 })
+        .onActionEnd((event: GestureEvent) => {
+          if (event.offsetX >= 60) {
+            this.popSubPage();
+          }
+        })
+    )
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -463,7 +503,7 @@ struct Index {
           this.SubPageOverlay()
         } else {
           Stack({ alignContent: Alignment.Bottom }) {
-            Scroll() {
+            Scroll(this.mainScrollController) {
               Column() {
                 if (this.currentTab === 0) {
                   HomeView({ appState: this.appState })
@@ -483,6 +523,17 @@ struct Index {
             .scrollBar(BarState.Off)
             .width('100%')
             .height('100%')
+            .onDidScroll((xOffset: number, yOffset: number) => {
+              this.mainScrollOffset = yOffset;
+            })
+            .onAppear(() => {
+              if (this.shouldRestoreScroll) {
+                this.shouldRestoreScroll = false;
+                setTimeout(() => {
+                  this.mainScrollController.scrollTo({ xOffset: 0, yOffset: this.mainScrollOffset, animation: false });
+                }, 100);
+              }
+            })
 
             Row() {
               TabButton({

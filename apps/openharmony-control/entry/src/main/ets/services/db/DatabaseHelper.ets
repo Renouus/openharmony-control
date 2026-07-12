@@ -12,6 +12,7 @@ const SQL_CREATE_TABLE_SCENES = `CREATE TABLE IF NOT EXISTS scenes (id TEXT PRIM
 const SQL_CREATE_TABLE_AUTOMATIONS = `CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, icon TEXT, name TEXT NOT NULL, trigger_type TEXT NOT NULL, trigger_json TEXT NOT NULL, action_json TEXT NOT NULL, enabled INTEGER DEFAULT 1, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
 const SQL_CREATE_TABLE_HISTORY = `CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, command_name TEXT NOT NULL, status TEXT NOT NULL, message TEXT, created_at INTEGER NOT NULL)`;
 const SQL_CREATE_TABLE_SYNC_METADATA = `CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
+const SQL_CREATE_TABLE_DEVICE_PREFERENCES = `CREATE TABLE IF NOT EXISTS device_preferences (device_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (device_id, key))`;
 const LOCAL_SCHEMA_VERSION = '7';
 const BUILT_IN_SCENE_ORDER: string[] = ['home', 'away', 'sleep', 'movie'];
 
@@ -42,6 +43,7 @@ export class DatabaseHelper {
     await this.rdbStore.executeSql(SQL_CREATE_TABLE_AUTOMATIONS);
     await this.rdbStore.executeSql(SQL_CREATE_TABLE_HISTORY);
     await this.rdbStore.executeSql(SQL_CREATE_TABLE_SYNC_METADATA);
+    await this.rdbStore.executeSql(SQL_CREATE_TABLE_DEVICE_PREFERENCES);
     await this.applyMigrations();
   }
 
