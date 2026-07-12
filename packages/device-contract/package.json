@@ -4,11 +4,15 @@
   "type": "module",
   "exports": {
     ".": "./src/device.ts",
-    "./security": "./src/security.ts"
+    "./security": "./src/security.ts",
+    "./schemas": "./src/schemas.ts"
   },
   "scripts": {
     "test": "vitest --run",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "typescript": "^5.8.0",
