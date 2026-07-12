@@ -156,26 +156,30 @@ export struct SceneEditorView {
           .fontColor(COLOR_ON_SURFACE)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Text('Save')
-          .fontSize(16)
-          .fontColor(COLOR_PRIMARY)
-          .onClick(() => {
-            if (!this.draft.name) {
-              console.error('Validation: Name is required');
-              return;
-            }
-            if (this.draft.actions.length === 0) {
-              console.error('Validation: Must have at least 1 action');
-              return;
-            }
+          Text('Save')
+            .fontSize(16)
+            .fontColor(COLOR_PRIMARY)
+            .onClick(() => {
+              if (!this.draft.name) {
+                console.error('Validation: Name is required');
+                return;
+              }
+              if (this.draft.actions.length === 0) {
+                console.error('Validation: Must have at least 1 action');
+                return;
+              }
 
-            const payload = buildScenePayloadDraft(
-              this.draft,
-              this.draft.actions.map((action: ActionDraft) => this.getActionLabel(action)),
-              this.forcedRoomId(),
-            );
-            this.onSave(payload);
-          })
+              const forcedId = this.forcedRoomId();
+              console.info('DEBUG: SceneEditorView.onSave forcedRoomId is: ' + forcedId);
+              
+              const payload = buildScenePayloadDraft(
+                this.draft,
+                this.draft.actions.map((action: ActionDraft) => this.getActionLabel(action)),
+                forcedId,
+              );
+              console.info('DEBUG: SceneEditorView.onSave payload to send is: ' + JSON.stringify(payload));
+              this.onSave(payload);
+            })
       }
       .width('100%')
       .height(56)

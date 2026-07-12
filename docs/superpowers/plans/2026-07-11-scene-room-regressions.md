@@ -138,3 +138,44 @@ Commit the capsule file as `fix: restore scene capsule scrolling`, run `git diff
 - [ ] **Step 6: Report proof boundaries**
 
 Report backend/shared tests, ArkTS UnitTestBuild, preview result, and device/emulator runtime as separate verification layers.
+
+### Task 4: Persist scene room ownership in the app-local database
+
+**Files:**
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/db/DatabaseHelper.ets`
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/domain-event-adapter.ets`
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/db/DatabaseEventProcessor.ets`
+- Modify: `apps/openharmony-control/entry/src/main/ets/services/db/SceneDao.ets`
+- Modify: app-side sync and scene DAO tests under `apps/openharmony-control/entry/src/ohosTest/ets/test`
+
+- [ ] **Step 1: Add failing room ownership boundary tests**
+
+Add assertions showing that a `SyncScenePayload` with `roomId: 'living-room'` produces a `SceneSyncItem` with the same value and that scene row/value mapping includes `room_id`.
+
+- [ ] **Step 2: Upgrade the local schema**
+
+Add `room_id TEXT` to the fresh `scenes` table definition, increment `LOCAL_SCHEMA_VERSION` to `7`, and add a `< 7` migration that executes:
+
+```sql
+ALTER TABLE scenes ADD COLUMN room_id TEXT
+```
+
+- [ ] **Step 3: Preserve roomId through adaptation and event processing**
+
+Copy `payload.roomId` in `DomainEventAdapter.toSceneSyncItem`, add `roomId` to `SceneEventPayload`, and copy it in `processSceneEvent`.
+
+- [ ] **Step 4: Persist and restore roomId in SceneDao**
+
+Read `room_id` in `mapResultSetToScene` and write `room_id: scene.roomId ?? null` in `insertOrUpdate`.
+
+- [ ] **Step 5: Run app-module UnitTestBuild**
+
+Run the explicit DevEco `UnitTestBuild`. Expected: `BUILD SUCCESSFUL`.
+
+- [ ] **Step 6: Run workspace tests and typecheck**
+
+Run `npm.cmd test` and `npm.cmd run typecheck`. Expected: all tests and checks pass.
+
+- [ ] **Step 7: Commit the complete local persistence fix**
+
+Stage only the Task 4 files and commit as `fix: persist room-scoped scenes locally`.

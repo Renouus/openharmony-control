@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Smart home control entry module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Smart home control ability"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Smart Home"
+    }
+  ]
+}

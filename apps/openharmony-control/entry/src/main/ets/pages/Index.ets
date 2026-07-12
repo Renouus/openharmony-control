@@ -97,11 +97,17 @@ struct Index {
     );
     this.isLoading = true;
     try {
+      // 启动时主动触发一次云端同步数据，防止重新打开后因为未能触发 sync_completed 回调而渲染出空页面
+      this.controller.syncProviderDevices().finally(() => {
+        // 同步完成后尝试重载一次界面，防止极端情况网络过慢一直卡 Loading
+        this.controller.refreshAll(this.appState).finally(() => {
+          this.isLoading = false;
+        });
+      });
       await this.controller.refreshAll(this.appState);
     } catch (e) {
       // silently handled
     }
-    this.isLoading = false;
   }
 
   // ── Navigation helpers ───────────────────────────────────────────────────
