@@ -199,19 +199,13 @@ export type DeviceCommandName =
   | "set-color-temperature";
 
 /** 设备命令（HMAC 签名前的原始结构） */
-type DeviceCommandBase = {
+export type DeviceCommand = {
   requestId: string;
   timestamp: number;
   deviceId: string;
+  name: DeviceCommandName;
+  payload: Record<string, unknown>;
 };
-
-export type DeviceCommand = DeviceCommandBase & (
-  | { name: "switch"; payload: { power: boolean } }
-  | { name: "lock"; payload: { locked: boolean } }
-  | { name: "set-target-temperature"; payload: { targetTemperature: number } }
-  | { name: "set-brightness"; payload: { brightness: number } }
-  | { name: "set-color-temperature"; payload: { colorTemperature: number } }
-);
 
 /** 命令历史条目 —— 记录每次命令执行的完整结果 */
 export type CommandHistoryEntry = {
@@ -271,7 +265,7 @@ export function createCommand(
     deviceId,
     name,
     payload,
-  } as DeviceCommand;
+  };
 }
 
 /**

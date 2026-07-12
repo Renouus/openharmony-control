@@ -30,7 +30,7 @@ const commandBase = {
 
 describe("deviceCommandSchema", () => {
   it("accepts matching payload branches and their boundary values", () => {
-    expect(deviceCommandSchema.parse({ ...commandBase, name: "switch", payload: { power: true } }).payload).toEqual({ power: true });
+    expect(deviceCommandSchema.parse({ ...commandBase, name: "switch", payload: { on: true } }).payload).toEqual({ on: true });
     expect(deviceCommandSchema.parse({ ...commandBase, name: "lock", payload: { locked: false } }).payload).toEqual({ locked: false });
     expect(deviceCommandSchema.parse({ ...commandBase, name: "set-target-temperature", payload: { targetTemperature: 16 } }).payload).toEqual({ targetTemperature: 16 });
     expect(deviceCommandSchema.parse({ ...commandBase, name: "set-brightness", payload: { brightness: 100 } }).payload).toEqual({ brightness: 100 });
@@ -51,7 +51,7 @@ describe("deviceCommandSchema", () => {
 
 describe("request boundary schemas", () => {
   it("accepts a complete signed envelope and rejects malformed envelopes", () => {
-    const valid = { command: { ...commandBase, name: "switch", payload: { power: true } }, nonce: "550e8400-e29b-41d4-a716-446655440000", signature: "a".repeat(64) };
+    const valid = { command: { ...commandBase, name: "switch", payload: { on: true } }, nonce: "550e8400-e29b-41d4-a716-446655440000", signature: "a".repeat(64) };
     expect(signedCommandEnvelopeSchema.safeParse(valid).success).toBe(true);
     expect(signedCommandEnvelopeSchema.safeParse({ command: {}, nonce: "short", signature: "not-hex" }).success).toBe(false);
     expect(signedCommandEnvelopeSchema.safeParse({ ...valid, extra: true }).success).toBe(false);

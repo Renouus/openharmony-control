@@ -11,7 +11,7 @@ const commandBase = {
 };
 
 export const deviceCommandSchema = z.discriminatedUnion("name", [
-  z.object({ ...commandBase, name: z.literal("switch"), payload: z.object({ power: z.boolean() }).strict() }).strict(),
+  z.object({ ...commandBase, name: z.literal("switch"), payload: z.object({ on: z.boolean() }).strict() }).strict(),
   z.object({ ...commandBase, name: z.literal("lock"), payload: z.object({ locked: z.boolean() }).strict() }).strict(),
   z.object({ ...commandBase, name: z.literal("set-target-temperature"), payload: z.object({ targetTemperature: z.number().finite().min(16).max(30) }).strict() }).strict(),
   z.object({ ...commandBase, name: z.literal("set-brightness"), payload: z.object({ brightness: z.number().int().min(0).max(100) }).strict() }).strict(),
@@ -61,7 +61,7 @@ export const deviceMetadataMutationSchema = z.object({
 }).strict();
 
 const sceneCommandSchema = z.discriminatedUnion("name", [
-  z.object({ deviceId: shortId, name: z.literal("switch"), payload: z.object({ power: z.boolean() }).strict() }).strict(),
+  z.object({ deviceId: shortId, name: z.literal("switch"), payload: z.object({ on: z.boolean() }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("lock"), payload: z.object({ locked: z.boolean() }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-target-temperature"), payload: z.object({ targetTemperature: z.number().finite().min(16).max(30) }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-brightness"), payload: z.object({ brightness: z.number().int().min(0).max(100) }).strict() }).strict(),
