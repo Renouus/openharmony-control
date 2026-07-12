@@ -54,6 +54,7 @@ export struct SceneCapsuleRow {
         .scrollable(ScrollDirection.Horizontal)
         .scrollBar(BarState.Off)
         .width('100%')
+        .align(Alignment.Start)
       } else {
         Column({ space: 10 }) {
           Row({ space: 10 }) {

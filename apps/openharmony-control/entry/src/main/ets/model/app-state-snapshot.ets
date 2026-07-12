@@ -154,7 +154,7 @@ export class AppStateSnapshot {
     // a brief frame where the array is empty and subscribers see "room not found".
     // This matches the same pattern used by assignHome, assignLighting, etc.
     for (const data of dataList) {
-      const existing = this.roomViews.find(v => v.roomId === data.roomId);
+      let existing = this.roomViews.find(v => v.roomId === data.roomId);
       if (existing) {
         existing.name = data.name;
         existing.deviceCountLabel = data.deviceCountLabel;
@@ -179,6 +179,7 @@ export class AppStateSnapshot {
         this.roomViews.splice(i, 1);
       }
     }
+    this.roomViews = [...this.roomViews]; // Force ArkTS to re-render the @Observed ObjectLink by triggering array reassignment.
     this.roomsInitialized = true;
   }
 }

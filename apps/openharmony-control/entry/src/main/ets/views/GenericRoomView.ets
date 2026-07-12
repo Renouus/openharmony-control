@@ -37,7 +37,7 @@ export struct GenericRoomView {
   @ObjectLink appState: AppStateSnapshot;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
-  roomId: string = '';
+  @Prop roomId: string;
 
   private getRoomState(): RoomViewState | undefined {
     return this.appState.roomViews.find((roomState: RoomViewState) => roomState.roomId === this.roomId);
@@ -105,9 +105,9 @@ export struct GenericRoomView {
                 }
                 .padding({ bottom: 4 })
               }
-              .scrollable(ScrollDirection.Horizontal)
-              .scrollBar(BarState.Off)
-              .width('100%')
+                .scrollable(ScrollDirection.Horizontal)
+                .scrollBar(BarState.Off)
+                .width('100%')
             }
 
             SceneCapsuleContainer({
@@ -129,6 +129,7 @@ export struct GenericRoomView {
             }
           }
           .width('100%')
+          .alignItems(HorizontalAlign.Start)
         }
       }
     }
