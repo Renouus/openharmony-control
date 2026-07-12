@@ -603,6 +603,15 @@ export class AppController {
     }
   }
 
+  async handleDeleteDevice(snapshot: AppStateSnapshot, deviceId: string): Promise<void> {
+    try {
+      await this.repository.deleteDevice(deviceId);
+      snapshot.assignHome(await this.fetchHome('设备已删除'));
+    } catch {
+      snapshot.assignHome(await this.fetchHome('删除设备失败'));
+    }
+  }
+
   async handleAssignDeviceToRoom(snapshot: AppStateSnapshot, deviceIds: string[], roomId: string): Promise<void> {
     try {
       for (const deviceId of deviceIds) {

@@ -242,15 +242,38 @@ struct Index {
       ];
     }
     if (this.isDeviceControlPage() && this.selectedControlDeviceId().length > 0) {
-      return [{
-        value: '编辑设备',
-        action: () => {
-          const route = createDeviceEditorRoute(this.selectedControlDeviceId());
-          if (route.valid) {
-            this.pushSubPage(route.page, route.param);
+      const deviceId = this.selectedControlDeviceId();
+      const panel = this.selectedDevicePanel();
+      const deviceName = panel ? panel.name : deviceId;
+      return [
+        {
+          value: '编辑设备',
+          action: () => {
+            const route = createDeviceEditorRoute(deviceId);
+            if (route.valid) {
+              this.pushSubPage(route.page, route.param);
+            }
+          }
+        },
+        {
+          value: '删除设备',
+          action: () => {
+            AlertDialog.show({
+              title: '确认删除设备',
+              message: `确定要删除「${deviceName}」吗？此操作不可撤销。`,
+              primaryButton: { value: '取消', action: () => {} },
+              secondaryButton: {
+                value: '确认删除',
+                fontColor: '#D32F2F',
+                action: async () => {
+                  await this.controller.handleDeleteDevice(this.appState, deviceId);
+                  this.popSubPage();
+                }
+              },
+            });
           }
         }
-      }];
+      ];
     }
     return [];
   }

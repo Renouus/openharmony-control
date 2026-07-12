@@ -246,6 +246,32 @@ export async function registerDeviceRoutes(
     return reply.send({ device: updatedDevice });
   });
 
+  app.delete("/api/devices/:deviceId", async (request, reply) => {
+    const { deviceId } = request.params as { deviceId: string };
+    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    if (!device) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
+    }
+
+    const db = getDb();
+    const version = incrementGlobalVersion();
+    const now = Date.now();
+    db.prepare(`
+      UPDATE devices
+      SET is_deleted = 1, lifecycle_state = 'removed', updated_at = ?, version = ?
+      WHERE id = ? AND is_deleted = 0 AND lifecycle_state = 'active'
+    `).run(now, version, deviceId);
+
+    registry.delete(deviceId);
+
+    const syncRow = loadSyncDeviceRow(deviceId);
+    if (syncRow) {
+      broadcastEvent("DeviceStateUpdated", syncRow);
+    }
+
+    return reply.send({ deleted: true });
+  });
+
   app.post("/api/devices", async (request, reply) => {
     const body = request.body as CreateDeviceRequest;
     const deviceCode = body.deviceCode?.trim() ?? "";

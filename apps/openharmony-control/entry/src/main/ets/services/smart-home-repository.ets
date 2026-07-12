@@ -33,6 +33,7 @@ import { WebSocketClient } from './WebSocketClient';
 import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
 import { DomainEventAdapter } from './domain-event-adapter';
 import { shouldBootstrapRooms } from './room-cache-policy';
+import { DevicePreferenceService } from './device-preference-service';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -52,6 +53,7 @@ export interface SmartHomeRepositoryPort {
   joinPendingDevice(deviceId: string, displayName: string, roomId: string, deviceType: string): Promise<DeviceSnapshot>;
   rejectPendingDevice(deviceId: string): Promise<void>;
   updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot>;
+  deleteDevice(deviceId: string): Promise<void>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
   updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
@@ -250,6 +252,12 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     const device = await this.api.updateDevice(deviceId, update);
     await this.performBackgroundSync(true);
     return device;
+  }
+
+  async deleteDevice(deviceId: string): Promise<void> {
+    await this.api.deleteDevice(deviceId);
+    DevicePreferenceService.deleteAll(deviceId).catch(() => {});
+    await this.performBackgroundSync(true);
   }
 
   async listRooms(): Promise<RoomItem[]> {

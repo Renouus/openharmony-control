@@ -629,6 +629,21 @@ export class DeviceApi {
     }
   }
 
+  async deleteDevice(deviceId: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
+        method: http.RequestMethod.DELETE,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
   async listPendingDevices(): Promise<PendingDeviceSnapshot[]> {
     const client = http.createHttp();
     try {
