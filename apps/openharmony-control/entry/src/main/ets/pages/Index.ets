@@ -136,6 +136,14 @@ struct Index {
     this.subPageParam = param;
   }
 
+  private isEditorPageWithOwnHeader(): boolean {
+    const pages: string[] = [
+      'deviceEditor', 'sceneEditor', 'createAutomation',
+      'homeInfoEditor', 'emergencyContactEditor',
+    ];
+    return pages.indexOf(this.currentSubPage) !== -1;
+  }
+
   private popSubPage(): void {
     const previous: SubPageRoute | undefined = this.subPageHistory.pop();
     if (previous !== undefined) {
@@ -508,7 +516,7 @@ struct Index {
   build() {
     Stack() {
       Column() {
-        if (this.currentSubPage !== 'deviceEditor') {
+        if (!this.isEditorPageWithOwnHeader()) {
           AppHeader({
             isSubPage: this.isOnSubPage(),
             title: this.getAppHeaderTitle(),
