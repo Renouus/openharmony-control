@@ -32,6 +32,7 @@ import { SyncDao } from './db/SyncDao';
 import { WebSocketClient } from './WebSocketClient';
 import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
 import { DomainEventAdapter } from './domain-event-adapter';
+import { shouldBootstrapRooms } from './room-cache-policy';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -255,13 +256,12 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     const store = DatabaseHelper.getInstance().getStore();
     const localRooms = await this.roomDao.getAllRooms(store);
 
-    if (localRooms.length === 0) {
+    if (shouldBootstrapRooms(localRooms.length)) {
       const remoteRooms = await this.api.listRooms();
       await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
       return await this.roomDao.getAllRooms(store);
     }
 
-    this.refreshRooms().catch(console.error);
     return localRooms;
   }
 
@@ -414,12 +414,6 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       payload,
     });
     await this.syncDevicesAfterMutation();
-  }
-
-  private async refreshRooms(): Promise<void> {
-    const store = DatabaseHelper.getInstance().getStore();
-    const remoteRooms = await this.api.listRooms();
-    await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
   }
 
   private async refreshAutomations(): Promise<void> {
