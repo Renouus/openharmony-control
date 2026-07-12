@@ -1,5 +1,7 @@
+import promptAction from '@ohos.promptAction';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import {
+  COLOR_ERROR,
   COLOR_ON_SURFACE,
   COLOR_PRIMARY,
   COLOR_SURFACE,
@@ -20,10 +22,37 @@ export struct EmergencyContactEditorView {
 
   @State contactName: string = '';
   @State contactPhone: string = '';
+  @State initialContactName: string = '';
+  @State initialContactPhone: string = '';
 
   aboutToAppear() {
     this.contactName = this.appState.familySettings.emergencyContactName;
     this.contactPhone = this.appState.familySettings.emergencyContactPhone;
+    this.initialContactName = this.contactName;
+    this.initialContactPhone = this.contactPhone;
+  }
+
+  private isDirty(): boolean {
+    return this.contactName !== this.initialContactName
+      || this.contactPhone !== this.initialContactPhone;
+  }
+
+  private async requestCancel(): Promise<void> {
+    if (!this.isDirty()) {
+      this.onCancel();
+      return;
+    }
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      title: '放弃修改？',
+      message: '尚未保存的紧急联系人信息将丢失。',
+      buttons: [
+        { text: '继续编辑', color: COLOR_TEXT_MUTED },
+        { text: '放弃修改', color: COLOR_ERROR },
+      ],
+    });
+    if (result.index === 1) {
+      this.onCancel();
+    }
   }
 
   build() {
@@ -32,7 +61,7 @@ export struct EmergencyContactEditorView {
         Text('Cancel')
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
-          .onClick(() => this.onCancel())
+          .onClick(() => this.requestCancel())
         Text('Emergency Contact')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
