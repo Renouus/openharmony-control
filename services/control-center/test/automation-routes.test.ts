@@ -249,4 +249,22 @@ describe('automation routes', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
   });
+
+  it('rejects malformed legacy condition arrays', async () => {
+    const app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/automations',
+      payload: {
+        name: 'Malformed Legacy Rule',
+        triggerType: 'device_state_changed',
+        triggerJson: '[{"type":"device","deviceId":"door-front"}]',
+        actionJson: '[{"type":"device_command","deviceId":"door-front","command":"lock:false"}]',
+        enabled: true,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
+  });
 });

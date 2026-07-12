@@ -111,6 +111,7 @@ export default function automationEditorMappersTest() {
       const draft = hydrateAutomationDraft(automation);
       expect(draft.conditionLogic).assertEqual('any');
       expect(draft.conditions.length).assertEqual(2);
+      expect(draft.conditions[0].threshold).assertEqual('false');
 
       const payload = buildAutomationPayloadDraft(draft, () => 'Condition', () => 'Action');
       expect(payload.triggerJson).assertContain('"logic":"any"');

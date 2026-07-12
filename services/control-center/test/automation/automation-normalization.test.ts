@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toRuntimeConditionGroup } from "../../src/automation/automation-normalization";
+import { toRuntimeConditionGroup, toRuntimeTrigger } from "../../src/automation/automation-normalization";
 
 describe("automation condition group normalization", () => {
   it("preserves an explicit any condition group", () => {
@@ -29,5 +29,12 @@ describe("automation condition group normalization", () => {
         { type: "device_state_changed", deviceId: "light-entry" },
       ],
     });
+  });
+
+  it("keeps a grouped time condition readable by the time adapter compatibility trigger", () => {
+    expect(toRuntimeTrigger("time", JSON.stringify({
+      logic: "all",
+      conditions: [{ type: "time", time: "22:00" }],
+    }))).toEqual({ type: "time", config: { type: "time", time: "22:00" } });
   });
 });

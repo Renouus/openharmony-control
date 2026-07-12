@@ -127,7 +127,11 @@ export function toRuntimeTrigger(triggerType: string, triggerJson: string): Auto
     triggerJson,
     actionJson: "[]",
   });
-  const triggerRecords = toArray(parseJson(normalized.triggerJson));
+  const parsedTrigger = parseJson(normalized.triggerJson);
+  const triggerEnvelope = asRecord(parsedTrigger);
+  const triggerRecords = Array.isArray(triggerEnvelope.conditions)
+    ? toArray(triggerEnvelope.conditions)
+    : toArray(parsedTrigger);
   const firstTrigger = triggerRecords[0] ?? {};
 
   return {
@@ -138,14 +142,11 @@ export function toRuntimeTrigger(triggerType: string, triggerJson: string): Auto
 
 export function isValidAutomationConditionGroup(triggerJson: string): boolean {
   const parsed = parseJson(triggerJson);
-  if (Array.isArray(parsed)) {
-    return parsed.length > 0;
-  }
   const envelope = asRecord(parsed);
-  if (envelope.logic !== "all" && envelope.logic !== "any") {
-    return false;
+  if (!Array.isArray(parsed) && envelope.logic !== "all" && envelope.logic !== "any") {
+      return false;
   }
-  const conditions = toArray(envelope.conditions);
+  const conditions = Array.isArray(parsed) ? toArray(parsed) : toArray(envelope.conditions);
   if (conditions.length === 0) {
     return false;
   }

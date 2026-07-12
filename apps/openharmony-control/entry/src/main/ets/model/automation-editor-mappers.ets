@@ -16,7 +16,7 @@ class AutomationTriggerRecord {
   deviceId?: string;
   property?: string;
   operator?: string;
-  threshold?: string;
+  threshold?: string | number | boolean;
 }
 
 class AutomationActionRecord {
@@ -101,7 +101,7 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
       deviceId: typeof trigger.deviceId === 'string' ? trigger.deviceId : '',
       property: typeof trigger.property === 'string' ? trigger.property : '',
       operator: normalizeOperator(trigger.operator),
-      threshold: typeof trigger.threshold === 'string' ? trigger.threshold : '',
+      threshold: trigger.threshold === undefined ? '' : String(trigger.threshold),
     }));
 
   draft.actions = parseActionRecords(automation.actionJson)
