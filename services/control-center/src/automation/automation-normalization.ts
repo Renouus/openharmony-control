@@ -1,5 +1,5 @@
 import type { DeviceCommand, DeviceCommandName } from "@smart-home/device-contract";
-import type { AutomationAction, AutomationActionType, AutomationTrigger, AutomationTriggerType } from "./types";
+import type { AutomationAction, AutomationActionType, AutomationCondition, AutomationConditionGroup, AutomationTrigger, AutomationTriggerType } from "./types";
 
 export type AutomationTransport = {
   triggerType: string;
@@ -83,7 +83,10 @@ function stringify(records: AutomationRecord[]): string {
 }
 
 export function normalizeAutomationTransport(input: AutomationTransport): AutomationTransport {
-  const triggerRecords = toArray(parseJson(input.triggerJson)).map(normalizeTriggerRecord);
+  const parsedTrigger = parseJson(input.triggerJson);
+  const triggerEnvelope = asRecord(parsedTrigger);
+  const hasEnvelope = Array.isArray(triggerEnvelope.conditions);
+  const triggerRecords = (hasEnvelope ? toArray(triggerEnvelope.conditions) : toArray(parsedTrigger)).map(normalizeTriggerRecord);
   const firstTrigger = triggerRecords[0];
   let triggerType = input.triggerType;
 
@@ -97,14 +100,20 @@ export function normalizeAutomationTransport(input: AutomationTransport): Automa
 
   return {
     triggerType,
-    triggerJson: stringify(triggerRecords),
+    triggerJson: hasEnvelope
+      ? JSON.stringify({ logic: triggerEnvelope.logic, conditions: triggerRecords })
+      : stringify(triggerRecords),
     actionJson: stringify(actionRecords),
   };
 }
 
 export function collectAutomationTransportDeviceIds(input: AutomationTransport): string[] {
   const normalized = normalizeAutomationTransport(input);
-  const triggerRecords = toArray(parseJson(normalized.triggerJson));
+  const parsedTrigger = parseJson(normalized.triggerJson);
+  const triggerRecord = asRecord(parsedTrigger);
+  const triggerRecords = Array.isArray(triggerRecord.conditions)
+    ? toArray(triggerRecord.conditions)
+    : toArray(parsedTrigger);
   const actionRecords = toArray(parseJson(normalized.actionJson));
 
   return [...triggerRecords, ...actionRecords]
@@ -118,13 +127,61 @@ export function toRuntimeTrigger(triggerType: string, triggerJson: string): Auto
     triggerJson,
     actionJson: "[]",
   });
-  const triggerRecords = toArray(parseJson(normalized.triggerJson));
+  const parsedTrigger = parseJson(normalized.triggerJson);
+  const triggerEnvelope = asRecord(parsedTrigger);
+  const triggerRecords = Array.isArray(triggerEnvelope.conditions)
+    ? toArray(triggerEnvelope.conditions)
+    : toArray(parsedTrigger);
   const firstTrigger = triggerRecords[0] ?? {};
 
   return {
     type: normalized.triggerType as AutomationTriggerType,
     config: firstTrigger,
   };
+}
+
+export function isValidAutomationConditionGroup(triggerJson: string): boolean {
+  const parsed = parseJson(triggerJson);
+  const envelope = asRecord(parsed);
+  if (!Array.isArray(parsed) && envelope.logic !== "all" && envelope.logic !== "any") {
+      return false;
+  }
+  const conditions = Array.isArray(parsed) ? toArray(parsed) : toArray(envelope.conditions);
+  if (conditions.length === 0) {
+    return false;
+  }
+  const hasTime = conditions.some((condition) => condition.type === "time");
+  const hasNonTime = conditions.some((condition) => condition.type !== "time");
+  if (hasTime && hasNonTime) {
+    return false;
+  }
+  return conditions.every((condition) => condition.type === "time" ||
+    (typeof condition.deviceId === "string" && condition.deviceId.length > 0 &&
+      typeof condition.property === "string" && condition.property.length > 0));
+}
+
+export function toRuntimeConditionGroup(triggerType: string, triggerJson: string): AutomationConditionGroup {
+  const parsed = parseJson(triggerJson);
+  const parsedRecord = asRecord(parsed);
+  const isEnvelope = Array.isArray(parsedRecord.conditions);
+  const rawConditions = isEnvelope ? toArray(parsedRecord.conditions) : toArray(parsed);
+  const logic = isEnvelope && parsedRecord.logic === "any" ? "any" : "all";
+
+  const conditions: AutomationCondition[] = rawConditions.map((rawCondition) => {
+    const record = normalizeTriggerRecord(rawCondition);
+    const normalizedType = String(record.type ?? triggerType) as AutomationTriggerType;
+    return {
+      type: normalizedType,
+      deviceId: typeof record.deviceId === "string" ? record.deviceId : undefined,
+      time: typeof record.time === "string" ? record.time : undefined,
+      at: typeof record.at === "string" ? record.at : undefined,
+      property: typeof record.property === "string" ? record.property : undefined,
+      operator: typeof record.operator === "string" ? record.operator : undefined,
+      threshold: record.threshold,
+    };
+  });
+
+  return { logic, conditions };
 }
 
 export function toRuntimeActions(actionJson: string): AutomationAction[] {

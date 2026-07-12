@@ -12,7 +12,7 @@ import { buildAutomationPayloadDraft, hydrateAutomationDraft } from '../model/au
 export struct CreateAutomationView {
   @Prop appState: AppStateSnapshot;
   @Prop editingAutomationId: string = '';
-  @State draft: RoutineDraft = { name: '', icon: 'auto_awesome', conditions: [], actions: [] };
+  @State draft: RoutineDraft = { name: '', icon: 'auto_awesome', conditionLogic: 'all', conditions: [], actions: [] };
   @State showConditionSheet: boolean = false;
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
@@ -193,6 +193,20 @@ export struct CreateAutomationView {
               .width('100%')
               .padding({ left: 4 })
 
+            Row({ space: 8 }) {
+              Button('满足全部（和）')
+                .layoutWeight(1)
+                .backgroundColor(this.draft.conditionLogic === 'all' ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOW)
+                .fontColor(this.draft.conditionLogic === 'all' ? Color.White : COLOR_ON_SURFACE)
+                .onClick(() => { this.draft.conditionLogic = 'all'; })
+              Button('满足任一（或）')
+                .layoutWeight(1)
+                .backgroundColor(this.draft.conditionLogic === 'any' ? COLOR_PRIMARY : COLOR_SURFACE_CONTAINER_LOW)
+                .fontColor(this.draft.conditionLogic === 'any' ? Color.White : COLOR_ON_SURFACE)
+                .onClick(() => { this.draft.conditionLogic = 'any'; })
+            }
+            .width('100%')
+
             Column() {
               ForEach(this.draft.conditions, (condition: ConditionDraft, index: number) => {
                 Row() {
@@ -218,7 +232,12 @@ export struct CreateAutomationView {
                 .alignItems(VerticalAlign.Center)
                 .padding({ left: 16, right: 12, top: 16, bottom: 16 })
 
-                if (index < this.draft.conditions.length - 1 || this.draft.conditions.length > 0) {
+                if (index < this.draft.conditions.length - 1) {
+                  Text(this.draft.conditionLogic === 'all' ? '且' : '或')
+                    .fontSize(12)
+                    .fontColor(COLOR_TEXT_MUTED)
+                    .width('100%')
+                    .textAlign(TextAlign.Center)
                   Divider().color(COLOR_OUTLINE_VARIANT).strokeWidth(0.5).margin({ left: 16, right: 16 })
                 }
               })

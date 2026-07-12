@@ -93,4 +93,131 @@ describe("automation runtime guards", () => {
       { status: "skipped", reason: "CHAIN_DEPTH_EXCEEDED" },
     ]);
   });
+
+  it("skips repeated executions while a rule cooldown is active", async () => {
+    getDb().prepare("DELETE FROM automations").run();
+
+    getDb().prepare(`
+      INSERT INTO automations (
+        id,
+        icon,
+        name,
+        trigger_type,
+        trigger_json,
+        action_json,
+        enabled,
+        updated_at,
+        version,
+        is_deleted,
+        cooldown_ms
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "auto-cooldown",
+      null,
+      "Cooldown rule",
+      "sensor_event",
+      JSON.stringify({ sensorType: "motion" }),
+      JSON.stringify({ type: "scene_run", config: { sceneId: "away" } }),
+      1,
+      Date.now(),
+      1,
+      0,
+      60000,
+    );
+
+    const runtime = new AutomationRuntime(
+      new AutomationRepository(getDb()),
+      new RuleEvaluator(),
+      undefined,
+      new ExecutionLogService(getDb()),
+    );
+    await runtime.loadEnabledAutomations();
+
+    await runtime.dispatch({
+      eventId: "cooldown-event-1",
+      type: "sensor_event",
+      source: "user",
+      timestamp: 1000,
+      metadata: { chainDepth: 0 },
+    });
+
+    await runtime.dispatch({
+      eventId: "cooldown-event-2",
+      type: "sensor_event",
+      source: "user",
+      timestamp: 2000,
+      metadata: { chainDepth: 0 },
+    });
+
+    const rows = getDb().prepare(`
+      SELECT status, reason
+      FROM automation_execution_logs
+      ORDER BY id ASC
+    `).all() as Array<{ status: string; reason: string }>;
+
+    expect(rows).toEqual([
+      { status: "invalid", reason: "ACTION_EXECUTOR_NOT_CONFIGURED" },
+      { status: "skipped", reason: "COOLDOWN_ACTIVE" },
+    ]);
+  });
+
+  it("allows re-execution after the cooldown window elapses", async () => {
+    getDb().prepare("DELETE FROM automations").run();
+
+    getDb().prepare(`
+      INSERT INTO automations (
+        id, icon, name, trigger_type, trigger_json, action_json,
+        enabled, updated_at, version, is_deleted, cooldown_ms
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      "auto-cooldown-window",
+      null,
+      "Cooldown window rule",
+      "sensor_event",
+      JSON.stringify({ sensorType: "motion" }),
+      JSON.stringify({ type: "scene_run", config: { sceneId: "away" } }),
+      1,
+      Date.now(),
+      1,
+      0,
+      1000,
+    );
+
+    const runtime = new AutomationRuntime(
+      new AutomationRepository(getDb()),
+      new RuleEvaluator(),
+      undefined,
+      new ExecutionLogService(getDb()),
+    );
+    await runtime.loadEnabledAutomations();
+
+    await runtime.dispatch({
+      eventId: "window-event-1",
+      type: "sensor_event",
+      source: "user",
+      timestamp: 1000,
+      metadata: { chainDepth: 0 },
+    });
+
+    await runtime.dispatch({
+      eventId: "window-event-2",
+      type: "sensor_event",
+      source: "user",
+      timestamp: 3000,
+      metadata: { chainDepth: 0 },
+    });
+
+    const rows = getDb().prepare(`
+      SELECT status, reason
+      FROM automation_execution_logs
+      ORDER BY id ASC
+    `).all() as Array<{ status: string; reason: string }>;
+
+    expect(rows).toEqual([
+      { status: "invalid", reason: "ACTION_EXECUTOR_NOT_CONFIGURED" },
+      { status: "invalid", reason: "ACTION_EXECUTOR_NOT_CONFIGURED" },
+    ]);
+  });
 });

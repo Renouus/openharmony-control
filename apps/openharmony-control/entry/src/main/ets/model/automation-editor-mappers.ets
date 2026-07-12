@@ -4,6 +4,7 @@ import {
   AutomationPayloadDraft,
   AutomationSnapshot,
   AutomationTriggerDraftItem,
+  AutomationTriggerGroupDraft,
 } from '../services/device-api';
 
 type ConditionOperator = '==' | '>' | '<' | '>=' | '<=';
@@ -15,7 +16,7 @@ class AutomationTriggerRecord {
   deviceId?: string;
   property?: string;
   operator?: string;
-  threshold?: string;
+  threshold?: string | number | boolean;
 }
 
 class AutomationActionRecord {
@@ -24,6 +25,11 @@ class AutomationActionRecord {
   deviceId?: string;
   command?: string;
   sceneId?: string;
+}
+
+class AutomationTriggerGroupRecord {
+  logic?: string;
+  conditions?: AutomationTriggerRecord[];
 }
 
 function normalizeOperator(operator?: string): ConditionOperator {
@@ -43,16 +49,24 @@ function isAutomationActionRecord(value: AutomationActionRecord): boolean {
     value.type === 'scene_run' || value.type === 'device_command';
 }
 
-function parseTriggerRecords(rawJson: string): AutomationTriggerRecord[] {
+function parseTriggerGroup(rawJson: string): AutomationTriggerGroupRecord {
+  const fallback = new AutomationTriggerGroupRecord();
+  fallback.logic = 'all';
+  fallback.conditions = [];
   try {
-    const records = JSON.parse(rawJson) as AutomationTriggerRecord[];
+    const parsed = JSON.parse(rawJson) as AutomationTriggerRecord[] | AutomationTriggerGroupRecord;
+    const records = parsed as AutomationTriggerRecord[];
     if (Array.isArray(records)) {
-      return records;
+      fallback.conditions = records;
+      return fallback;
     }
+    const group = parsed as AutomationTriggerGroupRecord;
+    fallback.logic = group.logic === 'any' ? 'any' : 'all';
+    fallback.conditions = Array.isArray(group.conditions) ? group.conditions : [];
+    return fallback;
   } catch {
-    return [];
+    return fallback;
   }
-  return [];
 }
 
 function parseActionRecords(rawJson: string): AutomationActionRecord[] {
@@ -71,11 +85,14 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
   const draft: RoutineDraft = {
     name: automation.name,
     icon: automation.icon || 'auto_awesome',
+    conditionLogic: 'all',
     conditions: [],
     actions: [],
   };
 
-  draft.conditions = parseTriggerRecords(automation.triggerJson)
+  const triggerGroup = parseTriggerGroup(automation.triggerJson);
+  draft.conditionLogic = triggerGroup.logic === 'any' ? 'any' : 'all';
+  draft.conditions = (triggerGroup.conditions || [])
     .filter((trigger: AutomationTriggerRecord) => isAutomationTriggerRecord(trigger))
     .map((trigger: AutomationTriggerRecord, index: number): ConditionDraft => ({
       id: trigger.id || `condition-${index}`,
@@ -84,7 +101,7 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
       deviceId: typeof trigger.deviceId === 'string' ? trigger.deviceId : '',
       property: typeof trigger.property === 'string' ? trigger.property : '',
       operator: normalizeOperator(trigger.operator),
-      threshold: typeof trigger.threshold === 'string' ? trigger.threshold : '',
+      threshold: trigger.threshold === undefined ? '' : String(trigger.threshold),
     }));
 
   draft.actions = parseActionRecords(automation.actionJson)
@@ -135,7 +152,10 @@ export function buildAutomationPayloadDraft(
     return actionItem;
   });
 
-  payload.triggerJson = JSON.stringify(triggers);
+  const triggerGroup = new AutomationTriggerGroupDraft();
+  triggerGroup.logic = draft.conditionLogic;
+  triggerGroup.conditions = triggers;
+  payload.triggerJson = JSON.stringify(triggerGroup);
   payload.actionJson = JSON.stringify(actions);
   return payload;
 }

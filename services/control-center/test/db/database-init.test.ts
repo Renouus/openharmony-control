@@ -112,7 +112,9 @@ describe('database init migrations', () => {
       expect(providerSourceColumns.some((column) => column.name === 'external_device_id')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'original_name')).toBe(true);
       expect(providerSourceColumns.some((column) => column.name === 'source_capabilities_json')).toBe(true);
-      expect(schemaVersion.value).toBe('7');
+      const automationColumns = db.prepare('PRAGMA table_info(automations)').all() as Array<{ name: string }>;
+      expect(automationColumns.some((column) => column.name === 'cooldown_ms')).toBe(true);
+      expect(schemaVersion.value).toBe('8');
     } finally {
       if (!legacyClosed) {
         legacyDb.close();

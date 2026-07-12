@@ -32,12 +32,12 @@ export struct ScenesListView {
   @Builder
   SceneMenu(sceneId: string) {
     Menu() {
-      MenuItem({ content: 'Edit scene' })
+      MenuItem({ content: '编辑场景' })
         .onClick(() => {
           const route = createEditSceneEditorRoute(sceneId);
           this.navStack.pushPathByName(route.page, route.param);
         })
-      MenuItem({ content: 'Delete scene' })
+      MenuItem({ content: '删除场景' })
         .onClick(() => {
           this.controller.handleDeleteScene(this.appState, sceneId);
         })
@@ -86,7 +86,7 @@ export struct ScenesListView {
 
   build() {
     Column({ space: 24 }) {
-      Text('Scenes')
+      Text('场景')
         .fontSize(38)
         .fontWeight(FontWeight.Bold)
         .fontColor(COLOR_PRIMARY)
@@ -170,7 +170,7 @@ export struct ScenesListView {
           .backgroundColor(COLOR_SECONDARY_CONTAINER)
           .justifyContent(FlexAlign.Center)
 
-          Text('Create New Scene')
+          Text('创建新场景')
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(COLOR_TEXT_MUTED)

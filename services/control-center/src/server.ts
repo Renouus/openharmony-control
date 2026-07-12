@@ -9,11 +9,16 @@ loadControlCenterEnv();
 const port = Number(process.env.CONTROL_CENTER_PORT ?? 3443);
 const host = process.env.CONTROL_CENTER_HOST ?? "0.0.0.0";
 const registry = new DeviceRegistry();
-const app = buildApp(registry);
 
 async function main(): Promise<void> {
+  // Initialize the database BEFORE building the app — buildApp constructs the
+  // automation runtime which calls getDb() at startup, so the DB must be ready
+  // first. Previously buildApp ran at module load (before initDatabase), which
+  // made getDb() throw and the runtime silently fall back to a no-op, so no
+  // automation ever fired in the real server.
   const dbPath = process.env.DATABASE_PATH || 'smarthome.db';
   const db = initDatabase(dbPath);
+  const app = buildApp(registry);
   app.log.info(`Database initialized at ${dbPath}`);
 
   try {
@@ -64,6 +69,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  app.log.error(error);
+  console.error(error);
   process.exitCode = 1;
 });

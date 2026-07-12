@@ -12,6 +12,7 @@ import type { CommandHistory } from "../history/command-history";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { SceneRegistry } from "../scenes/scene-registry";
 import { persistDeviceStateUpdate, type ServiceLogger } from "./device-command-service";
+import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
 
 type SceneRow = {
   id: string;
@@ -65,6 +66,7 @@ export class SceneService {
     private readonly history: CommandHistory,
     private readonly simulators: Map<string, DeviceSimulator>,
     private readonly logger: ServiceLogger = noopLogger,
+    private readonly deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
   ) {}
 
   listScenes(): PersistedSceneDescriptor[] {
@@ -208,7 +210,10 @@ export class SceneService {
     };
   }
 
-  async runScene(sceneId: SceneIdName): Promise<SceneRunServiceResult> {
+  async runScene(
+    sceneId: SceneIdName,
+    options?: { parentChainDepth?: number; automationId?: string; executionId?: string },
+  ): Promise<SceneRunServiceResult> {
     const scene = this.findScene(sceneId);
     if (!scene) {
       return {
@@ -217,6 +222,8 @@ export class SceneService {
         body: { code: "SCENE_NOT_FOUND" },
       };
     }
+
+    const dispatchChainDepth = options?.parentChainDepth === undefined ? 0 : options.parentChainDepth + 1;
 
     const results: CommandHistoryEntry[] = [];
     const syncedDevices: DeviceSyncDto[] = [];
@@ -259,6 +266,7 @@ export class SceneService {
       }
 
       try {
+        const beforeState = { ...device.state } as Record<string, unknown>;
         const result = simulator.execute({
           requestId,
           timestamp: Date.now(),
@@ -275,6 +283,25 @@ export class SceneService {
 
         if (syncedDevice) {
           syncedDevices.push(syncedDevice);
+        }
+
+        if (this.deviceStateTriggerAdapter) {
+          try {
+            await this.deviceStateTriggerAdapter.dispatchStateChange({
+              deviceId: command.deviceId,
+              source: "automation",
+              before: beforeState,
+              after: (updated?.state ?? result.state) as Record<string, unknown>,
+              metadata: {
+                executionId: options?.executionId ?? `scene-${sceneId}`,
+                chainDepth: dispatchChainDepth,
+                routeOrigin: "scene",
+                automationId: options?.automationId,
+              },
+            });
+          } catch (error) {
+            this.logger.error(`Failed to dispatch scene device state change:${String(error)}`);
+          }
         }
 
         results.push(this.history.add({

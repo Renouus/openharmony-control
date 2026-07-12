@@ -35,6 +35,7 @@ import {
 } from '../services/device-api';
 import { SmartHomeRepository } from '../services/smart-home-repository';
 import { SceneStore } from '../services/scene-store';
+import { AutomationStore } from '../services/automation-store';
 import { HomeViewModel } from '../viewmodel/home-view-model';
 import { LightingViewModel } from '../viewmodel/lighting-view-model';
 import { AccessViewModel } from '../viewmodel/access-view-model';
@@ -61,6 +62,7 @@ export class AppController {
   readonly repository: SmartHomeRepository;
   readonly homeViewModel: HomeViewModel;
   private readonly sceneStore: SceneStore;
+  private readonly automationStore: AutomationStore;
   private activeSceneId?: string;
   readonly lightingViewModel: LightingViewModel;
   readonly accessViewModel: AccessViewModel;
@@ -74,6 +76,7 @@ export class AppController {
     const api = new DeviceApi(BACKEND_BASE_URL);
     this.repository = new SmartHomeRepository(api);
     this.sceneStore = new SceneStore();
+    this.automationStore = new AutomationStore();
     this.homeViewModel = new HomeViewModel(this.repository);
     this.lightingViewModel = new LightingViewModel(this.repository);
     this.accessViewModel = new AccessViewModel(this.repository);
@@ -91,6 +94,8 @@ export class AppController {
     // while networking or startup sync is still becoming ready. Full refreshes
     // must retry the backend instead of permanently trusting that empty cache.
     await this.sceneStore.refresh(this.repository);
+    await this.automationStore.refresh(this.repository);
+
     snapshot.assignHome(await this.fetchHome(feedback));
     await this.syncRoomState(snapshot);
     snapshot.assignLighting(await this.fetchLighting(feedback));
@@ -99,7 +104,8 @@ export class AppController {
     snapshot.assignClimate(await this.fetchClimate(feedback));
     snapshot.assignScenes(await this.fetchScenes(feedback));
     this.syncSceneSource(snapshot);
-    await this.refreshAutomationState(snapshot, feedback);
+    this.syncAutomationSource(snapshot);
+    snapshot.assignAutomation(mapAutomationViewState(this.automationStore.visibleItems(), feedback));
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
   }
@@ -132,7 +138,7 @@ export class AppController {
           this.syncSceneSource(snapshot);
           break;
         case 'automation':
-          await this.refreshAutomationState(snapshot, feedback);
+          this.rebuildAutomationDerivedState(snapshot, feedback);
           break;
         case 'notifications':
           snapshot.assignNotifications(await this.fetchNotifications());
@@ -251,8 +257,8 @@ export class AppController {
 
   private async fetchAutomation(feedback: string = ''): Promise<AutomationViewStateData> {
     try {
-      const automations = await this.fetchAutomationSource();
-      return mapAutomationViewState(automations, feedback);
+      await this.automationStore.loadIfNeeded(this.repository);
+      return mapAutomationViewState(this.automationStore.visibleItems(), feedback);
     } catch {
       const automation = createEmptyAutomationViewStateData();
       automation.feedback = 'Automation unavailable';
@@ -260,18 +266,13 @@ export class AppController {
     }
   }
 
-  private async fetchAutomationSource(): Promise<AutomationSnapshot[]> {
-    try {
-      return await this.repository.listAutomations();
-    } catch {
-      return [];
-    }
+  private syncAutomationSource(snapshot: AppStateSnapshot): void {
+    snapshot.assignAutomationSource(this.automationStore.visibleItems());
   }
 
-  private async refreshAutomationState(snapshot: AppStateSnapshot, feedback: string = ''): Promise<void> {
-    const automations = await this.fetchAutomationSource();
-    snapshot.assignAutomationSource(automations);
-    snapshot.assignAutomation(mapAutomationViewState(automations, feedback));
+  private rebuildAutomationDerivedState(snapshot: AppStateSnapshot, feedback: string = ''): void {
+    this.syncAutomationSource(snapshot);
+    snapshot.assignAutomation(mapAutomationViewState(this.automationStore.visibleItems(), feedback));
   }
 
   private async fetchNotifications(): Promise<NotificationsViewStateData> {
@@ -435,34 +436,42 @@ export class AppController {
   // ====== Automation handlers ======
 
   async handleAutomationToggleScene(snapshot: AppStateSnapshot, sceneId: string, enabled: boolean): Promise<void> {
+    const target = this.automationStore.visibleItems().find((a: AutomationSnapshot) => a.id === sceneId);
+    if (target) {
+      target.enabled = enabled;
+      this.automationStore.replace(target);
+    }
     const feedback = await this.automationViewModel.toggleScene(sceneId, enabled);
-    return this.refreshPlannedTargets(snapshot, 'automationToggleScene', feedback);
+    this.rebuildAutomationDerivedState(snapshot, feedback);
   }
 
   async handleCreateAutomation(snapshot: AppStateSnapshot, payload: AutomationPayloadDraft): Promise<void> {
     try {
-      await this.repository.createAutomation(payload);
-      await this.refreshAutomationState(snapshot, '自动化已创建');
+      const created = await this.repository.createAutomation(payload);
+      this.automationStore.append(created);
+      this.rebuildAutomationDerivedState(snapshot, '自动化已创建');
     } catch {
-      await this.refreshAutomationState(snapshot, '创建自动化失败');
+      this.rebuildAutomationDerivedState(snapshot, '创建自动化失败');
     }
   }
 
   async handleUpdateAutomation(snapshot: AppStateSnapshot, automationId: string, payload: AutomationPayloadDraft): Promise<void> {
     try {
-      await this.repository.updateAutomation(automationId, payload);
-      await this.refreshAutomationState(snapshot, '自动化已更新');
+      const updated = await this.repository.updateAutomation(automationId, payload);
+      this.automationStore.replace(updated);
+      this.rebuildAutomationDerivedState(snapshot, '自动化已更新');
     } catch {
-      await this.refreshAutomationState(snapshot, '更新自动化失败');
+      this.rebuildAutomationDerivedState(snapshot, '更新自动化失败');
     }
   }
 
   async handleDeleteAutomation(snapshot: AppStateSnapshot, automationId: string): Promise<void> {
     try {
       await this.repository.deleteAutomation(automationId);
-      await this.refreshAutomationState(snapshot, '自动化已删除');
+      this.automationStore.removeVisible(automationId);
+      this.rebuildAutomationDerivedState(snapshot, '自动化已删除');
     } catch {
-      await this.refreshAutomationState(snapshot, '删除自动化失败');
+      this.rebuildAutomationDerivedState(snapshot, '删除自动化失败');
     }
   }
 

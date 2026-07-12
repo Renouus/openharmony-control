@@ -650,6 +650,11 @@ class AutomationTriggerLabelRecord {
   type?: string;
 }
 
+class AutomationTriggerLabelGroup {
+  logic?: string;
+  conditions?: AutomationTriggerLabelRecord[];
+}
+
 class AutomationActionLabelRecord {
   label?: string;
   command?: string;
@@ -684,9 +689,18 @@ function automationTriggerTypeFallback(triggerType: string): string {
 
 function parseAutomationTriggerLabel(automation: AutomationSnapshot): string {
   try {
-    const triggers = JSON.parse(automation.triggerJson) as AutomationTriggerLabelRecord[];
-    if (!Array.isArray(triggers)) {
-      return automationTriggerTypeFallback(automation.triggerType);
+    const parsed = JSON.parse(automation.triggerJson) as AutomationTriggerLabelRecord[] | AutomationTriggerLabelGroup;
+    let triggers: AutomationTriggerLabelRecord[] = [];
+    let logic: string = 'all';
+    if (Array.isArray(parsed)) {
+      triggers = parsed as AutomationTriggerLabelRecord[];
+    } else {
+      const group = parsed as AutomationTriggerLabelGroup;
+      triggers = Array.isArray(group.conditions) ? group.conditions : [];
+      logic = group.logic === 'any' ? 'any' : 'all';
+    }
+    if (triggers.length > 1) {
+      return logic === 'any' ? `任一满足 · ${triggers.length} 个条件` : `全部满足 · ${triggers.length} 个条件`;
     }
     const firstTrigger = triggers.length > 0 ? triggers[0] : undefined;
     if (!firstTrigger) {

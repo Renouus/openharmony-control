@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
   dbInstance = new Database(dbPath);
@@ -248,6 +248,12 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     nextVersion = 7;
     setSchemaVersion(db, nextVersion);
   }
+
+  if (nextVersion < 8) {
+    ensureColumn(db, "automations", "cooldown_ms", "ALTER TABLE automations ADD COLUMN cooldown_ms INTEGER NOT NULL DEFAULT 0");
+    nextVersion = 8;
+    setSchemaVersion(db, nextVersion);
+  }
 }
 
 function reconcileCriticalSchema(db: Database.Database): void {
@@ -255,6 +261,7 @@ function reconcileCriticalSchema(db: Database.Database): void {
   // missing columns from interrupted/manual migrations. Reconcile the columns
   // we rely on during startup before any seed/write path runs.
   ensureColumn(db, "automations", "icon", "ALTER TABLE automations ADD COLUMN icon TEXT");
+  ensureColumn(db, "automations", "cooldown_ms", "ALTER TABLE automations ADD COLUMN cooldown_ms INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scenes", "icon", "ALTER TABLE scenes ADD COLUMN icon TEXT");
   ensureColumn(db, "scenes", "room_id", "ALTER TABLE scenes ADD COLUMN room_id TEXT");
   ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
