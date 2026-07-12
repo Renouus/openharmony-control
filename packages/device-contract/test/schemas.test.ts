@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   automationMutationSchema,
+  automationUpdateSchema,
   cameraMutationSchema,
   climateMutationSchema,
   commandHistoryQuerySchema,
   createDeviceSchema,
   demoEnvironmentSchema,
+  demoOfflineFaultSchema,
   demoMotionSchema,
+  demoSecurityFaultSchema,
   deviceCommandSchema,
   deviceRoomMutationSchema,
   deviceMetadataMutationSchema,
@@ -17,10 +20,13 @@ import {
   roomMutationSchema,
   roomUpdateSchema,
   sceneCreateSchema,
+  sceneEnabledMutationSchema,
+  sceneUpdateSchema,
   signedCommandEnvelopeSchema,
   syncQuerySchema,
   websocketQuerySchema,
 } from "../src/schemas";
+import type { ValidationErrorDto } from "@smart-home/device-contract/validation-error";
 
 const commandBase = {
   requestId: "cmd-12345678",
@@ -34,6 +40,7 @@ describe("deviceCommandSchema", () => {
     expect(deviceCommandSchema.parse({ ...commandBase, name: "lock", payload: { locked: false } }).payload).toEqual({ locked: false });
     expect(deviceCommandSchema.parse({ ...commandBase, name: "set-target-temperature", payload: { targetTemperature: 16 } }).payload).toEqual({ targetTemperature: 16 });
     expect(deviceCommandSchema.parse({ ...commandBase, name: "set-brightness", payload: { brightness: 100 } }).payload).toEqual({ brightness: 100 });
+    expect(deviceCommandSchema.parse({ ...commandBase, name: "set-color-temperature", payload: { colorTemperature: 2200 } }).payload).toEqual({ colorTemperature: 2200 });
     expect(deviceCommandSchema.parse({ ...commandBase, name: "set-color-temperature", payload: { colorTemperature: 6500 } }).payload).toEqual({ colorTemperature: 6500 });
   });
 
@@ -45,7 +52,7 @@ describe("deviceCommandSchema", () => {
     expect(deviceCommandSchema.safeParse({ ...commandBase, name: "lock", payload: { locked: true }, admin: true }).success).toBe(false);
     expect(deviceCommandSchema.safeParse({ ...commandBase, name: "set-target-temperature", payload: { targetTemperature: 31 } }).success).toBe(false);
     expect(deviceCommandSchema.safeParse({ ...commandBase, name: "set-brightness", payload: { brightness: 0.5 } }).success).toBe(false);
-    expect(deviceCommandSchema.safeParse({ ...commandBase, name: "set-color-temperature", payload: { colorTemperature: 1999 } }).success).toBe(false);
+    expect(deviceCommandSchema.safeParse({ ...commandBase, name: "set-color-temperature", payload: { colorTemperature: 2199 } }).success).toBe(false);
   });
 });
 
@@ -98,6 +105,47 @@ describe("route body schemas", () => {
     expect(automationMutationSchema.safeParse({ name: "Night", triggerType: "time", triggerJson: "{}", actionJson: "{}", enabled: true }).success).toBe(true);
     expect(automationMutationSchema.safeParse({ name: "Night", triggerType: "time", triggerJson: "{}", actionJson: "{}" }).success).toBe(true);
     expect(automationMutationSchema.safeParse({ name: "Night", triggerType: "time", triggerJson: "{}", actionJson: "", enabled: true }).success).toBe(false);
+  });
+
+  it("validates complete and partial scene shapes across every command branch", () => {
+    const scene = {
+      name: "Evening",
+      description: "Prepare the living room",
+      enabled: true,
+      trigger: { type: "manual", label: "Run" },
+      repeat: [],
+      actionsLabel: ["Lights and lock"],
+      commands: [
+        { deviceId: "light-1", name: "switch", payload: { on: true } },
+        { deviceId: "lock-1", name: "lock", payload: { locked: true } },
+        { deviceId: "ac-1", name: "set-target-temperature", payload: { targetTemperature: 16 } },
+        { deviceId: "light-1", name: "set-brightness", payload: { brightness: 0 } },
+        { deviceId: "light-1", name: "set-color-temperature", payload: { colorTemperature: 2200 } },
+        { deviceId: "light-1", name: "set-color-temperature", payload: { colorTemperature: 6500 } },
+      ],
+    };
+    expect(sceneCreateSchema.safeParse(scene).success).toBe(true);
+    expect(sceneUpdateSchema.safeParse({ description: "Updated" }).success).toBe(true);
+    expect(sceneEnabledMutationSchema.safeParse({ enabled: false }).success).toBe(true);
+    expect(sceneCreateSchema.safeParse({ ...scene, commands: [{ deviceId: "light-1", name: "set-color-temperature", payload: { colorTemperature: 2199 } }] }).success).toBe(false);
+    expect(sceneUpdateSchema.safeParse({ enabled: true, admin: true }).success).toBe(false);
+  });
+
+  it("validates automation updates and remaining demo fault bodies", () => {
+    expect(automationUpdateSchema.safeParse({ enabled: false }).success).toBe(true);
+    expect(automationUpdateSchema.safeParse({ enabled: false, extra: true }).success).toBe(false);
+    expect(demoOfflineFaultSchema.safeParse({ deviceId: "light-1", offline: true }).success).toBe(true);
+    expect(demoOfflineFaultSchema.safeParse({ deviceId: "light-1", offline: true, extra: true }).success).toBe(false);
+    expect(demoSecurityFaultSchema.safeParse({ forceUnauthorizedCommands: true }).success).toBe(true);
+    expect(demoSecurityFaultSchema.safeParse({ forceUnauthorizedCommands: "yes" }).success).toBe(false);
+  });
+
+  it("exposes the stable validation error DTO through its package subpath", () => {
+    const error: ValidationErrorDto = {
+      code: "VALIDATION_ERROR",
+      fields: [{ path: "payload.on", message: "Expected boolean" }],
+    };
+    expect(error.fields[0]?.path).toBe("payload.on");
   });
 
   it("validates family and websocket inputs strictly", () => {

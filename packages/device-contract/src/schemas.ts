@@ -15,7 +15,7 @@ export const deviceCommandSchema = z.discriminatedUnion("name", [
   z.object({ ...commandBase, name: z.literal("lock"), payload: z.object({ locked: z.boolean() }).strict() }).strict(),
   z.object({ ...commandBase, name: z.literal("set-target-temperature"), payload: z.object({ targetTemperature: z.number().finite().min(16).max(30) }).strict() }).strict(),
   z.object({ ...commandBase, name: z.literal("set-brightness"), payload: z.object({ brightness: z.number().int().min(0).max(100) }).strict() }).strict(),
-  z.object({ ...commandBase, name: z.literal("set-color-temperature"), payload: z.object({ colorTemperature: z.number().int().min(2000).max(6500) }).strict() }).strict(),
+  z.object({ ...commandBase, name: z.literal("set-color-temperature"), payload: z.object({ colorTemperature: z.number().int().min(2200).max(6500) }).strict() }).strict(),
 ]);
 
 export const signedCommandEnvelopeSchema = z.object({
@@ -65,7 +65,7 @@ const sceneCommandSchema = z.discriminatedUnion("name", [
   z.object({ deviceId: shortId, name: z.literal("lock"), payload: z.object({ locked: z.boolean() }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-target-temperature"), payload: z.object({ targetTemperature: z.number().finite().min(16).max(30) }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-brightness"), payload: z.object({ brightness: z.number().int().min(0).max(100) }).strict() }).strict(),
-  z.object({ deviceId: shortId, name: z.literal("set-color-temperature"), payload: z.object({ colorTemperature: z.number().int().min(2000).max(6500) }).strict() }).strict(),
+  z.object({ deviceId: shortId, name: z.literal("set-color-temperature"), payload: z.object({ colorTemperature: z.number().int().min(2200).max(6500) }).strict() }).strict(),
 ]);
 const sceneFields = {
   name: boundedText,

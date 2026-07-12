@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/device.ts",
     "./security": "./src/security.ts",
-    "./schemas": "./src/schemas.ts"
+    "./schemas": "./src/schemas.ts",
+    "./validation-error": "./src/validation-error.ts"
   },
   "scripts": {
     "test": "vitest --run",
