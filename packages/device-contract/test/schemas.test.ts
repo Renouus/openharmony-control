@@ -8,7 +8,10 @@ import {
   demoEnvironmentSchema,
   demoMotionSchema,
   deviceCommandSchema,
+  deviceRoomMutationSchema,
   deviceMetadataMutationSchema,
+  familyBroadcastSchema,
+  familySettingsMutationSchema,
   joinPendingDeviceSchema,
   guestKeyMutationSchema,
   roomMutationSchema,
@@ -16,6 +19,7 @@ import {
   sceneCreateSchema,
   signedCommandEnvelopeSchema,
   syncQuerySchema,
+  websocketQuerySchema,
 } from "../src/schemas";
 
 const commandBase = {
@@ -75,6 +79,8 @@ describe("route body schemas", () => {
     expect(deviceMetadataMutationSchema.safeParse({ customName: "Lamp", note: "", customIcon: "lightbulb", roomId: "living-room" }).success).toBe(true);
     expect(createDeviceSchema.safeParse({ deviceCode: "", roomId: "living-room" }).success).toBe(false);
     expect(deviceMetadataMutationSchema.safeParse({ customName: "x".repeat(31), note: "", customIcon: "lightbulb", roomId: "living-room" }).success).toBe(false);
+    expect(deviceRoomMutationSchema.safeParse({ roomId: "living-room", room: "Living Room" }).success).toBe(true);
+    expect(deviceRoomMutationSchema.safeParse({}).success).toBe(false);
   });
 
   it("validates demo and climate boundaries", () => {
@@ -90,6 +96,17 @@ describe("route body schemas", () => {
   it("rejects malformed scene and automation bodies", () => {
     expect(sceneCreateSchema.safeParse({ name: "Movie" }).success).toBe(false);
     expect(automationMutationSchema.safeParse({ name: "Night", triggerType: "time", triggerJson: "{}", actionJson: "{}", enabled: true }).success).toBe(true);
+    expect(automationMutationSchema.safeParse({ name: "Night", triggerType: "time", triggerJson: "{}", actionJson: "{}" }).success).toBe(true);
     expect(automationMutationSchema.safeParse({ name: "Night", triggerType: "time", triggerJson: "{}", actionJson: "", enabled: true }).success).toBe(false);
+  });
+
+  it("validates family and websocket inputs strictly", () => {
+    expect(familyBroadcastSchema.safeParse({ message: " Dinner is ready " }).success).toBe(true);
+    expect(familyBroadcastSchema.safeParse({ message: "" }).success).toBe(false);
+    expect(familySettingsMutationSchema.safeParse({ homeName: "My Home", timezone: "Asia/Shanghai" }).success).toBe(true);
+    expect(familySettingsMutationSchema.safeParse({ timezone: 8 }).success).toBe(false);
+    expect(websocketQuerySchema.safeParse({}).success).toBe(true);
+    expect(websocketQuerySchema.safeParse({ clientId: "client-1" }).success).toBe(true);
+    expect(websocketQuerySchema.safeParse({ clientId: "", extra: true }).success).toBe(false);
   });
 });

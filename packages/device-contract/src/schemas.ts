@@ -47,10 +47,12 @@ export const joinPendingDeviceSchema = z.object({
   roomId: shortId,
   deviceType: z.enum(["door-lock", "light", "environment-sensor", "air-conditioner", "motion-sensor"]),
 }).strict();
-export const deviceRoomMutationSchema = z.union([
-  z.object({ roomId: shortId }).strict(),
-  z.object({ room: shortId }).strict(),
-]);
+export const deviceRoomMutationSchema = z.object({
+  roomId: shortId.optional(),
+  room: shortId.optional(),
+}).strict().refine((value) => value.roomId !== undefined || value.room !== undefined, {
+  message: "roomId or room is required",
+});
 export const deviceMetadataMutationSchema = z.object({
   customName: z.string().trim().min(1).max(30),
   note: z.string().trim().max(120),
@@ -89,7 +91,7 @@ const automationFields = {
   triggerType: boundedText,
   triggerJson: jsonText,
   actionJson: jsonText,
-  enabled: z.boolean(),
+  enabled: z.boolean().optional(),
 };
 export const automationMutationSchema = z.object(automationFields).strict();
 export const automationUpdateSchema = z.object(automationFields).partial().strict();
@@ -110,6 +112,15 @@ export const demoEnvironmentSchema = z.object({
 }).strict();
 export const demoMotionSchema = z.object({ deviceId: shortId, motionDetected: z.boolean().optional() }).strict();
 export const demoSecurityFaultSchema = z.object({ forceUnauthorizedCommands: z.boolean().optional() }).strict();
+export const familyBroadcastSchema = z.object({ message: z.string().trim().min(1).max(500) }).strict();
+export const familySettingsMutationSchema = z.object({
+  homeName: z.string().trim().max(128).optional(),
+  address: z.string().trim().max(500).optional(),
+  timezone: z.string().trim().max(128).optional(),
+  emergencyContactName: z.string().trim().max(128).optional(),
+  emergencyContactPhone: z.string().trim().max(64).optional(),
+}).strict();
+export const websocketQuerySchema = z.object({ clientId: z.string().max(128).optional() }).strict();
 
 export type ParsedDeviceCommand = z.infer<typeof deviceCommandSchema>;
 export type ParsedSignedCommandEnvelope = z.infer<typeof signedCommandEnvelopeSchema>;
