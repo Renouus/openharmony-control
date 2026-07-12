@@ -22,6 +22,10 @@ export async function registerClimateRoutes(
   /** 当前空调模式（内存可变） */
   let mode: ClimateMode = "cool";
 
+  // Set initial mode on the AC device in the registry so it is included
+  // in device state broadcasts and per-device views.
+  registry.update("ac-living-room", { mode });
+
   /** 从注册表实时读取传感器和空调数据构造气候概览 */
   const readOverview = (): ClimateOverview => {
     const sensor = registry.find("sensor-living-room");
@@ -51,6 +55,7 @@ export async function registerClimateRoutes(
     }
 
     mode = requestedMode;
+    registry.update("ac-living-room", { mode: requestedMode });
     return readOverview();
   });
 
@@ -66,6 +71,7 @@ export async function registerClimateRoutes(
     }
 
     mode = requestedMode;
+    registry.update("ac-living-room", { mode: requestedMode });
     return readOverview();
   });
 }

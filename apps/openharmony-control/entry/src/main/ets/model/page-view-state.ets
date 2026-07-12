@@ -149,6 +149,7 @@ export interface HomeDeviceCardState {
   statusLabel: string;
   power: boolean;
   locked: boolean;
+  mode?: string;
   temperature?: number;       // current temp for AC
   targetTemperature?: number; // target for AC
   brightness?: number;
@@ -174,6 +175,7 @@ export interface DevicePanelState {
   online: boolean;
   power: boolean;
   locked: boolean;
+  mode?: string;
   brightness: number;
   targetTemperature: number;
 }

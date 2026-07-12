@@ -8,7 +8,6 @@ import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
 import { AppSymbol } from '../components/AppSymbol';
 import { DeviceNoteBanner } from '../components/DeviceNoteBanner';
-import { DevicePreferenceService } from '../services/device-preference-service';
 import {
   COLOR_BG,
   COLOR_ON_SURFACE,
@@ -61,25 +60,9 @@ export struct ClimateControlView {
   @Consume('controller') controller: AppController;
 
   @State feedback: string = '';
-  @State currentMode: string = 'auto';
 
-  private static readonly PREF_KEY_MODE: string = 'climate_mode';
-
-  private get modeStorageKey(): string {
-    return ClimateControlView.PREF_KEY_MODE;
-  }
-
-  async aboutToAppear(): Promise<void> {
-    const saved = await DevicePreferenceService.getString(this.deviceId, this.modeStorageKey, '');
-    if (saved.length > 0 && (saved === 'heat' || saved === 'cool' || saved === 'auto')) {
-      this.currentMode = saved;
-    }
-  }
-
-  private saveMode(mode: string): void {
-    this.currentMode = mode;
-    DevicePreferenceService.setString(this.deviceId, this.modeStorageKey, mode)
-      .catch((e: Object) => console.error(`Failed to persist AC mode: ${e}`));
+  private getDeviceMode(): string {
+    return this.getDevice()?.mode ?? 'auto';
   }
 
   private getDevice(): HomeDeviceCardState | undefined {
@@ -98,26 +81,27 @@ export struct ClimateControlView {
 
   private buildModes(): ClimateModeState[] {
     const isPowered = this.getDevice()?.power ?? false;
+    const deviceMode = this.getDeviceMode();
     const modes: ClimateModeState[] = [];
     const heatMode: ClimateModeState = {
       id: 'heat',
       label: '制热',
       icon: 'mode_heat',
-      active: isPowered && this.currentMode === 'heat',
+      active: isPowered && deviceMode === 'heat',
     };
     modes.push(heatMode);
     const coolMode: ClimateModeState = {
       id: 'cool',
       label: '制冷',
       icon: 'ac_unit',
-      active: isPowered && this.currentMode === 'cool',
+      active: isPowered && deviceMode === 'cool',
     };
     modes.push(coolMode);
     const autoMode: ClimateModeState = {
       id: 'auto',
       label: '自动',
       icon: 'autorenew',
-      active: isPowered && this.currentMode === 'auto',
+      active: isPowered && deviceMode === 'auto',
     };
     modes.push(autoMode);
     return modes;
@@ -137,13 +121,13 @@ export struct ClimateControlView {
 
   private selectMode(mode: string): void {
     const isPowered = this.getDevice()?.power ?? false;
-    if (isPowered && this.currentMode === mode) {
+    const deviceMode = this.getDeviceMode();
+    if (isPowered && deviceMode === mode) {
       this.controller.handleClimateMode(this.appState, this.deviceId, 'off')
         .then(() => {})
         .catch(() => {});
       return;
     }
-    this.saveMode(mode);
     this.controller.handleClimateMode(this.appState, this.deviceId, mode)
       .then(() => {})
       .catch(() => {});
@@ -264,11 +248,11 @@ export struct ClimateControlView {
 
               Row({ space: 6 }) {
                 AppSymbol({
-                  name: this.getDevice()?.power === true ? this.currentMode === 'cool' ? 'ac_unit' : 'mode_heat' : 'thermostat',
+                  name: this.getDevice()?.power === true ? this.getDeviceMode() === 'cool' ? 'ac_unit' : 'mode_heat' : 'thermostat',
                   glyphSize: 16,
                   color: COLOR_PRIMARY,
                 })
-                Text(this.getDevice()?.power === true ? this.currentMode === 'cool' ? '制冷中' : this.currentMode === 'auto' ? '自动运行' : '制热中' : '已关闭')
+                Text(this.getDevice()?.power === true ? this.getDeviceMode() === 'cool' ? '制冷中' : this.getDeviceMode() === 'auto' ? '自动运行' : '制热中' : '已关闭')
                   .fontSize(12)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(COLOR_PRIMARY)
