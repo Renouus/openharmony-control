@@ -1,7 +1,7 @@
 import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppSymbol } from './AppSymbol';
 
-export type HeaderActionMenuItem = 'sceneEditor' | 'createAutomation' | 'familySettings' | 'createRoom';
+export type HeaderActionMenuItem = 'sceneEditor' | 'createAutomation' | 'familySettings' | 'createRoom' | 'syncProviderDevices';
 
 interface HeaderActionConfig {
   id: HeaderActionMenuItem;
@@ -15,25 +15,31 @@ const HEADER_ACTIONS: HeaderActionConfig[] = [
     id: 'sceneEditor',
     icon: 'movie',
     title: '创建场景',
-    subtitle: '创建房间情境预设。',
+    subtitle: '创建房间情境预设',
   },
   {
     id: 'createAutomation',
     icon: 'auto_awesome',
     title: '新建自动化',
-    subtitle: '将触发器和操作连接在一起。',
+    subtitle: '将触发器和操作连接在一起',
   },
   {
     id: 'familySettings',
     icon: 'group',
     title: '家庭设置',
-    subtitle: '管理成员、家庭信息和访问权限。',
+    subtitle: '管理成员、家庭信息和访问权限',
   },
   {
     id: 'createRoom',
     icon: 'add',
     title: '添加房间',
-    subtitle: '创建自定义房间分组设备。',
+    subtitle: '创建自定义房间分组设备',
+  },
+  {
+    id: 'syncProviderDevices',
+    icon: 'sync',
+    title: '同步云端设备',
+    subtitle: '获取外部第三方智能设备',
   },
 ];
 

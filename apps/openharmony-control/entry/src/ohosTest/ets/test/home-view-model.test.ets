@@ -5,11 +5,13 @@ import {
   AutomationEnablePayload,
   AutomationPayloadDraft,
   DevicePayload,
+  DeviceUpdateRequest,
   PendingDeviceSnapshot,
   SceneEnablePayload,
   ScenePayloadDraft,
   SceneSnapshot,
 } from '../../../main/ets/services/device-api';
+import { DeviceSnapshot } from '../../../main/ets/model/device-view-model';
 
 class HomeRepositoryStub implements SmartHomeRepositoryPort {
   failCameras: boolean = false;
@@ -49,7 +51,7 @@ class HomeRepositoryStub implements SmartHomeRepositoryPort {
   async createDevice(_deviceCode: string, _roomId: string) { throw new Error('not used'); }
   async joinPendingDevice(_deviceId: string, _displayName: string, _roomId: string, _deviceType: string) { throw new Error('not used'); }
   async rejectPendingDevice(_deviceId: string) {}
-  async updateDeviceName(_deviceId: string, _customName: string) { throw new Error('not used'); }
+  async updateDevice(_deviceId: string, _update: DeviceUpdateRequest): Promise<DeviceSnapshot> { throw new Error('not used'); }
 
   async listScenes() {
     this.listScenesCalls += 1;

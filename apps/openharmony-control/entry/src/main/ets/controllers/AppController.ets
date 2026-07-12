@@ -21,13 +21,14 @@
   createEmptyNotificationsViewStateData,
   RoomItemState,
 } from '../model/page-view-state';
-import { mapAutomationViewState, mapRoomList, mapScenesViewState } from '../model/smart-home-mappers';
+import { mapAutomationViewState, mapRoomList, mapRoomViews, mapScenesViewState } from '../model/smart-home-mappers';
 import { createRefreshPlan, AppPageRefreshTarget, IndexPageAction } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import {
   AutomationSnapshot,
   AutomationPayloadDraft,
   DeviceApi,
+  DeviceUpdateRequest,
   FamilySettingsUpdateRequest,
   PersistedScene,
   ScenePayloadDraft,
@@ -47,6 +48,11 @@ import { normalizeRepositoryError } from '../services/smart-home-repository';
 const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
 
 export interface DeviceCreationResult {
+  success: boolean;
+  message: string;
+}
+
+export interface DeviceUpdateResult {
   success: boolean;
   message: string;
 }
@@ -81,16 +87,21 @@ export class AppController {
   // ── Refresh helpers (return plain data; AppStateSnapshot.assign*() applies it) ──
 
   async refreshAll(snapshot: AppStateSnapshot, feedback: string = ''): Promise<void> {
+    // A first request can legitimately fall back to an empty local database
+    // while networking or startup sync is still becoming ready. Full refreshes
+    // must retry the backend instead of permanently trusting that empty cache.
+    await this.sceneStore.refresh(this.repository);
     snapshot.assignHome(await this.fetchHome(feedback));
+    await this.syncRoomState(snapshot);
     snapshot.assignLighting(await this.fetchLighting(feedback));
     snapshot.assignAccess(await this.fetchAccess(feedback));
     snapshot.assignCamera(await this.fetchCamera(feedback));
     snapshot.assignClimate(await this.fetchClimate(feedback));
     snapshot.assignScenes(await this.fetchScenes(feedback));
+    this.syncSceneSource(snapshot);
     await this.refreshAutomationState(snapshot, feedback);
     snapshot.assignNotifications(await this.fetchNotifications());
     snapshot.assignFamily(await this.fetchFamily(feedback));
-    snapshot.assignRoomList(await this.fetchRoomList());
   }
 
   async refreshTargets(
@@ -102,6 +113,7 @@ export class AppController {
       switch (target) {
         case 'home':
           snapshot.assignHome(await this.fetchHome(feedback));
+          await this.syncRoomState(snapshot); // Ensure room view state gets synced whenever home gets synced (e.g., when devices change state after running scenes)
           break;
         case 'lighting':
           snapshot.assignLighting(await this.fetchLighting(feedback));
@@ -117,6 +129,7 @@ export class AppController {
           break;
         case 'scenesList':
           snapshot.assignScenes(await this.fetchScenes(feedback));
+          this.syncSceneSource(snapshot);
           break;
         case 'automation':
           await this.refreshAutomationState(snapshot, feedback);
@@ -141,13 +154,15 @@ export class AppController {
 
   // ── Private fetch helpers ─────────────────────────────────────────────────
 
-  private async fetchRoomList(): Promise<RoomItemState[]> {
+  private async syncRoomState(snapshot: AppStateSnapshot): Promise<void> {
     try {
       const rooms = await this.repository.listRooms();
       const devices = await this.repository.listDevices();
-      return mapRoomList(rooms, devices);
+      const scenes = this.sceneStore.visibleItems();
+      snapshot.assignRoomList(mapRoomList(rooms, devices));
+      snapshot.assignRoomViews(mapRoomViews(rooms, devices, scenes, this.activeSceneId));
     } catch {
-      return [];
+      // Preserve the last valid room state during transient startup or network failures.
     }
   }
 
@@ -220,12 +235,18 @@ export class AppController {
   }
 
   private async rebuildSceneDerivedState(snapshot: AppStateSnapshot, feedback: string): Promise<void> {
+    this.syncSceneSource(snapshot);
     snapshot.assignScenes(mapScenesViewState(this.sceneStore.visibleItems(), feedback));
     snapshot.assignHome(await this.homeViewModel.loadWithScenes(
       this.sceneStore.visibleItems(),
       feedback,
       this.activeSceneId,
     ));
+    await this.syncRoomState(snapshot);
+  }
+
+  private syncSceneSource(snapshot: AppStateSnapshot): void {
+    snapshot.assignSceneSource(this.sceneStore.visibleItems());
   }
 
   private async fetchAutomation(feedback: string = ''): Promise<AutomationViewStateData> {
@@ -452,7 +473,9 @@ export class AppController {
       await this.rebuildSceneDerivedState(snapshot, '场景已创建');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('创建场景失败'));
+      this.syncSceneSource(snapshot);
       snapshot.assignHome(await this.fetchHome('创建场景失败'));
+      await this.syncRoomState(snapshot);
     }
   }
 
@@ -463,7 +486,9 @@ export class AppController {
       await this.rebuildSceneDerivedState(snapshot, '场景已更新');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('更新场景失败'));
+      this.syncSceneSource(snapshot);
       snapshot.assignHome(await this.fetchHome('更新场景失败'));
+      await this.syncRoomState(snapshot);
     }
   }
 
@@ -475,7 +500,9 @@ export class AppController {
       await this.rebuildSceneDerivedState(snapshot, '场景已删除');
     } catch {
       snapshot.assignScenes(await this.fetchScenes('删除场景失败'));
+      this.syncSceneSource(snapshot);
       snapshot.assignHome(await this.fetchHome('删除场景失败'));
+      await this.syncRoomState(snapshot);
     }
   }
 
@@ -516,7 +543,7 @@ export class AppController {
     } catch (error) {
       const message = normalizeRepositoryError(error as Object);
       snapshot.assignHome(await this.fetchHome(message));
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       return { success: false, message };
     }
   }
@@ -524,7 +551,7 @@ export class AppController {
   async handleCreateRoom(snapshot: AppStateSnapshot, name: string, icon: string): Promise<void> {
     try {
       await this.repository.createRoom(name, icon);
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('房间已创建'));
     } catch {
       snapshot.assignHome(await this.fetchHome('创建房间失败'));
@@ -534,7 +561,7 @@ export class AppController {
   async handleUpdateRoom(snapshot: AppStateSnapshot, roomId: string, name?: string, icon?: string): Promise<void> {
     try {
       await this.repository.updateRoom(roomId, name, icon);
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('房间已更新'));
     } catch {
       snapshot.assignHome(await this.fetchHome('更新房间失败'));
@@ -544,7 +571,7 @@ export class AppController {
   async handleDeleteRoom(snapshot: AppStateSnapshot, roomId: string): Promise<void> {
     try {
       await this.repository.deleteRoom(roomId);
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('房间已删除'));
     } catch {
       snapshot.assignHome(await this.fetchHome('删除房间失败'));
@@ -556,19 +583,24 @@ export class AppController {
       for (const deviceId of deviceIds) {
         await this.repository.updateDeviceRoom(deviceId, roomId);
       }
-      snapshot.assignRoomList(await this.fetchRoomList());
+      await this.syncRoomState(snapshot);
       snapshot.assignHome(await this.fetchHome('设备已分配'));
     } catch {
       snapshot.assignHome(await this.fetchHome('分配设备失败'));
     }
   }
 
-  async handleUpdateDeviceName(snapshot: AppStateSnapshot, deviceId: string, customName: string): Promise<void> {
+  async handleUpdateDevice(
+    snapshot: AppStateSnapshot,
+    deviceId: string,
+    update: DeviceUpdateRequest,
+  ): Promise<DeviceUpdateResult> {
     try {
-      await this.repository.updateDeviceName(deviceId, customName);
-      await this.refreshTargets(snapshot, ['home', 'lighting'], '设备名称已更新');
-    } catch {
-      await this.refreshTargets(snapshot, ['home', 'lighting'], '更新设备名称失败');
+      await this.repository.updateDevice(deviceId, update);
+      await this.refreshAll(snapshot, '设备信息已更新');
+      return { success: true, message: '设备信息已更新' };
+    } catch (error) {
+      return { success: false, message: normalizeRepositoryError(error as Object) };
     }
   }
 
@@ -600,6 +632,10 @@ export class AppController {
       await this.refreshAll(snapshot, message);
       return message;
     }
+  }
+
+  async syncProviderDevices(): Promise<boolean> {
+    return this.repository.syncProviderDevices();
   }
 }
 

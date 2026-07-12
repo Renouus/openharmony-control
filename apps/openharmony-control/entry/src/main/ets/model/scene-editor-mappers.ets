@@ -40,10 +40,14 @@ export function mapSceneCardToDraft(scene: SceneCardState): SceneDraftData {
 export function buildScenePayloadDraft(
   draft: SceneDraftData,
   actionLabels: string[],
+  roomId?: string,
 ): ScenePayloadDraft {
   const payload = new ScenePayloadDraft();
   payload.name = draft.name;
   payload.icon = draft.icon;
+  if (roomId && roomId.length > 0) {
+    payload.roomId = roomId;
+  }
   payload.enabled = true;
   payload.description = '鎵嬪姩瑙﹀彂鍦烘櫙';
 
@@ -84,7 +88,7 @@ function mapActionToSceneCommand(action: ActionDraft): SceneCommandDraft | undef
   }
 
   const parts = action.command.split(':');
-  const commandName = parts[0];
+  const commandName = normalizeSceneCommandName(parts[0]);
   const commandValue = parts.length > 1 ? parts[1] : '';
   const payload = createCommandPayload(commandName, commandValue);
   if (payload === undefined) {
@@ -96,6 +100,22 @@ function mapActionToSceneCommand(action: ActionDraft): SceneCommandDraft | undef
   command.name = commandName;
   command.payload = payload;
   return command;
+}
+
+function normalizeSceneCommandName(name: string): string {
+  if (name === 'power') {
+    return 'switch';
+  }
+  if (name === 'brightness') {
+    return 'set-brightness';
+  }
+  if (name === 'targetTemperature') {
+    return 'set-target-temperature';
+  }
+  if (name === 'locked') {
+    return 'lock';
+  }
+  return name;
 }
 
 function serializeCommandPayload(name: string, payload: SceneCommandPayload): string | undefined {

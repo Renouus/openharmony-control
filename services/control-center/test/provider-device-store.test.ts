@@ -92,11 +92,21 @@ describe("ProviderDeviceStore", () => {
       roomId: "bedroom",
       deviceType: "light",
     });
+    const updated = store.updateActiveDevice("tuya-light-1", {
+      displayName: "Desk Light",
+      note: "Do not unplug",
+      customIcon: "outlet",
+      roomId: "study",
+      deviceType: "light",
+    });
 
-    expect(joined).toMatchObject({
+    expect(joined).toBeDefined();
+    expect(updated).toMatchObject({
       id: "tuya-light-1",
-      customName: "Bedroom Bedside Lamp",
-      room: "bedroom",
+      customName: "Desk Light",
+      note: "Do not unplug",
+      customIcon: "outlet",
+      room: "study",
       kind: "light",
     });
 
@@ -107,7 +117,10 @@ describe("ProviderDeviceStore", () => {
     expect(active[0]).toMatchObject({
       id: "tuya-light-1",
       name: "Cloud Renamed Light",
-      customName: "Bedroom Bedside Lamp",
+      customName: "Desk Light",
+      note: "Do not unplug",
+      customIcon: "outlet",
+      room: "study",
     });
   });
 

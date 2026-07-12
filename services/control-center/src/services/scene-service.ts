@@ -19,6 +19,7 @@ type SceneRow = {
   icon: string | null;
   description: string | null;
   enabled: number;
+  room_id: string | null;
   created_at: number;
   updated_at: number;
   sort_order: number;
@@ -105,16 +106,17 @@ export class SceneService {
 
     db.prepare(`
       INSERT INTO scenes (
-        id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
+        id, name, icon, description, enabled, room_id, created_at, updated_at, sort_order, version, is_deleted,
         trigger_json, repeat_json, actions_label_json, commands_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
     `).run(
       id,
       sceneData.name,
       sceneData.icon ?? null,
       sceneData.description,
       sceneData.enabled ? 1 : 0,
+      sceneData.roomId ?? null,
       now,
       now,
       nextSortOrderRow.next_sort_order,
@@ -152,7 +154,7 @@ export class SceneService {
 
     db.prepare(`
       UPDATE scenes
-      SET name = ?, icon = ?, description = ?, enabled = ?, updated_at = ?, version = ?,
+      SET name = ?, icon = ?, description = ?, enabled = ?, room_id = ?, updated_at = ?, version = ?,
           trigger_json = ?, repeat_json = ?, actions_label_json = ?, commands_json = ?
       WHERE id = ? AND is_deleted = 0
     `).run(
@@ -160,6 +162,7 @@ export class SceneService {
       nextScene.icon ?? null,
       nextScene.description,
       nextScene.enabled ? 1 : 0,
+      nextScene.roomId ?? null,
       updatedAt,
       version,
       JSON.stringify(nextScene.trigger),
@@ -311,10 +314,10 @@ export class SceneService {
     const builtInScenes = this.sceneRegistry.list();
     const insertScene = db.prepare(`
       INSERT OR IGNORE INTO scenes (
-        id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
+        id, name, icon, description, enabled, room_id, created_at, updated_at, sort_order, version, is_deleted,
         trigger_json, repeat_json, actions_label_json, commands_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
     `);
 
     const seededAt = Date.now();
@@ -325,6 +328,7 @@ export class SceneService {
         scene.icon ?? null,
         scene.description,
         scene.enabled ? 1 : 0,
+        scene.roomId ?? null,
         seededAt,
         seededAt,
         index,
@@ -390,6 +394,7 @@ export class SceneService {
       icon: row.icon ?? undefined,
       description: row.description ?? "",
       enabled: row.enabled === 1,
+      roomId: row.room_id ?? undefined,
       trigger: this.parseJson(row.trigger_json, { type: "manual", label: "Run now" }) as SceneDescriptor["trigger"],
       repeat: this.parseJson(row.repeat_json, []) as string[],
       actionsLabel: this.parseJson(row.actions_label_json, []) as string[],
@@ -424,6 +429,7 @@ export class SceneService {
       icon: patch.icon !== undefined ? patch.icon : baseScene.icon,
       description: patch.description !== undefined ? patch.description : baseScene.description,
       enabled: patch.enabled !== undefined ? patch.enabled : baseScene.enabled,
+      roomId: baseScene.roomId,
       trigger: patch.trigger !== undefined ? { ...patch.trigger } : baseScene.trigger,
       repeat: patch.repeat !== undefined ? [...patch.repeat] : baseScene.repeat,
       actionsLabel: patch.actionsLabel !== undefined ? [...patch.actionsLabel] : baseScene.actionsLabel,

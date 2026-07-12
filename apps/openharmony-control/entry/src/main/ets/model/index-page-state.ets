@@ -31,6 +31,31 @@ export interface IndexPageState {
   backTarget: AppPageId;
 }
 
+export interface SubPageRoute {
+  page: string;
+  param: Object | null;
+}
+
+export class SubPageHistory {
+  private routes: SubPageRoute[] = [];
+
+  push(page: string, param: Object | null): void {
+    this.routes.push({ page, param });
+  }
+
+  pop(): SubPageRoute | undefined {
+    return this.routes.pop();
+  }
+
+  clear(): void {
+    this.routes = [];
+  }
+
+  size(): number {
+    return this.routes.length;
+  }
+}
+
 export function createInitialIndexPageState(): IndexPageState {
   return {
     currentTab: 0,
@@ -57,6 +82,7 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'emergencyContactEditor' ||
     page === 'scenesList' ||
     page === 'lightControl' ||
+    page === 'deviceEditor' ||
     page === 'room';
 }
 

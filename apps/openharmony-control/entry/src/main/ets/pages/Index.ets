@@ -1,5 +1,14 @@
-import { AppPageId, RoomItemState } from '../model/page-view-state';
-import { isSubPageId } from '../model/index-page-state';
+import {
+  AppPageId,
+  DeviceEditorContext,
+  DevicePanelState,
+  createDeviceEditorRoute,
+  createGlobalSceneEditorRoute,
+  RoomItemState,
+  SceneEditorContext,
+  sceneEditorEditingSceneId
+} from '../model/page-view-state';
+import { isSubPageId, SubPageHistory, SubPageRoute } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
@@ -23,9 +32,12 @@ import { HomeInfoEditorView } from '../views/HomeInfoEditorView';
 import { EmergencyContactEditorView } from '../views/EmergencyContactEditorView';
 import { GenericRoomView } from '../views/GenericRoomView';
 import { LightControlView } from '../views/LightControlView';
+import { DeviceEditorView } from '../views/DeviceEditorView';
+import { DeviceNoteBanner } from '../components/DeviceNoteBanner';
 import { ScenesListView } from '../views/ScenesListView';
 import { CreateAutomationView } from '../views/CreateAutomationView';
 import { FamilySettingsUpdateRequest } from '../services/device-api';
+import promptAction from '@ohos.promptAction';
 import {
   COLOR_BG,
   COLOR_BORDER,
@@ -54,6 +66,7 @@ struct Index {
   @State currentTab: number = 0;
   @State currentSubPage: string = '';   // 子页面标识（空字符串 = 不在子页面）
   @State subPageParam: Object | null = null;
+  private subPageHistory: SubPageHistory = new SubPageHistory();
   @State isLoading: boolean = false;
   @State isRefreshing: boolean = false;
   @State isHeaderMenuOpen: boolean = false;
@@ -84,29 +97,46 @@ struct Index {
     );
     this.isLoading = true;
     try {
+      // 启动时主动触发一次云端同步数据，防止重新打开后因为未能触发 sync_completed 回调而渲染出空页面
+      this.controller.syncProviderDevices().finally(() => {
+        // 同步完成后尝试重载一次界面，防止极端情况网络过慢一直卡 Loading
+        this.controller.refreshAll(this.appState).finally(() => {
+          this.isLoading = false;
+        });
+      });
       await this.controller.refreshAll(this.appState);
     } catch (e) {
       // silently handled
     }
-    this.isLoading = false;
   }
 
   // ── Navigation helpers ───────────────────────────────────────────────────
 
   private pushSubPage(page: AppPageId | string, param: Object | null = null): void {
     this.closeTransientUi();
+    if (this.currentSubPage.length > 0) {
+      this.subPageHistory.push(this.currentSubPage, this.subPageParam);
+    }
     this.currentSubPage = page;
     this.subPageParam = param;
   }
 
   private popSubPage(): void {
+    const previous: SubPageRoute | undefined = this.subPageHistory.pop();
+    if (previous !== undefined) {
+      this.currentSubPage = previous.page;
+      this.subPageParam = previous.param;
+      return;
+    }
     this.currentSubPage = '';
     this.subPageParam = null;
   }
 
   private setTabPage(page: AppPageId): void {
     this.closeTransientUi();
-    this.popSubPage();
+    this.subPageHistory.clear();
+    this.currentSubPage = '';
+    this.subPageParam = null;
     animateTo({ duration: 300, curve: Curve.Friction }, () => {
       this.currentTab = tabIndexForPage(page);
     });
@@ -147,8 +177,23 @@ struct Index {
     this.isHeaderMenuOpen = false;
     if (item === 'createRoom') {
       this.isAddRoomSheetOpen = true;
+    } else if (item === 'sceneEditor') {
+      const route = createGlobalSceneEditorRoute();
+      this.pushSubPage(route.page, route.param);
+    } else if (item === 'syncProviderDevices') {
+      this.handleSyncDevices();
     } else {
       this.setPage(item as AppPageId);
+    }
+  }
+
+  private async handleSyncDevices(): Promise<void> {
+    promptAction.showToast({ message: '开始同步云端设备...' });
+    const success = await this.controller.syncProviderDevices();
+    if (success) {
+      promptAction.showToast({ message: '同步完成！请查看顶部提示', duration: 3000 });
+    } else {
+      promptAction.showToast({ message: '同步失败，请检查网络或提供商设置', duration: 3000 });
     }
   }
 
@@ -180,7 +225,33 @@ struct Index {
         }
       ];
     }
+    if (this.isDeviceControlPage() && this.selectedControlDeviceId().length > 0) {
+      return [{
+        value: '编辑设备',
+        action: () => {
+          const route = createDeviceEditorRoute(this.selectedControlDeviceId());
+          if (route.valid) {
+            this.pushSubPage(route.page, route.param);
+          }
+        }
+      }];
+    }
     return [];
+  }
+
+  private isDeviceControlPage(): boolean {
+    return this.currentSubPage === 'access' ||
+      this.currentSubPage === 'lightControl' ||
+      this.currentSubPage === 'climate';
+  }
+
+  private selectedControlDeviceId(): string {
+    return typeof this.subPageParam === 'string' ? this.subPageParam : '';
+  }
+
+  private selectedDevicePanel(): DevicePanelState | undefined {
+    const deviceId = this.selectedControlDeviceId();
+    return this.appState.home.devices.find((device: DevicePanelState) => device.id === deviceId);
   }
 
   private handleTopRefresh(): void {
@@ -193,6 +264,24 @@ struct Index {
       .finally(() => {
         this.isRefreshing = false;
       });
+  }
+
+  private getSceneEditorContext(): SceneEditorContext | null {
+    if (!this.subPageParam) {
+      return null;
+    }
+    return this.subPageParam as SceneEditorContext;
+  }
+
+  private getEditingSceneId(): string {
+    return sceneEditorEditingSceneId(this.getSceneEditorContext());
+  }
+
+  private getEditingDeviceId(): string {
+    if (!this.subPageParam) {
+      return '';
+    }
+    return (this.subPageParam as DeviceEditorContext).deviceId;
   }
 
   // ── Sub-page overlay content ─────────────────────────────────────────────
@@ -210,14 +299,17 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'access') {
         Scroll() {
-          AccessView({
-            appState: this.appState,
-            access: this.appState.access,
-            camera: this.appState.camera,
-            onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
-            onShareGuest: () => this.controller.handleShareGuest(this.appState),
-            onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
-          })
+          Column({ space: 12 }) {
+            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+            AccessView({
+              appState: this.appState,
+              access: this.appState.access,
+              camera: this.appState.camera,
+              onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
+              onShareGuest: () => this.controller.handleShareGuest(this.appState),
+              onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
+            })
+          }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -231,12 +323,15 @@ struct Index {
         .layoutWeight(1)
       } else if (this.currentSubPage === 'climate') {
         Scroll() {
-          ClimateView({
-            appState: this.appState,
-            onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, mode),
-            onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, delta),
-            onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState)
-          })
+          Column({ space: 12 }) {
+            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+            ClimateView({
+              appState: this.appState,
+              onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, mode),
+              onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, delta),
+              onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState)
+            })
+          }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -290,9 +385,16 @@ struct Index {
         }
         .scrollBar(BarState.Off)
         .layoutWeight(1)
+      } else if (this.currentSubPage === 'deviceEditor') {
+        DeviceEditorView({
+          deviceId: this.getEditingDeviceId(),
+          appState: this.appState,
+          onClose: () => this.popSubPage(),
+        })
+        .layoutWeight(1)
       } else if (this.currentSubPage === 'scenesList') {
         Scroll() {
-          ScenesListView({ appState: this.appState, scenes: this.appState.scenes })
+          ScenesListView({ appState: this.appState, scenes: this.appState.scenes, routeParam: this.subPageParam })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)
@@ -317,11 +419,13 @@ struct Index {
       } else if (this.currentSubPage === 'sceneEditor') {
         SceneEditorView({
           appState: this.appState,
-          editingSceneId: this.subPageParam as string,
+          editingSceneId: this.getEditingSceneId(),
+          editorContext: this.getSceneEditorContext(),
           onCancel: () => this.popSubPage(),
           onSave: async (payload) => {
-            if (this.subPageParam) {
-              await this.controller.handleUpdateScene(this.appState, this.subPageParam as string, payload);
+            const sceneEditorContext = this.getSceneEditorContext();
+            if (sceneEditorContext && sceneEditorContext.mode === 'edit') {
+              await this.controller.handleUpdateScene(this.appState, sceneEditorContext.sceneId, payload);
             } else {
               await this.controller.handleCreateScene(this.appState, payload);
             }
@@ -341,15 +445,19 @@ struct Index {
   build() {
     Stack() {
       Column() {
-        AppHeader({
-          isSubPage: this.isOnSubPage(),
-          title: this.getAppHeaderTitle(),
-          showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room',
-          menuItems: this.getAppHeaderMenuItems(),
-          onBack: () => this.popSubPage(),
-          onAdd: () => this.openAddDeviceSheet(),
-          onMenu: () => this.toggleHeaderMenu(),
-        })
+        if (this.currentSubPage !== 'deviceEditor') {
+          AppHeader({
+            isSubPage: this.isOnSubPage(),
+            title: this.getAppHeaderTitle(),
+            showRightActions: !this.isOnSubPage() || this.currentSubPage === 'room' ||
+              (this.isDeviceControlPage() && this.selectedControlDeviceId().length > 0),
+            showAddAction: !this.isOnSubPage() || this.currentSubPage === 'room',
+            menuItems: this.getAppHeaderMenuItems(),
+            onBack: () => this.popSubPage(),
+            onAdd: () => this.openAddDeviceSheet(),
+            onMenu: () => this.toggleHeaderMenu(),
+          })
+        }
 
         if (this.isOnSubPage()) {
           this.SubPageOverlay()
@@ -432,27 +540,38 @@ struct Index {
         .onClick(() => this.closeTransientUi())
       }
 
-      if (this.isAddSheetOpen) {
-        Column() {
-          Blank()
-          AddDeviceSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+        if (this.isAddSheetOpen) {
+          Column() {
+            Blank()
+              .onClick(() => this.closeTransientUi())
+            AddDeviceSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+              .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({
+                duration: 300,
+                curve: Curve.Friction
+              }))
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.End)
+          .backgroundColor('#201B142E')
+          .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
+          .onClick(() => this.closeTransientUi()) // catch taps on generic column padded background if Blank isn't pressed
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.End)
-        .backgroundColor('#201B142E')
-        .onClick(() => this.closeTransientUi())
-      }
 
       if (this.isAddRoomSheetOpen) {
         Column() {
           Blank()
           AddRoomSheet({ appState: this.appState, onClose: () => this.closeTransientUi() })
+            .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({
+              duration: 300,
+              curve: Curve.Friction
+            }))
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.End)
         .backgroundColor('#201B142E')
+        .transition(TransitionEffect.OPACITY.animation({ duration: 200 }))
         .onClick(() => this.closeTransientUi())
       }
 

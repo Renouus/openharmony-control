@@ -16,6 +16,7 @@ export struct AppHeader {
   @Prop isSubPage: boolean = false;
   @Prop title: string = 'OmniHome';
   @Prop showRightActions: boolean = true;
+  @Prop showAddAction: boolean = true;
   @Prop menuItems: AppHeaderMenuItem[] = [];
   onBack?: () => void;
   onAdd?: () => void;
@@ -61,25 +62,27 @@ export struct AppHeader {
 
       Row({ space: 8 }) {
         if (this.showRightActions) {
-          Row() {
-            AppSymbol({ name: 'add', glyphSize: 22, color: COLOR_PRIMARY })
-          }
-          .width(44)
-          .height(44)
-          .borderRadius(22)
-          .justifyContent(FlexAlign.Center)
-          .backgroundColor(this.isAddPressed ? COLOR_PRIMARY_SOFT : COLOR_SURFACE)
-          .shadow(this.isAddPressed ? { radius: 4, color: '#3A302A0D', offsetX: 0, offsetY: 1 } : { radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
-          .scale({ x: this.isAddPressed ? 0.95 : 1, y: this.isAddPressed ? 0.95 : 1 })
-          .onTouch((e: TouchEvent) => {
-            if (e.type === TouchType.Down) {
-              this.isAddPressed = true;
-            } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-              this.isAddPressed = false;
+          if (this.showAddAction) {
+            Row() {
+              AppSymbol({ name: 'add', glyphSize: 22, color: COLOR_PRIMARY })
             }
-          })
-          .onClick(() => this.onAdd?.())
-          .animation({ duration: 200, curve: Curve.Friction })
+            .width(44)
+            .height(44)
+            .borderRadius(22)
+            .justifyContent(FlexAlign.Center)
+            .backgroundColor(this.isAddPressed ? COLOR_PRIMARY_SOFT : COLOR_SURFACE)
+            .shadow(this.isAddPressed ? { radius: 4, color: '#3A302A0D', offsetX: 0, offsetY: 1 } : { radius: 8, color: '#3A302A0D', offsetX: 0, offsetY: 2 })
+            .scale({ x: this.isAddPressed ? 0.95 : 1, y: this.isAddPressed ? 0.95 : 1 })
+            .onTouch((e: TouchEvent) => {
+              if (e.type === TouchType.Down) {
+                this.isAddPressed = true;
+              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                this.isAddPressed = false;
+              }
+            })
+            .onClick(() => this.onAdd?.())
+            .animation({ duration: 200, curve: Curve.Friction })
+          }
 
           if (this.menuItems.length > 0) {
             Row() {

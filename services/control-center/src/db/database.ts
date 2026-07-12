@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
   dbInstance = new Database(dbPath);
@@ -19,6 +19,8 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       custom_name TEXT,
+      note TEXT,
+      custom_icon TEXT,
       type TEXT NOT NULL,
       provider_source_id TEXT,
       device_type TEXT,
@@ -68,6 +70,7 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       icon TEXT,
       description TEXT,
       enabled INTEGER DEFAULT 1,
+      room_id TEXT,
       created_at INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
@@ -200,7 +203,8 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     setSchemaVersion(db, nextVersion);
   }
 
-  if (nextVersion < SCHEMA_VERSION) {
+  if (nextVersion < 6) {
+    ensureColumn(db, "scenes", "room_id", "ALTER TABLE scenes ADD COLUMN room_id TEXT");
     ensureColumn(db, "devices", "provider_source_id", "ALTER TABLE devices ADD COLUMN provider_source_id TEXT");
     ensureColumn(db, "devices", "device_type", "ALTER TABLE devices ADD COLUMN device_type TEXT");
     ensureColumn(db, "devices", "lifecycle_state", "ALTER TABLE devices ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'");
@@ -234,7 +238,14 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
       );
     `);
     db.prepare("UPDATE devices SET device_type = type WHERE device_type IS NULL").run();
-    nextVersion = SCHEMA_VERSION;
+    nextVersion = 6;
+    setSchemaVersion(db, nextVersion);
+  }
+
+  if (nextVersion < 7) {
+    ensureColumn(db, "devices", "note", "ALTER TABLE devices ADD COLUMN note TEXT");
+    ensureColumn(db, "devices", "custom_icon", "ALTER TABLE devices ADD COLUMN custom_icon TEXT");
+    nextVersion = 7;
     setSchemaVersion(db, nextVersion);
   }
 }
@@ -245,9 +256,12 @@ function reconcileCriticalSchema(db: Database.Database): void {
   // we rely on during startup before any seed/write path runs.
   ensureColumn(db, "automations", "icon", "ALTER TABLE automations ADD COLUMN icon TEXT");
   ensureColumn(db, "scenes", "icon", "ALTER TABLE scenes ADD COLUMN icon TEXT");
+  ensureColumn(db, "scenes", "room_id", "ALTER TABLE scenes ADD COLUMN room_id TEXT");
   ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scenes", "sort_order", "ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "devices", "custom_name", "ALTER TABLE devices ADD COLUMN custom_name TEXT");
+  ensureColumn(db, "devices", "note", "ALTER TABLE devices ADD COLUMN note TEXT");
+  ensureColumn(db, "devices", "custom_icon", "ALTER TABLE devices ADD COLUMN custom_icon TEXT");
   ensureColumn(db, "devices", "provider_source_id", "ALTER TABLE devices ADD COLUMN provider_source_id TEXT");
   ensureColumn(db, "devices", "device_type", "ALTER TABLE devices ADD COLUMN device_type TEXT");
   ensureColumn(db, "devices", "lifecycle_state", "ALTER TABLE devices ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'active'");

@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { EnhancedDeviceDescriptor } from "@smart-home/device-contract";
+import type { DeviceIconName, EnhancedDeviceDescriptor } from "@smart-home/device-contract";
 import {
   mapDeviceRowToSyncDto,
   type DeviceSyncDto,
@@ -9,6 +9,8 @@ import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { ProviderDeviceStore } from "./provider-device-store";
 
 type ActiveVendorRow = DeviceSyncRow & {
+  note: string | null;
+  custom_icon: DeviceIconName | null;
   sort_order: number;
 };
 
@@ -99,6 +101,8 @@ export async function listManagedVendorSyncDevices(
       id: liveDevice.id,
       name: liveDevice.name,
       customName: customName ?? undefined,
+      note: row.note ?? liveDevice.note,
+      customIcon: row.custom_icon ?? liveDevice.customIcon,
       type: liveDevice.kind,
       roomId: row.room_id ?? liveDevice.room,
       payload: liveDevice.state as Record<string, unknown>,
@@ -115,7 +119,7 @@ function loadActiveVendorRows(
 ): ActiveVendorRow[] {
   const rows = db
     .prepare(`
-      SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, sort_order
+      SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted, sort_order
       FROM devices
       WHERE is_deleted = 0 AND lifecycle_state = 'active'
       ORDER BY room_id ASC, sort_order ASC, id ASC
@@ -136,7 +140,7 @@ function loadActiveVendorRowById(
 
   return db
     .prepare(`
-      SELECT id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, sort_order
+      SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted, sort_order
       FROM devices
       WHERE id = ? AND is_deleted = 0 AND lifecycle_state = 'active'
     `)
@@ -150,6 +154,8 @@ function applyVendorOverlay(
   return {
     ...device,
     customName: row.custom_name ?? device.customName,
+    note: row.note ?? device.note,
+    customIcon: row.custom_icon ?? device.customIcon,
     room: row.room_id ?? device.room,
     displayOrder: row.sort_order,
   };

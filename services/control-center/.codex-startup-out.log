@@ -1,0 +1,10 @@
+
+> openharmony-smart-home@0.1.0 dev:control-center
+> npm run dev --workspace @smart-home/control-center
+
+
+> @smart-home/control-center@0.1.0 dev
+> tsx watch src/server.ts
+
+23:55:35 [tsx] change in ./src\server.ts Rerunning...
+c

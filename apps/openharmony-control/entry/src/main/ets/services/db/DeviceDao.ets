@@ -6,6 +6,8 @@ export interface DeviceSyncItem {
   id: string;
   name: string;
   customName?: string;
+  note?: string;
+  customIcon?: string;
   type: string;
   roomId?: string;
   payload?: Object;
@@ -53,6 +55,8 @@ export class DeviceDao {
       id: device.id,
       name: device.name,
       custom_name: device.customName ?? null,
+      note: device.note ?? null,
+      custom_icon: device.customIcon ?? null,
       type: device.type,
       room_id: device.roomId || '',
       state_json: JSON.stringify(device.payload || {}),
@@ -81,6 +85,8 @@ export class DeviceDao {
       id: payload.id,
       name: payload.name,
       custom_name: payload.customName ?? null,
+      note: payload.note ?? null,
+      custom_icon: payload.customIcon ?? null,
       type: payload.type,
       room_id: payload.roomId || '',
       state_json: JSON.stringify(payload.payload || {}),
@@ -111,6 +117,8 @@ export class DeviceDao {
         id: item.id,
         name: item.name,
         customName: item.customName,
+        note: item.note,
+        customIcon: item.customIcon,
         kind: item.type,
         room: item.roomId || '',
         state: (item.payload || new Object()) as DeviceState,
@@ -136,6 +144,12 @@ export class DeviceDao {
         customName: resultSet.isColumnNull(resultSet.getColumnIndex('custom_name'))
           ? undefined
           : resultSet.getString(resultSet.getColumnIndex('custom_name')),
+        note: resultSet.isColumnNull(resultSet.getColumnIndex('note'))
+          ? undefined
+          : resultSet.getString(resultSet.getColumnIndex('note')),
+        customIcon: resultSet.isColumnNull(resultSet.getColumnIndex('custom_icon'))
+          ? undefined
+          : resultSet.getString(resultSet.getColumnIndex('custom_icon')),
         type: resultSet.getString(resultSet.getColumnIndex('type')),
         roomId: resultSet.getString(resultSet.getColumnIndex('room_id')),
         payload: stateObj,

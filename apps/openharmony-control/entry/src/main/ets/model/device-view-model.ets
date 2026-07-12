@@ -17,6 +17,8 @@ export interface DeviceSnapshot {
   id: string;
   name: string;
   customName?: string;
+  note?: string;
+  customIcon?: string;
   kind: string;
   brand?: string;
   capabilities: string[];

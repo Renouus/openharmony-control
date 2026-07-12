@@ -6,7 +6,9 @@ import {
   createRefreshPlan,
   navigateToPage,
   navigateBack,
+  SubPageHistory,
 } from '../../../main/ets/model/index-page-state';
+import { createDeviceEditorRoute } from '../../../main/ets/model/page-view-state';
 
 function includesAll(
   actual: AppPageRefreshTarget[],
@@ -35,6 +37,17 @@ export default function indexPageStateTest() {
       expect(backState.currentTab).assertEqual(0);
     });
 
+    it('restores the previous subpage parameter when navigating back', () => {
+      const history = new SubPageHistory();
+      history.push('room', 'bedroom-1');
+
+      const previous = history.pop();
+
+      expect(previous?.page).assertEqual('room');
+      expect(previous?.param as string).assertEqual('bedroom-1');
+      expect(history.size()).assertEqual(0);
+    });
+
     it('refreshes home together with lighting after lighting detail edits', () => {
       const targets = createRefreshPlan('lightingLightBrightness');
 
@@ -45,6 +58,15 @@ export default function indexPageStateTest() {
       const targets = createRefreshPlan('automationToggleScene');
 
       expect(includesAll(targets, ['home', 'automation'])).assertTrue();
+    });
+
+    it('creates a valid typed device editor route', () => {
+      const route = createDeviceEditorRoute(' light-1 ');
+
+      expect(route.valid).assertTrue();
+      expect(route.page).assertEqual('deviceEditor');
+      expect(route.param.deviceId).assertEqual('light-1');
+      expect(createDeviceEditorRoute('   ').valid).assertFalse();
     });
   });
 }

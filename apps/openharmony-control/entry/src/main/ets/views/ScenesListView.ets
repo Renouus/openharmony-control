@@ -1,5 +1,12 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { DeviceActionState, SceneCardState, ScenesViewState } from '../model/page-view-state';
+import {
+  createEditSceneEditorRoute,
+  createGlobalSceneEditorRoute,
+  createRoomSceneEditorRoute,
+  DeviceActionState,
+  SceneCardState,
+  ScenesViewState
+} from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { AppSymbol } from '../components/AppSymbol';
@@ -18,6 +25,7 @@ import {
 export struct ScenesListView {
   @ObjectLink appState: AppStateSnapshot;
   @ObjectLink scenes: ScenesViewState;
+  @Prop routeParam: Object | null = null;
   @Consume('controller') controller: AppController;
   @Consume('navStack') navStack: NavProxy;
 
@@ -26,7 +34,8 @@ export struct ScenesListView {
     Menu() {
       MenuItem({ content: 'Edit scene' })
         .onClick(() => {
-          this.navStack.pushPathByName('sceneEditor', sceneId);
+          const route = createEditSceneEditorRoute(sceneId);
+          this.navStack.pushPathByName(route.page, route.param);
         })
       MenuItem({ content: 'Delete scene' })
         .onClick(() => {
@@ -48,6 +57,33 @@ export struct ScenesListView {
     return icons[index % icons.length];
   }
 
+  // 用于确定是从哪个房间进来的
+  private targetRoomId(): string | null {
+    if (this.routeParam) {
+      if (typeof this.routeParam === 'object') {
+        const paramStr = JSON.stringify(this.routeParam);
+        if (paramStr.includes('"roomId"')) {
+          const matched = paramStr.match(/"roomId"\s*:\s*"([^"]+)"/);
+          if (matched && matched[1]) {
+            return matched[1];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // 根据当前上下文筛选需要显示的场景
+  private getFilteredScenes(): SceneCardState[] {
+    const roomId = this.targetRoomId();
+    if (!roomId) {
+      // 修复：当从首页进入全局视角时，只能看到未挂载房间的“全局场景”
+      return this.scenes.items.filter((scene: SceneCardState) => !scene.roomId); 
+    }
+    // 当从房间进入时，只看挂载在该房间下的场景
+    return this.scenes.items.filter((scene: SceneCardState) => scene.roomId === roomId);
+  }
+
   build() {
     Column({ space: 24 }) {
       Text('Scenes')
@@ -58,7 +94,7 @@ export struct ScenesListView {
         .width('100%')
 
       Column({ space: 20 }) {
-        ForEach(this.scenes.items, (scene: SceneCardState, index: number) => {
+        ForEach(this.getFilteredScenes(), (scene: SceneCardState, index: number) => {
           Column() {
             Row() {
               Row({ space: 16 }) {
@@ -119,7 +155,8 @@ export struct ScenesListView {
           .borderRadius(16)
           .shadow({ radius: 16, color: '#3A302A0A', offsetX: 0, offsetY: 2 })
           .onClick(() => {
-            this.navStack.pushPathByName('sceneEditor', scene.id);
+            const route = createEditSceneEditorRoute(scene.id);
+            this.navStack.pushPathByName(route.page, route.param);
           })
         }, (scene: SceneCardState) => scene.id)
 
@@ -144,7 +181,14 @@ export struct ScenesListView {
         .border({ width: 1, color: COLOR_OUTLINE_VARIANT, style: BorderStyle.Dashed })
         .borderRadius(16)
         .onClick(() => {
-          this.navStack.pushPathByName('sceneEditor', null);
+          const roomId = this.targetRoomId();
+          if (roomId) {
+            const route = createRoomSceneEditorRoute(roomId);
+            this.navStack.pushPathByName(route.page, route.param);
+          } else {
+            const route = createGlobalSceneEditorRoute();
+            this.navStack.pushPathByName(route.page, route.param);
+          }
         })
       }
       .width('100%')

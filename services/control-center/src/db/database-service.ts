@@ -24,6 +24,7 @@ type SceneSyncRow = {
   icon: string | null;
   description: string | null;
   enabled: number;
+  room_id: string | null;
   created_at: number;
   updated_at: number;
   sort_order: number;
@@ -147,6 +148,7 @@ export class DatabaseService {
       icon: row.icon ?? undefined,
       description: row.description ?? '',
       enabled: row.enabled === 1,
+      roomId: row.room_id ?? undefined,
       trigger: parseJson(row.trigger_json, { type: 'manual', label: 'Run now' }),
       repeat: parseJson(row.repeat_json, []),
       actionsLabel: parseJson(row.actions_label_json, []),
@@ -222,10 +224,10 @@ export class DatabaseService {
     const builtInScenes = sceneRegistry.list();
     const insertScene = this.db.prepare(`
       INSERT OR IGNORE INTO scenes (
-        id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
+        id, name, icon, description, enabled, room_id, created_at, updated_at, sort_order, version, is_deleted,
         trigger_json, repeat_json, actions_label_json, commands_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)
     `);
 
     const seededAt = Date.now();
@@ -236,6 +238,7 @@ export class DatabaseService {
         scene.icon ?? null,
         scene.description,
         scene.enabled ? 1 : 0,
+        scene.roomId ?? null,
         seededAt,
         seededAt,
         index,

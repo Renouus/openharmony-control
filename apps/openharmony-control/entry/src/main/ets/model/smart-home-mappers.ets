@@ -10,6 +10,7 @@ import {
   FamilyOverview,
   HomeSummary,
   PendingDeviceSnapshot,
+  PersistedSceneSnapshot,
   RoomItem,
   SceneSnapshot,
 } from '../services/device-api';
@@ -40,6 +41,7 @@ import {
   NotificationsViewStateData,
   RoomItemState,
   RoomLightCardState,
+  RoomViewStateData,
   SceneCardState,
   ScenesViewStateData,
   SceneChipState,
@@ -48,6 +50,7 @@ import {
   SummaryCardState,
 } from './page-view-state';
 import { ROOM_ORDER } from '../theme/smart-home-theme';
+import { resolvedDeviceIcon } from './device-editor-state';
 
 export function formatDeviceStatus(device: DeviceSnapshot): string {
   if (!device.state.online) {
@@ -232,7 +235,11 @@ export function mapDevicePanel(device: DeviceSnapshot): DevicePanelState {
   return {
     id: device.id,
     name: displayDeviceName(device),
+    originalName: device.name,
+    roomId: device.room ?? 'living-room',
     roomName: roomName(device.room ?? 'living-room'),
+    note: device.note ?? '',
+    icon: resolvedDeviceIcon(device.customIcon, device.kind),
     kind: device.kind,
     statusLabel: formatDeviceStatus(device),
     online: device.state.online,
@@ -251,6 +258,29 @@ export function sceneIcon(sceneId: string): string {
   return 'self_care';
 }
 
+export function mapSceneChip(scene: SceneSnapshot, activeSceneId: string = ''): SceneChipState {
+  return {
+    id: scene.id,
+    label: scene.name,
+    icon: scene.icon ?? sceneIcon(scene.id),
+    active: scene.id === activeSceneId,
+  };
+}
+
+export function comparePersistedSceneSnapshots(left: PersistedSceneSnapshot, right: PersistedSceneSnapshot): number {
+  if (left.sortOrder !== right.sortOrder) {
+    return left.sortOrder - right.sortOrder;
+  }
+  if (left.createdAt !== right.createdAt) {
+    return left.createdAt - right.createdAt;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+export function sortPersistedSceneSnapshots(scenes: PersistedSceneSnapshot[]): PersistedSceneSnapshot[] {
+  return scenes.slice().sort(comparePersistedSceneSnapshots);
+}
+
 export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): HomeDeviceCardState {
   const kind = device.kind;
   const power = device.state.power ?? false;
@@ -266,6 +296,7 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   const card: HomeDeviceCardState = {
     id: device.id,
     name: displayDeviceName(device),
+    icon: resolvedDeviceIcon(device.customIcon, device.kind),
     kind,
     statusLabel,
     power,
@@ -395,15 +426,18 @@ export function mapHomeViewState(
   ];
 
   const finalActiveSceneId = activeSceneId ?? scenes.find((s: SceneSnapshot) => s.enabled)?.id ?? '';
-  const quickScenes: SceneChipState[] = scenes.map((scene: SceneSnapshot) => {
-    const chip: SceneChipState = {
-      id: scene.id,
-      label: scene.name,
-      icon: scene.icon ?? sceneIcon(scene.id),
-      active: scene.id === finalActiveSceneId,
-    };
-    return chip;
-  });
+  // 首页只显示全局场景，即 roomId 为空/undefined 的场景，不侵染任何特定房间的场景
+  const quickScenes: SceneChipState[] = scenes
+    .filter((scene: SceneSnapshot) => !scene.roomId)
+    .map((scene: SceneSnapshot) => {
+      const chip: SceneChipState = {
+        id: scene.id,
+        label: scene.name,
+        icon: scene.icon ?? sceneIcon(scene.id),
+        active: scene.id === finalActiveSceneId,
+      };
+      return chip;
+    });
 
   const lockedDoors = accessOverview.accessPoints.filter((p: AccessPointSnapshot) => p.locked).length;
   const activeLights = summary.lighting.active;
@@ -588,6 +622,7 @@ export function mapSceneCard(scene: SceneSnapshot): SceneCardState {
     id: scene.id,
     name: scene.name,
     icon: scene.icon,
+    roomId: scene.roomId,
     description: scene.description,
     enabled: scene.enabled,
     triggerLabel: scene.trigger.label,
@@ -803,6 +838,64 @@ function climateStatusLabel(mode: string): string {
   if (mode === 'cool') { return '安静制冷中'; }
   if (mode === 'auto') { return '自动平衡中'; }
   return '系统待机中';
+}
+
+export function extractRoomOverviewChips(roomDevices: DeviceSnapshot[]): StatusChipState[] {
+  const chips: StatusChipState[] = [];
+  const lockedDoors = roomDevices.filter(d => d.kind === 'door-lock' && d.state.locked).length;
+  const activeLights = roomDevices.filter(d => d.kind === 'light' && d.state.power).length;
+  
+  // Example for deriving temperature if an AC exists
+  const ac = roomDevices.find(d => d.kind === 'air-conditioner');
+  if (ac) {
+    const temp = ac.state.targetTemperature ?? 24; // fallback mockup
+    chips.push({ icon: 'thermostat', label: `${temp}\u00B0C`, useImage: false });
+  }
+
+  if (activeLights > 0) {
+    chips.push({ icon: 'lightbulb', label: `${activeLights} 盏灯开启`, useImage: false });
+  }
+  if (lockedDoors > 0) {
+    chips.push({ icon: 'lock', label: `${lockedDoors} 扇门已上锁`, useImage: false });
+  }
+  return chips;
+}
+
+export function mapRoomViews(
+  rooms: RoomItem[],
+  devices: DeviceSnapshot[],
+  scenes: SceneSnapshot[],
+  activeSceneId?: string
+): RoomViewStateData[] {
+  return rooms.map((room: RoomItem): RoomViewStateData => {
+    const roomDevices = devices.filter((d: DeviceSnapshot) => d.room === room.id);
+    const roomDeviceCards = roomDevices.map((d: DeviceSnapshot, index: number) => mapHomeDeviceCard(d, index === 0));
+    const deviceCountLabel = `${roomDevices.length} 个设备`;
+    const overviewChips = extractRoomOverviewChips(roomDevices);
+    
+    // Explicit scene filter rule: only show scenes strictly bound to this roomId.
+    const roomScenes = scenes
+      .filter((s: SceneSnapshot) => s.roomId === room.id)
+      .map((scene: SceneSnapshot): SceneChipState => {
+        const sceneChip: SceneChipState = {
+          id: scene.id,
+          label: scene.name,
+          icon: scene.icon ?? sceneIcon(scene.id),
+          active: scene.id === activeSceneId,
+        };
+        return sceneChip;
+      });
+
+    const result: RoomViewStateData = {
+      roomId: room.id,
+      name: room.name,
+      deviceCountLabel,
+      overviewChips,
+      roomScenes,
+      devices: roomDeviceCards,
+    };
+    return result;
+  });
 }
 
 export function mapClimateViewState(overview: ClimateOverview, feedback: string): ClimateViewStateData {
