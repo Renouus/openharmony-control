@@ -286,7 +286,7 @@ describe('automation routes', () => {
     getDb().prepare("UPDATE automations SET action_json='ENC1:corrupt' WHERE id='night-routine'").run();
     const response = await apiInject(app, { method: 'GET', url: '/api/automations' });
     expect(response.statusCode).toBe(500);
-    expect(response.json()).toEqual({ code: 'INTERNAL_SERVER_ERROR' });
+    expect(response.json()).toEqual({ code: 'ENCRYPTED_DATA_INVALID' });
     expect(response.body).not.toContain('night-routine');
   });
 

@@ -113,7 +113,12 @@ export function buildApp(
   } as never) as unknown as FastifyInstance;
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof EncryptedDataInvalidError) {
-      return reply.code(500).send({ code: "INTERNAL_SERVER_ERROR" });
+      return reply.code(500).send({ code: "ENCRYPTED_DATA_INVALID" });
+    }
+    const statusCode = typeof error === "object" && error !== null && "statusCode" in error &&
+      typeof error.statusCode === "number" ? error.statusCode : 500;
+    if (statusCode >= 400 && statusCode < 500) {
+      return reply.code(statusCode).send({ code: safeClientErrorCode(statusCode) });
     }
     app.log.error("Request failed");
     return reply.code(500).send({ code: "INTERNAL_SERVER_ERROR" });
@@ -277,4 +282,20 @@ export function buildApp(
   });
 
   return app;
+}
+
+function safeClientErrorCode(statusCode: number): string {
+  switch (statusCode) {
+    case 400: return "BAD_REQUEST";
+    case 401: return "UNAUTHORIZED";
+    case 403: return "FORBIDDEN";
+    case 404: return "NOT_FOUND";
+    case 405: return "METHOD_NOT_ALLOWED";
+    case 409: return "CONFLICT";
+    case 413: return "PAYLOAD_TOO_LARGE";
+    case 415: return "UNSUPPORTED_MEDIA_TYPE";
+    case 422: return "UNPROCESSABLE_ENTITY";
+    case 429: return "TOO_MANY_REQUESTS";
+    default: return "CLIENT_ERROR";
+  }
 }

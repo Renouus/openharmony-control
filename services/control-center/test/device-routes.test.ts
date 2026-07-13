@@ -233,8 +233,8 @@ describe("device snapshot routes", () => {
 
     expect(list.statusCode).toBe(500);
     expect(detail.statusCode).toBe(500);
-    expect(list.json()).toEqual({ code: "INTERNAL_SERVER_ERROR" });
-    expect(detail.json()).toEqual({ code: "INTERNAL_SERVER_ERROR" });
+    expect(list.json()).toEqual({ code: "ENCRYPTED_DATA_INVALID" });
+    expect(detail.json()).toEqual({ code: "ENCRYPTED_DATA_INVALID" });
     expect(JSON.stringify(list.json())).not.toContain("light-living-room");
   });
 

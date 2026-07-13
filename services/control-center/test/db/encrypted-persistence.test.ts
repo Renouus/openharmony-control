@@ -235,7 +235,7 @@ describe("EncryptedRepositories", () => {
       db.prepare("UPDATE devices SET state_json='ENC1:corrupt' WHERE id='light-living-room'").run();
       const corruptedSync = await apiInject(app, { method: "GET", url: "/api/sync?lastVersion=0" });
       expect(corruptedSync.statusCode).toBe(500);
-      expect(corruptedSync.json()).toEqual({ code: "INTERNAL_SERVER_ERROR" });
+      expect(corruptedSync.json()).toEqual({ code: "ENCRYPTED_DATA_INVALID" });
       expect(corruptedSync.body).not.toContain("light-living-room");
       await app.close();
     } finally {
