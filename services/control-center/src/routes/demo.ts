@@ -14,6 +14,8 @@ import type { DemoFaultState } from "./demo-fault-state";
 import { getDb } from "../db/database";
 import { mapDeviceRowToSyncDto, type DeviceSyncRow } from "../db/device-sync-mapper";
 import { broadcastEvent } from "./websocket";
+import { signCommand } from "../security/envelope";
+import type { DeviceCommand } from "@smart-home/device-contract";
 
 type OfflineFaultRequest = {
   deviceId?: string;
@@ -39,7 +41,13 @@ export async function registerDemoRoutes(
   faultState: DemoFaultState,
   deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
   sensorEventTriggerAdapter?: SensorEventTriggerAdapter,
+  commandSigningKey?: string,
 ): Promise<void> {
+  if (commandSigningKey) {
+    app.post("/api/demo/sign-command", async (request) => {
+      return signCommand(request.body as DeviceCommand, commandSigningKey);
+    });
+  }
   /** 故障注入：切换设备在线/离线 */
   app.post("/api/demo/faults/offline", async (request, reply) => {
     const body = request.body as OfflineFaultRequest;

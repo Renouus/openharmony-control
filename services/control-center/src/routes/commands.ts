@@ -14,10 +14,7 @@ import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-st
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { DeviceCommandService } from "../services/device-command-service";
 import type { DemoFaultState } from "./demo-fault-state";
-import {
-  ReplayGuard,
-  signCommand,
-} from "../security/envelope";
+import { ReplayGuard } from "../security/envelope";
 
 export type CommandRouteOptions = {
   registry: DeviceRegistry;
@@ -45,10 +42,6 @@ export async function registerCommandRoutes(
     options.deviceStateTriggerAdapter,
     options.vendorProvider,
   );
-
-  app.post("/api/demo/sign-command", async (request) => {
-    return signCommand(request.body as DeviceCommand, options.secret);
-  });
 
   app.post("/api/commands", async (request, reply) => {
     const unsignedCommand = request.body as Partial<DeviceCommand>;

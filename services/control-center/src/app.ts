@@ -52,6 +52,7 @@ import type { VendorDeviceProvider } from "./integrations/vendor-provider";
 import { createTuyaProvider } from "./integrations/tuya/tuya-provider";
 import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
 import type { SecurityConfig } from "./config/security-config";
+import { createAuthenticationHook } from "./security/authentication";
 
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
@@ -173,6 +174,9 @@ export function buildApp(
 
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
+    scope.addHook("onRequest", createAuthenticationHook([
+      { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
+    ], "api"));
     await registerProviderRoutes(scope, { vendorProvider });
     await registerDeviceRoutes(scope, registry, simulators, { vendorProvider });
     await registerAccessRoutes(scope, registry);
@@ -196,17 +200,29 @@ export function buildApp(
       deviceStateTriggerAdapter,
     });
     await registerAutomationRoutes(scope);
-    if (securityConfig.mode === "demo") {
+    await registerRoomRoutes(scope, roomRegistry, registry);
+    await syncRoutes(scope, { vendorProvider });
+  });
+
+  if (securityConfig.mode === "demo" && securityConfig.demoToken) {
+    void app.register(async (scope) => {
+      scope.addHook("onRequest", createAuthenticationHook([
+        { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
+        { subject: "demo-operator", permissions: ["demo"], token: securityConfig.demoToken! },
+      ], "demo"));
       await registerDemoRoutes(
         scope,
         registry,
         faultState,
         deviceStateTriggerAdapter,
         sensorEventTriggerAdapter,
+        effectiveHmacKey,
       );
-    }
-    await registerRoomRoutes(scope, roomRegistry, registry);
-    await syncRoutes(scope, { vendorProvider });
+    });
+  }
+
+  // Transitional exclusion: Task 7 will add ticket authentication for this path.
+  void app.register(async (scope) => {
     await websocketRoutes(scope);
   });
 
