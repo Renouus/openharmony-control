@@ -78,10 +78,16 @@ describe("API authentication", () => {
     await app.close();
   });
 
-  it("keeps websocket upgrades outside HTTP bearer authentication until ticket auth is added", async () => {
+  it("requires an API-authenticated ticket for websocket upgrades", async () => {
     const app = createApp();
     await app.ready();
-    const socket = await app.injectWS("/ws/events?clientId=auth-transition");
+    await expect(app.injectWS("/ws/events?clientId=auth-transition")).rejects.toBeTruthy();
+    const response = await app.inject({
+      method: "POST", url: "/api/auth/websocket-ticket", headers: API_AUTHORIZATION_HEADER,
+      payload: { clientId: "auth-transition" },
+    });
+    expect(response.statusCode).toBe(200);
+    const socket = await app.injectWS(`/ws/events?ticket=${response.json().ticket}&clientId=auth-transition`);
     expect(socket.readyState).toBe(socket.OPEN);
     socket.close();
     await app.close();

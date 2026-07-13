@@ -55,6 +55,8 @@ import type { SecurityConfig } from "./config/security-config";
 import { createAuthenticationHook } from "./security/authentication";
 import { createRateLimitHook, createSelectedRateLimitHook } from "./security/rate-limit-hook";
 import { InMemoryRateLimiter, RATE_LIMIT_POLICIES, type RateLimiter, type RateLimitPolicies } from "./security/rate-limiter";
+import { WebSocketTicketStore } from "./security/websocket-ticket-store";
+import { z } from "zod";
 
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
@@ -71,6 +73,7 @@ export type AppBuildOptions = {
   securityConfig: SecurityConfig;
   rateLimiter?: RateLimiter;
   rateLimitPolicies?: RateLimitPolicies;
+  websocketTicketStore?: WebSocketTicketStore;
 };
 
 export function createVendorProviderFromEnv(
@@ -91,6 +94,7 @@ export function buildApp(
   const securityConfig = options.securityConfig;
   const rateLimiter = options.rateLimiter ?? new InMemoryRateLimiter();
   const rateLimitPolicies = options.rateLimitPolicies ?? RATE_LIMIT_POLICIES;
+  const websocketTicketStore = options.websocketTicketStore ?? new WebSocketTicketStore();
   const app = Fastify({
     logger: false,
     trustProxy: securityConfig.trustProxy,
@@ -171,7 +175,7 @@ export function buildApp(
   void app.register(cors, { origin: [...securityConfig.corsOrigins] });
 
   // 注册 WebSocket 插件
-  void app.register(websocketPlugin);
+  void app.register(websocketPlugin, { options: { maxPayload: 64 * 1024 } });
 
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
@@ -179,10 +183,23 @@ export function buildApp(
       { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
     ], "api"));
     scope.addHook("onRequest", createSelectedRateLimitHook(rateLimiter, (request) => {
-      const isCommandExecution = request.method === "POST" && request.url.split("?", 1)[0] === "/api/commands";
-      const policyName = isCommandExecution ? "command" : "baseline";
+      const path = request.url.split("?", 1)[0];
+      const isCommandExecution = request.method === "POST" && path === "/api/commands";
+      const policyName = request.method === "POST" && path === "/api/auth/websocket-ticket"
+        ? "ticket"
+        : isCommandExecution ? "command" : "baseline";
       return [policyName, rateLimitPolicies[policyName]];
     }));
+    scope.post("/api/auth/websocket-ticket", async (request, reply) => {
+      const parsed = z.object({ clientId: z.string().trim().min(1).max(128).optional() }).strict().safeParse(request.body ?? {});
+      if (!parsed.success) return reply.code(400).send({ code: "INVALID_REQUEST" });
+      if (!request.principal) return reply.code(401).send({ code: "AUTHENTICATION_REQUIRED" });
+      try {
+        return websocketTicketStore.issue({ subject: request.principal.subject, ...parsed.data });
+      } catch {
+        return reply.code(503).send({ code: "WEBSOCKET_TICKET_UNAVAILABLE" });
+      }
+    });
     await registerProviderRoutes(scope, { vendorProvider });
     await registerDeviceRoutes(scope, registry, simulators, { vendorProvider });
     await registerAccessRoutes(scope, registry);
@@ -229,9 +246,13 @@ export function buildApp(
     });
   }
 
-  // Transitional exclusion: Task 7 will add ticket authentication for this path.
   void app.register(async (scope) => {
-    await websocketRoutes(scope);
+    await websocketRoutes(scope, {
+      ticketStore: websocketTicketStore,
+      rateLimiter,
+      handshakePolicy: rateLimitPolicies.websocket,
+      invalidAttemptPolicy: rateLimitPolicies.websocket,
+    });
   });
 
   return app;
