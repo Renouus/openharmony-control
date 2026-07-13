@@ -169,7 +169,7 @@ export class DatabaseService {
       icon: row.icon ?? undefined,
       name: row.name,
       triggerType: row.trigger_type,
-      triggerJson: this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_json),
+      triggerJson: this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json),
       actionJson: this.encryptedRepositories.automations.decodeActionJson(row.id, row.action_json),
       enabled: row.enabled === 1,
       updatedAt: row.updated_at,

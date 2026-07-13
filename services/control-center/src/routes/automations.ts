@@ -239,7 +239,7 @@ function deleteAutomation(automationId: string): boolean {
 function mapAutomationRow(row: AutomationRow, encryptedRepositories: EncryptedRepositories): AutomationDescriptor {
   const normalized = normalizeAutomationTransport({
     triggerType: row.trigger_type,
-    triggerJson: encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_json),
+    triggerJson: encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json),
     actionJson: encryptedRepositories.automations.decodeActionJson(row.id, row.action_json),
   });
   return {

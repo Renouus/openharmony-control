@@ -70,12 +70,63 @@ describe("EncryptedRepositories", () => {
     expect(legacy.devices.decodeState("legacy", '{"online":true,"updatedAt":1}')).toEqual({ online: true, updatedAt: 1 });
   });
 
+  it("rejects authenticated but semantically invalid automation payloads", () => {
+    const repository = repositories();
+    const garbageTrigger = repository.codec.encode(
+      [{ garbage: 1 }],
+      { table: "automations", recordId: "auto-garbage", field: "trigger_json" },
+    );
+    const mismatchedTrigger = repository.codec.encode(
+      [{ type: "device_state_changed", deviceId: "light-1", property: "power", operator: "==", threshold: true }],
+      { table: "automations", recordId: "auto-mismatch", field: "trigger_json" },
+    );
+    const incompleteDeviceAction = repository.codec.encode(
+      [{ type: "device" }],
+      { table: "automations", recordId: "auto-device", field: "action_json" },
+    );
+    const outOfRangeDeviceAction = repository.codec.encode(
+      [{ type: "device_command", deviceId: "light-1", command: "brightness:101" }],
+      { table: "automations", recordId: "auto-range", field: "action_json" },
+    );
+
+    expect(() => repository.automations.decodeTriggerJson("auto-garbage", "time", garbageTrigger)).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.automations.decodeTriggerJson("auto-mismatch", "time", mismatchedTrigger)).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.automations.decodeActionJson("auto-device", incompleteDeviceAction)).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.automations.decodeActionJson("auto-range", outOfRangeDeviceAction)).toThrow(EncryptedDataInvalidError);
+
+    const explicitAction = '[{"type":"device_command","deviceId":"light-1","name":"switch","payload":{"on":true}}]';
+    expect(repository.automations.decodeActionJson(
+      "auto-valid",
+      repository.automations.encodeActionJson("auto-valid", explicitAction),
+    )).toBe(explicitAction);
+  });
+
+  it("rejects authenticated provider entries without their domain fields", () => {
+    const repository = repositories();
+    const emptyStatus = repository.codec.encode(
+      [{}],
+      { table: "device_provider_sources", recordId: "provider-empty", field: "source_status_json" },
+    );
+    const blankFunctionCode = repository.codec.encode(
+      [{ code: "", type: "Boolean" }],
+      { table: "device_provider_sources", recordId: "provider-empty", field: "source_functions_json" },
+    );
+    const oversizedRaw = repository.codec.encode(
+      { blob: "x".repeat(1_000_001) },
+      { table: "device_provider_sources", recordId: "provider-empty", field: "raw_json" },
+    );
+
+    expect(() => repository.providerSources.decodeStatus("provider-empty", emptyStatus)).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.providerSources.decodeFunctions("provider-empty", blankFunctionCode)).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.providerSources.decodeRaw("provider-empty", oversizedRaw)).toThrow(EncryptedDataInvalidError);
+  });
+
   it("encrypts provider, scene, automation, and idempotency fields independently", () => {
     const repository = repositories();
     expect(repository.providerSources.encodeStatus("tuya:1", []).startsWith("ENC1:")).toBe(true);
     expect(repository.scenes.decodeCommands("scene-1", repository.scenes.encodeCommands("scene-1", []))).toEqual([]);
-    expect(repository.automations.decodeTriggerJson("auto-1", repository.automations.encodeTriggerJson("auto-1", "[{\"type\":\"time\"}]")))
-      .toBe('[{"type":"time"}]');
+    expect(repository.automations.decodeTriggerJson("auto-1", "time", repository.automations.encodeTriggerJson("auto-1", "[{\"type\":\"time\",\"time\":\"22:00\"}]")))
+      .toBe('[{"type":"time","time":"22:00"}]');
     const result = { statusCode: 200, body: { ok: true } };
     const codec = repository.commandResults.forRequest("app", "request-1");
     expect(codec.decode(codec.encode(result))).toEqual(result);

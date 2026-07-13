@@ -1,8 +1,8 @@
 import type { CommandResultCodec, StoredCommandResult } from "./command-idempotency-store";
 import { EncryptedDataInvalidError, EncryptedFieldCodec, type JsonValue } from "../security/encrypted-field-codec";
-import { sceneCommandSchema, sceneTriggerSchema } from "@smart-home/device-contract/schemas";
+import { deviceCommandSchema, sceneCommandSchema, sceneTriggerSchema } from "@smart-home/device-contract/schemas";
 import { z } from "zod";
-import { normalizeAutomationTransport, toRuntimeActions, toRuntimeTrigger } from "../automation/automation-normalization";
+import { normalizeAutomationTransport, toAutomationDeviceCommand } from "../automation/automation-normalization";
 
 type JsonObject = { [key: string]: JsonValue };
 
@@ -46,9 +46,9 @@ export class DeviceEncryptedFields extends BoundFields {
 export class ProviderSourceEncryptedFields extends BoundFields {
   constructor(codec: EncryptedFieldCodec, allow = false) { super(codec, "device_provider_sources", allow); }
   encodeStatus(id: string, value: JsonValue): string { return this.encode(id, "source_status_json", normalizeJson(value)); }
-  decodeStatus(id: string, value: string): JsonValue[] { return parseWith(providerRecordsSchema, this.decode(id, "source_status_json", value)) as JsonValue[]; }
+  decodeStatus(id: string, value: string): JsonValue[] { return parseWith(providerStatusRecordsSchema, this.decode(id, "source_status_json", value)) as JsonValue[]; }
   encodeFunctions(id: string, value: JsonValue): string { return this.encode(id, "source_functions_json", normalizeJson(value)); }
-  decodeFunctions(id: string, value: string): JsonValue[] { return parseWith(providerRecordsSchema, this.decode(id, "source_functions_json", value)) as JsonValue[]; }
+  decodeFunctions(id: string, value: string): JsonValue[] { return parseWith(providerFunctionRecordsSchema, this.decode(id, "source_functions_json", value)) as JsonValue[]; }
   encodeRaw(id: string, value: JsonValue): string { return this.encode(id, "raw_json", normalizeJson(value)); }
   decodeRaw(id: string, value: string): JsonValue { return parseWith(jsonRecordSchema, this.decode(id, "raw_json", value)) as JsonValue; }
 }
@@ -64,13 +64,12 @@ export class SceneEncryptedFields extends BoundFields {
 export class AutomationEncryptedFields extends BoundFields {
   constructor(codec: EncryptedFieldCodec, allow = false) { super(codec, "automations", allow); }
   encodeTriggerJson(id: string, json: string): string { return this.encode(id, "trigger_json", parseJson(json)); }
-  decodeTriggerJson(id: string, value: string): string {
-    const json = stringifyValidatedAutomation(this.decode(id, "trigger_json", value), "trigger");
-    return json;
+  decodeTriggerJson(id: string, triggerType: string, value: string): string {
+    return stringifyValidatedAutomationTrigger(this.decode(id, "trigger_json", value), triggerType);
   }
   encodeActionJson(id: string, json: string): string { return this.encode(id, "action_json", parseJson(json)); }
   decodeActionJson(id: string, value: string): string {
-    return stringifyValidatedAutomation(this.decode(id, "action_json", value), "action");
+    return stringifyValidatedAutomationActions(this.decode(id, "action_json", value));
   }
 }
 
@@ -106,8 +105,64 @@ const deviceStateSchema = z.object({
   filterLife: z.number().finite().min(0).max(100).optional(), purifierActive: z.boolean().optional(), motionDetected: z.boolean().optional(),
   updatedAt: z.number().finite().nonnegative(), online: z.boolean(),
 }).strict();
-const jsonRecordSchema = z.record(z.string(), z.unknown());
-const providerRecordsSchema = z.array(jsonRecordSchema).max(10_000);
+const shortText = z.string().trim().min(1).max(128);
+const labelText = z.string().trim().min(1).max(256);
+const jsonRecordSchema = z.record(z.string().trim().min(1).max(256), z.json()).superRefine((value, context) => {
+  if (Object.keys(value).length > 1_000 || JSON.stringify(value).length > 1_000_000) {
+    context.addIssue({ code: "custom", message: "JSON record exceeds persistence limits" });
+  }
+});
+const providerStatusSchema = z.object({ code: shortText, value: z.json() }).strict();
+const providerFunctionSchema = z.object({ code: shortText, type: shortText.optional(), values: z.json().optional() }).strict();
+const providerStatusRecordsSchema = z.array(providerStatusSchema).max(10_000);
+const providerFunctionRecordsSchema = z.array(providerFunctionSchema).max(10_000);
+
+const triggerMetadata = { id: shortText.optional(), label: labelText.optional() };
+const timeText = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const conditionOperator = z.enum(["==", ">", "<", ">=", "<="]);
+const conditionThreshold = z.union([z.boolean(), z.number().finite(), z.string().max(256)]);
+const timeTriggerSchema = z.object({
+  ...triggerMetadata,
+  type: z.literal("time").optional(),
+  time: timeText.optional(),
+  at: timeText.optional(),
+}).strict().refine((value) => value.time !== undefined || value.at !== undefined, "time or at is required");
+const deviceConditionFields = {
+  ...triggerMetadata,
+  deviceId: shortText,
+  property: shortText,
+  operator: conditionOperator,
+  threshold: conditionThreshold,
+};
+const deviceTriggerSchema = z.object({ ...deviceConditionFields, type: z.literal("device_state_changed").optional() }).strict();
+const sensorConditionSchema = z.object({ ...deviceConditionFields, type: z.literal("sensor_event").optional() }).strict();
+const sensorTypeTriggerSchema = z.object({
+  ...triggerMetadata,
+  type: z.literal("sensor_event").optional(),
+  sensorType: shortText,
+}).strict();
+const automationTriggerTypeSchema = z.enum(["time", "device_state_changed", "sensor_event"]);
+
+const actionMetadata = { id: shortText.optional(), label: labelText.optional() };
+const sceneActionSchema = z.object({ ...actionMetadata, type: z.literal("scene_run"), sceneId: shortText }).strict();
+const legacyDeviceActionSchema = z.object({
+  ...actionMetadata,
+  type: z.literal("device_command"),
+  deviceId: shortText,
+  command: z.string().trim().min(1).max(128),
+}).strict().superRefine((value, context) => validateAutomationCommand(value, context));
+const explicitDeviceActionSchema = z.object({
+  ...actionMetadata,
+  type: z.literal("device_command"),
+  deviceId: shortText,
+  name: shortText,
+  payload: z.record(z.string().trim().min(1).max(128), z.json()),
+}).strict().superRefine((value, context) => validateAutomationCommand(value, context));
+const automationActionsSchema = z.array(z.union([
+  sceneActionSchema,
+  legacyDeviceActionSchema,
+  explicitDeviceActionSchema,
+])).min(1).max(100);
 
 function parseWith<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
@@ -115,19 +170,43 @@ function parseWith<T>(schema: z.ZodType<T>, value: unknown): T {
   return parsed.data;
 }
 
-function stringifyValidatedAutomation(value: JsonValue, kind: "trigger" | "action"): string {
+function stringifyValidatedAutomationTrigger(value: JsonValue, triggerType: string): string {
   try {
     const json = JSON.stringify(value);
-    const normalized = normalizeAutomationTransport({ triggerType: "time", triggerJson: kind === "trigger" ? json : "[]", actionJson: kind === "action" ? json : "[]" });
-    if (kind === "trigger") {
-      const candidate = normalized.triggerJson;
-      const parsed = JSON.parse(candidate) as unknown;
-      if ((!Array.isArray(parsed) && (!parsed || typeof parsed !== "object")) || (Array.isArray(parsed) && parsed.length === 0)) throw new Error();
-      toRuntimeTrigger("time", candidate);
-    } else {
-      const actions = toRuntimeActions(normalized.actionJson);
-      if (actions.length === 0 || actions.some((action) => !["scene_run", "device_command", "scene", "device"].includes(action.type))) throw new Error();
-    }
+    const context = parseWith(automationTriggerTypeSchema, triggerType);
+    const normalized = normalizeAutomationTransport({ triggerType: context, triggerJson: json, actionJson: "[]" });
+    const parsed = JSON.parse(normalized.triggerJson) as unknown;
+    const conditionSchema = context === "time"
+      ? timeTriggerSchema
+      : context === "device_state_changed"
+        ? deviceTriggerSchema
+        : z.union([sensorConditionSchema, sensorTypeTriggerSchema]);
+    const payloadSchema = z.union([
+      z.array(conditionSchema).min(1).max(100),
+      z.object({ logic: z.enum(["all", "any"]), conditions: z.array(conditionSchema).min(1).max(100) }).strict(),
+    ]);
+    parseWith(payloadSchema, parsed);
     return json;
   } catch { throw new EncryptedDataInvalidError(); }
+}
+
+function stringifyValidatedAutomationActions(value: JsonValue): string {
+  try {
+    const json = JSON.stringify(value);
+    const normalized = normalizeAutomationTransport({ triggerType: "time", triggerJson: "[]", actionJson: json });
+    parseWith(automationActionsSchema, JSON.parse(normalized.actionJson));
+    return json;
+  } catch { throw new EncryptedDataInvalidError(); }
+}
+
+function validateAutomationCommand(
+  value: { deviceId: string; command?: string; name?: string; payload?: Record<string, unknown> },
+  context: z.RefinementCtx,
+): void {
+  try {
+    const command = toAutomationDeviceCommand(value, "validation-request", 0);
+    if (!deviceCommandSchema.safeParse(command).success) throw new Error();
+  } catch {
+    context.addIssue({ code: "custom", message: "Unsupported or invalid device command" });
+  }
 }
