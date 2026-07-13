@@ -72,6 +72,29 @@ describe("encrypted field migration", () => {
     expect(values).toHaveLength(9);
     values.forEach(({ value }) => expect(value).toMatch(/^ENC1:/));
     expect(db.prepare("SELECT value FROM metadata WHERE key='encryption_data_version'").pluck().get()).toBe("1");
+    const backup = new Database(backupPath, { readonly: true });
+    const originalState = backup.prepare("SELECT state_json FROM devices WHERE id='light-1'").pluck().get();
+    expect(originalState).toBe('{"updatedAt":1,"online":true,"power":false}');
+    expect(repositories().devices.decodeState("light-1", db.prepare("SELECT state_json FROM devices WHERE id='light-1'").pluck().get() as string))
+      .toEqual(JSON.parse(originalState as string));
+    backup.close();
+    db.close();
+  });
+
+  it("requires exclusive offline access before creating a backup or writing", () => {
+    const { dbPath, backupPath } = fixture();
+    const writer = new Database(dbPath);
+    writer.pragma("busy_timeout = 0");
+    writer.exec("BEGIN EXCLUSIVE");
+    writer.prepare("UPDATE metadata SET value='8' WHERE key='global_version'").run();
+    expect(() => migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() }))
+      .toThrow(/database must be offline/i);
+    expect(existsSync(backupPath)).toBe(false);
+    writer.exec("COMMIT");
+    writer.close();
+    const db = new Database(dbPath, { readonly: true });
+    expect(db.prepare("SELECT value FROM metadata WHERE key='global_version'").pluck().get()).toBe("8");
+    expect(db.prepare("SELECT state_json FROM devices WHERE id='light-1'").pluck().get()).not.toMatch(/^ENC1:/);
     db.close();
   });
 
@@ -88,10 +111,15 @@ describe("encrypted field migration", () => {
   it("preflights all values and leaves the database unchanged on malformed JSON", () => {
     const { dbPath, backupPath } = fixture();
     const db = new Database(dbPath);
-    db.prepare("UPDATE automations SET action_json='not-json'").run();
+    db.prepare("UPDATE automations SET action_json='secret-not-json'").run();
     db.close();
     const before = readFileSync(dbPath);
-    expect(() => migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() })).toThrow(/invalid/i);
+    let failure: unknown;
+    try { migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() }); } catch (error) { failure = error; }
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain("automations");
+    expect((failure as Error).message).toContain("automation-1");
+    expect((failure as Error).message).not.toContain("secret-not-json");
     expect(readFileSync(dbPath)).toEqual(before);
     expect(existsSync(backupPath)).toBe(false);
   });

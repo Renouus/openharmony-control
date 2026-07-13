@@ -33,47 +33,63 @@ export function migrateEncryptedFields(options: EncryptionMigrationOptions): Enc
   if (!options.dbPath || !options.backupPath) throw new Error("Database and backup paths are required");
   if (write && existsSync(options.backupPath)) throw new Error("Backup path already exists");
 
-  const readonly = new Database(options.dbPath, { readonly: true, fileMustExist: true });
-  let scanned: ReturnType<typeof scanDatabase>;
-  try {
-    scanned = scanDatabase(readonly, options.encryptedRepositories);
-  } finally {
-    readonly.close();
-  }
-
   if (!write) {
-    return report(scanned, 0);
+    const readonly = new Database(options.dbPath, { readonly: true, fileMustExist: true });
+    try {
+      return report(scanDatabase(readonly, options.encryptedRepositories), 0);
+    } finally {
+      readonly.close();
+    }
   }
-
-  // The backup is deliberately created while no connection owns a write
-  // transaction. COPYFILE_EXCL prevents accidentally destroying an operator's
-  // only rollback artifact. SQLite databases using WAL are rejected here so a
-  // plain file copy can never omit committed pages.
-  const journal = new Database(options.dbPath, { readonly: true, fileMustExist: true });
-  const journalMode = String(journal.pragma("journal_mode", { simple: true })).toLowerCase();
-  journal.close();
-  if (journalMode === "wal") throw new Error("Checkpoint and close the WAL database before migration");
-  copyFileSync(options.dbPath, options.backupPath, fsConstants.COPYFILE_EXCL);
 
   const writable = new Database(options.dbPath, { fileMustExist: true });
+  writable.pragma("busy_timeout = 0");
+  let journalMode: string;
   try {
-    writable.transaction(() => {
-      for (const item of scanned.plaintext) {
-        const encoded = item.encode(item.value);
-        item.decode(encoded);
-        const result = writable.prepare(`UPDATE ${item.table} SET ${item.field}=? WHERE ${item.where}`).run(encoded, ...item.ids);
-        if (result.changes !== 1) throw new Error("Protected row changed during migration");
-      }
-      const verified = scanDatabase(writable, options.encryptedRepositories);
-      if (verified.plaintext.length !== 0) throw new Error("Residual plaintext protected data remains");
-      writable.prepare(`
-        INSERT INTO metadata(key, value) VALUES ('encryption_data_version', '1')
-        ON CONFLICT(key) DO UPDATE SET value=excluded.value
-      `).run();
-    })();
+    journalMode = String(writable.pragma("journal_mode", { simple: true })).toLowerCase();
+  } catch {
+    writable.close();
+    throw new Error("Database must be offline before migration");
+  }
+  if (!["delete", "truncate", "persist"].includes(journalMode)) {
+    writable.close();
+    throw new Error("Database must use a rollback journal and be offline before migration");
+  }
+  try {
+    writable.exec("BEGIN EXCLUSIVE");
+  } catch {
+    writable.close();
+    throw new Error("Database must be offline before migration");
+  }
+
+  let scanned: ReturnType<typeof scanDatabase> | undefined;
+  try {
+    // BEGIN EXCLUSIVE prevents every other connection from reading or writing
+    // until commit. With a rollback journal and no writes yet, the main file is
+    // the exact transaction snapshot and is safe to copy byte-for-byte.
+    scanned = scanDatabase(writable, options.encryptedRepositories);
+    copyFileSync(options.dbPath, options.backupPath, fsConstants.COPYFILE_EXCL);
+    scanned = scanDatabase(writable, options.encryptedRepositories);
+    for (const item of scanned.plaintext) {
+      const encoded = item.encode(item.value);
+      item.decode(encoded);
+      const result = writable.prepare(`UPDATE ${item.table} SET ${item.field}=? WHERE ${item.where}`).run(encoded, ...item.ids);
+      if (result.changes !== 1) throw new Error("Protected row changed during migration");
+    }
+    const verified = scanDatabase(writable, options.encryptedRepositories);
+    if (verified.plaintext.length !== 0) throw new Error("Residual plaintext protected data remains");
+    writable.prepare(`
+      INSERT INTO metadata(key, value) VALUES ('encryption_data_version', '1')
+      ON CONFLICT(key) DO UPDATE SET value=excluded.value
+    `).run();
+    writable.exec("COMMIT");
+  } catch (error) {
+    if (writable.inTransaction) writable.exec("ROLLBACK");
+    throw error;
   } finally {
     writable.close();
   }
+  if (!scanned) throw new Error("Encrypted data migration failed");
   return report(scanned, scanned.plaintext.length);
 }
 
@@ -111,10 +127,14 @@ function scanDatabase(db: Database.Database, repositories: EncryptedRepositories
         plaintext.push(value);
       }
     } catch {
-      throw new Error(`Invalid protected data at ${value.table}.${value.field}`);
+      throw new Error(`Invalid protected data at ${value.table}.${value.field} record=${formatRecordIds(value.ids)}`);
     }
   }
   return { plaintext, encrypted, keyIds };
+}
+
+function formatRecordIds(ids: readonly string[]): string {
+  return `[${ids.map((id) => JSON.stringify(String(id).replace(/[\u0000-\u001f\u007f]/g, "?").slice(0, 80))).join(",")}]`;
 }
 
 function protectedValues(db: Database.Database, strict: EncryptedRepositories, legacy: EncryptedRepositories): ProtectedValue[] {
