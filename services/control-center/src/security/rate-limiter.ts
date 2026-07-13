@@ -30,23 +30,31 @@ export class InMemoryRateLimiter implements RateLimiter {
   private readonly entries = new Map<string, Entry>();
   private readonly now: () => number;
   private readonly maxEntries: number;
+  private readonly onSweep?: () => void;
+  private nextSweep = Number.POSITIVE_INFINITY;
 
-  constructor(options: { now?: () => number; maxEntries?: number } = {}) {
+  constructor(options: { now?: () => number; maxEntries?: number; onSweep?: () => void } = {}) {
     this.now = options.now ?? Date.now;
     this.maxEntries = options.maxEntries ?? 10_000;
+    this.onSweep = options.onSweep;
   }
 
   consume(key: string, policy: RateLimitPolicy): RateLimitResult {
     const now = this.now();
-    this.removeExpired(now);
+    if (now >= this.nextSweep) this.removeExpired(now);
     let entry = this.entries.get(key);
     if (!entry) {
       if (this.entries.size >= this.maxEntries) {
-        const oldestKey = this.entries.keys().next().value as string | undefined;
-        if (oldestKey !== undefined) this.entries.delete(oldestKey);
+        return {
+          allowed: false,
+          retryAfterSeconds: Number.isFinite(this.nextSweep)
+            ? Math.max(1, Math.ceil((this.nextSweep - now) / 1_000))
+            : 1,
+        };
       }
       entry = { count: 0, resetAt: now + policy.windowMs };
       this.entries.set(key, entry);
+      this.nextSweep = Math.min(this.nextSweep, entry.resetAt);
     }
     if (entry.count >= policy.limit) {
       return {
@@ -59,8 +67,12 @@ export class InMemoryRateLimiter implements RateLimiter {
   }
 
   private removeExpired(now: number): void {
+    this.onSweep?.();
+    let nextSweep = Number.POSITIVE_INFINITY;
     for (const [key, entry] of this.entries) {
       if (entry.resetAt <= now) this.entries.delete(key);
+      else nextSweep = Math.min(nextSweep, entry.resetAt);
     }
+    this.nextSweep = nextSweep;
   }
 }
