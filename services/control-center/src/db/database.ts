@@ -117,6 +117,7 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       subject TEXT NOT NULL,
       request_id TEXT NOT NULL,
       content_hash TEXT NOT NULL,
+      owner_token TEXT,
       state TEXT NOT NULL,
       result_json TEXT,
       created_at INTEGER NOT NULL,
@@ -280,6 +281,7 @@ function createCommandIdempotencyTable(db: Database.Database): void {
       subject TEXT NOT NULL,
       request_id TEXT NOT NULL,
       content_hash TEXT NOT NULL,
+      owner_token TEXT,
       state TEXT NOT NULL,
       result_json TEXT,
       created_at INTEGER NOT NULL,
@@ -350,6 +352,7 @@ function reconcileCriticalSchema(db: Database.Database): void {
     );
   `);
   createCommandIdempotencyTable(db);
+  ensureColumn(db, "command_idempotency", "owner_token", "ALTER TABLE command_idempotency ADD COLUMN owner_token TEXT");
   db.prepare("UPDATE devices SET device_type = type WHERE device_type IS NULL").run();
 }
 

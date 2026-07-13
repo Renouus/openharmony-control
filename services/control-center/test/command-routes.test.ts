@@ -11,6 +11,7 @@ import { DeviceCommandService } from "../src/services/device-command-service";
 import { LightDevice } from "../src/devices/light-device";
 import { CommandStatus, DeviceCapability, DeviceHealth, DeviceKind } from "@smart-home/device-contract";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
+import { canonicalCommandHash } from "../src/db/command-idempotency-store";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
@@ -173,6 +174,54 @@ describe("secure device commands", () => {
     release();
     expect((await firstPromise).statusCode).toBe(400);
     expect(executionCount).toBe(1);
+  });
+
+  it("persists and replays a safe terminal result when a provider rejects, including after restart", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "command-rejection-"));
+    const path = join(directory, "db.sqlite");
+    let executionCount = 0;
+    const provider = fakeVendorProvider();
+    provider.ownsDevice = () => true;
+    provider.executeCommand = async () => {
+      executionCount += 1;
+      throw new Error("secret provider detail");
+    };
+    try {
+      closeDatabase();
+      initDatabase(path);
+      const raw = { requestId: "provider-rejection", timestamp: Date.now(), deviceId: "tuya-device", name: "switch", payload: { on: true } };
+      const firstApp = buildApp(undefined, { vendorProvider: provider });
+      const first = await apiInject(firstApp, { method: "POST", url: "/api/commands", payload: raw });
+      expect(first.statusCode).toBe(500);
+      expect(first.json()).toEqual({ code: "COMMAND_EXECUTION_FAILED" });
+      expect(first.body).not.toContain("secret provider detail");
+      await firstApp.close();
+      closeDatabase();
+      initDatabase(path);
+      const restartedApp = buildApp(undefined, { vendorProvider: provider });
+      const replay = await apiInject(restartedApp, { method: "POST", url: "/api/commands", payload: raw });
+      expect(replay.statusCode).toBe(500);
+      expect(replay.json()).toEqual({ code: "COMMAND_EXECUTION_FAILED" });
+      expect(executionCount).toBe(1);
+      await restartedApp.close();
+    } finally {
+      closeDatabase();
+      rmSync(directory, { recursive: true, force: true });
+      initDatabase(":memory:");
+    }
+  });
+
+  it("fails safely when a completed idempotency result is corrupted", async () => {
+    const app = buildApp();
+    const raw = { requestId: "corrupt-route", timestamp: Date.now(), deviceId: "light-living-room", name: "switch", payload: { on: true } };
+    getDb().prepare(`
+      INSERT INTO command_idempotency
+        (subject, request_id, content_hash, owner_token, state, result_json, created_at, completed_at, expires_at)
+      VALUES ('app', ?, ?, NULL, 'completed', ?, ?, ?, ?)
+    `).run(raw.requestId, canonicalCommandHash(raw as never), '{"statusCode":999,"body":"unsafe"}', Date.now(), Date.now(), Date.now() + 10000);
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "IDEMPOTENCY_DATA_INVALID" });
   });
 
   it("rejects signed envelopes on production commands and executes them on the demo-only route", async () => {

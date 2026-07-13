@@ -117,7 +117,7 @@ describe('database init migrations', () => {
       expect(schemaVersion.value).toBe('9');
       const idempotencyColumns = db.prepare("PRAGMA table_info(command_idempotency)").all() as Array<{ name: string; pk: number }>;
       expect(idempotencyColumns.map((column) => column.name)).toEqual([
-        "subject", "request_id", "content_hash", "state", "result_json", "created_at", "completed_at", "expires_at",
+        "subject", "request_id", "content_hash", "owner_token", "state", "result_json", "created_at", "completed_at", "expires_at",
       ]);
       expect(idempotencyColumns.filter((column) => column.pk > 0).map((column) => column.name)).toEqual(["subject", "request_id"]);
     } finally {
@@ -220,6 +220,32 @@ describe('database init migrations', () => {
       if (!legacyClosed) {
         legacyDb.close();
       }
+      closeDatabase();
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reconciles owner_token for an intermediate schema version 9 table', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'control-center-db-v9-'));
+    const dbPath = join(tempDir, 'partial-v9.db');
+    const legacyDb = new Database(dbPath);
+    try {
+      legacyDb.exec(`
+        CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO metadata VALUES ('schema_version', '9');
+        INSERT INTO metadata VALUES ('global_version', '0');
+        CREATE TABLE command_idempotency (
+          subject TEXT NOT NULL, request_id TEXT NOT NULL, content_hash TEXT NOT NULL,
+          state TEXT NOT NULL, result_json TEXT, created_at INTEGER NOT NULL,
+          completed_at INTEGER, expires_at INTEGER NOT NULL, PRIMARY KEY(subject, request_id)
+        );
+      `);
+      legacyDb.close();
+      const db = initDatabase(dbPath);
+      const columns = db.prepare('PRAGMA table_info(command_idempotency)').all() as Array<{ name: string }>;
+      expect(columns.some((column) => column.name === 'owner_token')).toBe(true);
+    } finally {
+      if (legacyDb.open) legacyDb.close();
       closeDatabase();
       rmSync(tempDir, { recursive: true, force: true });
     }

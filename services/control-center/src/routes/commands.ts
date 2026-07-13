@@ -45,7 +45,9 @@ export async function registerCommandRoutes(
     const claim = idempotencyStore.claim(subject, command.requestId, contentHash);
     if (claim.state === "conflict") return reply.code(409).send({ code: "REQUEST_ID_CONFLICT" });
     if (claim.state === "pending") return reply.code(202).send({ code: "COMMAND_IN_PROGRESS" });
+    if (claim.state === "invalid") return reply.code(500).send({ code: "IDEMPOTENCY_DATA_INVALID" });
     if (claim.state === "completed") return reply.code(claim.result.statusCode).send(claim.result.body);
+    const token = claim.token;
 
     if (options.faultState.forceUnauthorizedCommands) {
       const historyEntry = options.history.add({
@@ -60,15 +62,31 @@ export async function registerCommandRoutes(
         status: CommandStatus.CommandUnauthorized,
         historyEntry,
       };
-      idempotencyStore.complete(subject, command.requestId, contentHash, { statusCode: 401, body });
+      idempotencyStore.complete(subject, command.requestId, contentHash, token, { statusCode: 401, body });
       return reply.code(401).send(body);
     }
 
-    const result = await deviceCommandService.executeUserCommand(command);
-    idempotencyStore.complete(subject, command.requestId, contentHash, {
+    const heartbeat = setInterval(() => {
+      idempotencyStore.renew(subject, command.requestId, contentHash, token);
+    }, Math.max(1, Math.floor(idempotencyStore.leaseMs / 3)));
+    heartbeat.unref();
+    let result: Awaited<ReturnType<DeviceCommandService["executeUserCommand"]>>;
+    try {
+      result = await deviceCommandService.executeUserCommand(command);
+    } catch {
+      const body = { code: "COMMAND_EXECUTION_FAILED" };
+      const completed = idempotencyStore.complete(subject, command.requestId, contentHash, token, { statusCode: 500, body });
+      return completed
+        ? reply.code(500).send(body)
+        : reply.code(202).send({ code: "COMMAND_IN_PROGRESS" });
+    } finally {
+      clearInterval(heartbeat);
+    }
+    const completed = idempotencyStore.complete(subject, command.requestId, contentHash, token, {
       statusCode: result.statusCode,
       body: result.body,
     });
+    if (!completed) return reply.code(202).send({ code: "COMMAND_IN_PROGRESS" });
     if (!result.ok) {
       return reply.code(result.statusCode).send(result.body);
     }

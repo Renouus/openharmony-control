@@ -26,9 +26,11 @@ describe("CommandIdempotencyStore", () => {
   it("claims once, reports pending, replays completion, and rejects a different hash", () => {
     const db = initDatabase(":memory:");
     const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => 1000 });
-    expect(store.claim("app", command.requestId, "hash-a")).toEqual({ state: "acquired" });
+    const acquired = store.claim("app", command.requestId, "hash-a");
+    expect(acquired).toMatchObject({ state: "acquired", token: expect.any(String) });
     expect(store.claim("app", command.requestId, "hash-a")).toEqual({ state: "pending" });
-    store.complete("app", command.requestId, "hash-a", { statusCode: 200, body: { ok: true } });
+    if (acquired.state !== "acquired") throw new Error("claim not acquired");
+    expect(store.complete("app", command.requestId, "hash-a", acquired.token, { statusCode: 200, body: { ok: true } })).toBe(true);
     expect(store.claim("app", command.requestId, "hash-a")).toEqual({
       state: "completed",
       result: { statusCode: 200, body: { ok: true } },
@@ -57,6 +59,27 @@ describe("CommandIdempotencyStore", () => {
     }
   });
 
+  it("takes over a stale pending claim after a crash and restart", () => {
+    const directory = mkdtempSync(join(tmpdir(), "command-idempotency-crash-"));
+    const path = join(directory, "db.sqlite");
+    let now = 1000;
+    try {
+      const firstDb = initDatabase(path);
+      const first = new CommandIdempotencyStore(firstDb, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+      const crashedOwner = first.claim("app", "crashed", "hash");
+      expect(crashedOwner.state).toBe("acquired");
+      closeDatabase();
+      now = 1011;
+      const restartedDb = initDatabase(path);
+      const restarted = new CommandIdempotencyStore(restartedDb, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+      const takeover = restarted.claim("app", "crashed", "hash");
+      expect(takeover).toMatchObject({ state: "acquired", token: expect.any(String) });
+    } finally {
+      closeDatabase();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("hashes the full command canonically regardless of object insertion order", () => {
     const reordered = {
       payload: { nested: { b: 2, a: 1 }, on: true },
@@ -74,11 +97,60 @@ describe("CommandIdempotencyStore", () => {
     ).digest("hex"));
   });
 
-  it("cleans expired rows in bounded batches", () => {
+  it("handles a short-lease gated ABA race without allowing the old executor to complete", async () => {
+    let now = 1000;
     const db = initDatabase(":memory:");
-    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => 1000, ttlMs: 1 });
-    for (let index = 0; index < 3; index += 1) store.claim("app", `request-${index}`, `hash-${index}`);
+    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+    const first = store.claim("app", "aba", "hash");
+    if (first.state !== "acquired") throw new Error("first claim not acquired");
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const oldCompletion = gate.then(() =>
+      store.complete("app", "aba", "hash", first.token, { statusCode: 200, body: { owner: "old" } }));
+    now = 1011;
+    const second = store.claim("app", "aba", "hash");
+    if (second.state !== "acquired") throw new Error("takeover not acquired");
+    expect(second.token).not.toBe(first.token);
+    expect(store.complete("app", "aba", "hash", second.token, { statusCode: 200, body: { owner: "new" } })).toBe(true);
+    release();
+    expect(await oldCompletion).toBe(false);
+    expect(store.claim("app", "aba", "hash")).toEqual({ state: "completed", result: { statusCode: 200, body: { owner: "new" } } });
+  });
+
+  it("renews only the active owner lease", () => {
+    let now = 1000;
+    const db = initDatabase(":memory:");
+    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+    const claim = store.claim("app", "renew", "hash");
+    if (claim.state !== "acquired") throw new Error("claim not acquired");
+    now = 1005;
+    expect(store.renew("app", "renew", "hash", "wrong")).toBe(false);
+    expect(store.renew("app", "renew", "hash", claim.token)).toBe(true);
+    now = 1011;
+    expect(store.claim("app", "renew", "hash").state).toBe("pending");
+  });
+
+  it("classifies corrupted completed result data as invalid", () => {
+    const db = initDatabase(":memory:");
+    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec());
+    const claim = store.claim("app", "corrupt", "hash");
+    if (claim.state !== "acquired") throw new Error("claim not acquired");
+    db.prepare("UPDATE command_idempotency SET state='completed', result_json=?, completed_at=? WHERE request_id='corrupt'")
+      .run('{"statusCode":999,"body":"unsafe"}', Date.now());
+    expect(store.claim("app", "corrupt", "hash")).toEqual({ state: "invalid" });
+  });
+
+  it("cleans only expired completed rows in bounded batches", () => {
+    const db = initDatabase(":memory:");
+    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => 1000, retentionMs: 1 });
+    for (let index = 0; index < 3; index += 1) {
+      const claim = store.claim("app", `request-${index}`, `hash-${index}`);
+      if (claim.state !== "acquired") throw new Error("claim not acquired");
+      store.complete("app", `request-${index}`, `hash-${index}`, claim.token, { statusCode: 200, body: {} });
+    }
+    const pending = store.claim("app", "pending", "hash");
+    expect(pending.state).toBe("acquired");
     expect(store.cleanupExpired(1002, 2)).toBe(2);
-    expect(db.prepare("SELECT COUNT(*) AS count FROM command_idempotency").get()).toEqual({ count: 1 });
+    expect(db.prepare("SELECT COUNT(*) AS count FROM command_idempotency WHERE state='pending'").get()).toEqual({ count: 1 });
   });
 });
