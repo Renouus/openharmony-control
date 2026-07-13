@@ -74,6 +74,7 @@ export type AppBuildOptions = {
   rateLimiter?: RateLimiter;
   rateLimitPolicies?: RateLimitPolicies;
   websocketTicketStore?: WebSocketTicketStore;
+  maxWebSocketConnectionsPerSubject?: number;
 };
 
 export function createVendorProviderFromEnv(
@@ -95,6 +96,10 @@ export function buildApp(
   const rateLimiter = options.rateLimiter ?? new InMemoryRateLimiter();
   const rateLimitPolicies = options.rateLimitPolicies ?? RATE_LIMIT_POLICIES;
   const websocketTicketStore = options.websocketTicketStore ?? new WebSocketTicketStore();
+  const maxWebSocketConnectionsPerSubject = options.maxWebSocketConnectionsPerSubject ?? 4;
+  if (!Number.isInteger(maxWebSocketConnectionsPerSubject) || maxWebSocketConnectionsPerSubject < 1) {
+    throw new Error("maxWebSocketConnectionsPerSubject must be a positive integer");
+  }
   const app = Fastify({
     logger: false,
     trustProxy: securityConfig.trustProxy,
@@ -252,6 +257,7 @@ export function buildApp(
       rateLimiter,
       handshakePolicy: rateLimitPolicies.websocket,
       invalidAttemptPolicy: rateLimitPolicies.websocket,
+      maxConnectionsPerSubject: maxWebSocketConnectionsPerSubject,
     });
   });
 

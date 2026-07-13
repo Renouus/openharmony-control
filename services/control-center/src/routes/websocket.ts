@@ -34,6 +34,7 @@ export default async function websocketRoutes(
     rateLimiter: RateLimiter;
     handshakePolicy: RateLimitPolicy;
     invalidAttemptPolicy: RateLimitPolicy;
+    maxConnectionsPerSubject: number;
   },
 ): Promise<void> {
   fastify.get("/ws/events", {
@@ -59,7 +60,7 @@ export default async function websocketRoutes(
       }
       const activeForSubject = [...clientConnections.values()].filter((socket) => socketMetadata.get(socket)?.subject === binding.subject).length;
       const replacementKey = `${binding.subject}:${binding.clientId ?? ""}`;
-      if (activeForSubject >= options.handshakePolicy.limit && !clientConnections.has(replacementKey)) {
+      if (activeForSubject >= options.maxConnectionsPerSubject && !clientConnections.has(replacementKey)) {
         return reply.code(429).send({ code: "RATE_LIMIT_EXCEEDED", retryAfter: 1 });
       }
       pendingBindings.set(request, binding);
