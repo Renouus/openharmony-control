@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
-import { buildApp } from '../helpers/build-test-app';
+import { apiInject, buildApp, demoInject } from '../helpers/build-test-app';
 import { closeDatabase, getDb, initDatabase } from '../../src/db/database';
 import { broadcastEvent, clientConnections } from '../../src/routes/websocket';
 
@@ -122,7 +122,7 @@ describe('/ws/events websocket route', () => {
         });
       });
 
-      const signResponse = await app.inject({
+      const signResponse = await demoInject(app, {
         method: 'POST',
         url: '/api/demo/sign-command',
         payload: {
@@ -135,7 +135,7 @@ describe('/ws/events websocket route', () => {
       });
       expect(signResponse.statusCode).toBe(200);
 
-      const commandResponse = await app.inject({
+      const commandResponse = await apiInject(app, {
         method: 'POST',
         url: '/api/commands',
         payload: signResponse.json(),

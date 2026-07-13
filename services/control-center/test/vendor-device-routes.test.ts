@@ -5,7 +5,7 @@ import {
   DeviceHealth,
   DeviceKind,
 } from "@smart-home/device-contract";
-import { buildApp } from "./helpers/build-test-app";
+import { apiInject, buildApp } from "./helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
@@ -158,7 +158,7 @@ describe("vendor device routes", () => {
   it("includes multiple vendor device kinds in the device list", async () => {
     seedManagedVendorDevices();
     const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const response = await app.inject({ method: "GET", url: "/api/devices" });
+    const response = await apiInject(app, { method: "GET", url: "/api/devices" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().devices).toEqual(
@@ -174,7 +174,7 @@ describe("vendor device routes", () => {
   it("returns vendor device detail responses for non-light kinds", async () => {
     seedManagedVendorDevices();
     const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "GET",
       url: "/api/devices/tuya-ac-1",
     });

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildApp } from "./helpers/build-test-app";
+import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 import { CommandHistory } from "../src/history/command-history";
 import { DeviceRegistry } from "../src/registry/device-registry";
@@ -16,7 +16,7 @@ async function sign(
   app: ReturnType<typeof buildApp>,
   payload: Record<string, unknown>,
 ) {
-  const signed = await app.inject({
+  const signed = await demoInject(app, {
     method: "POST",
     url: "/api/demo/sign-command",
     payload,
@@ -98,7 +98,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -134,7 +134,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -162,7 +162,7 @@ describe("secure device commands", () => {
       payload: { brightness: 72 },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -178,7 +178,7 @@ describe("secure device commands", () => {
 
   it("can control a newly created template-backed light device", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/devices",
       payload: {
@@ -197,7 +197,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -221,7 +221,7 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -237,7 +237,7 @@ describe("secure device commands", () => {
 
   it("rejects unsigned commands", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: {
@@ -266,12 +266,12 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    const first = await app.inject({
+    const first = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
     });
-    const second = await app.inject({
+    const second = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -299,9 +299,9 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    await app.inject({ method: "POST", url: "/api/commands", payload: light });
-    await app.inject({ method: "POST", url: "/api/commands", payload: door });
-    const history = await app.inject({
+    await apiInject(app, { method: "POST", url: "/api/commands", payload: light });
+    await apiInject(app, { method: "POST", url: "/api/commands", payload: door });
+    const history = await apiInject(app, {
       method: "GET",
       url: "/api/commands/history?limit=2",
     });
@@ -328,7 +328,7 @@ describe("secure device commands", () => {
         payload: { on: true },
       });
 
-      const commandResponse = await firstApp.inject({
+      const commandResponse = await apiInject(firstApp, {
         method: "POST",
         url: "/api/commands",
         payload: envelope,
@@ -339,7 +339,7 @@ describe("secure device commands", () => {
 
       initDatabase(dbPath);
       const secondApp = buildApp();
-      const history = await secondApp.inject({
+      const history = await apiInject(secondApp, {
         method: "GET",
         url: "/api/commands/history?limit=5",
       });
@@ -356,7 +356,7 @@ describe("secure device commands", () => {
 
   it("returns offline command status when the target is unavailable", async () => {
     const app = buildApp();
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/offline",
       payload: { deviceId: "light-living-room", offline: true },
@@ -369,7 +369,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -385,7 +385,7 @@ describe("secure device commands", () => {
 
   it("can force visible security command failures for demos", async () => {
     const app = buildApp();
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/security",
       payload: { forceUnauthorizedCommands: true },
@@ -398,7 +398,7 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -413,7 +413,7 @@ describe("secure device commands", () => {
 
   it("preserves signed envelope metadata when security faults short-circuit commands", async () => {
     const app = buildApp();
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/security",
       payload: { forceUnauthorizedCommands: true },
@@ -426,7 +426,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -495,7 +495,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,

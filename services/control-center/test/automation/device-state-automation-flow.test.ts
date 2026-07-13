@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../helpers/build-test-app";
+import { apiInject, buildApp, demoInject } from "../helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
 
 /**
@@ -22,14 +22,14 @@ async function signAndRun(
   name: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const signResponse = await app.inject({
+  const signResponse = await demoInject(app, {
     method: "POST",
     url: "/api/demo/sign-command",
     payload: { requestId, timestamp: Date.now(), deviceId, name, payload },
   });
   expect(signResponse.statusCode).toBe(200);
 
-  const executeResponse = await app.inject({
+  const executeResponse = await apiInject(app, {
     method: "POST",
     url: "/api/commands",
     payload: signResponse.json(),
@@ -41,7 +41,7 @@ async function getDeviceState(
   app: ReturnType<typeof buildApp>,
   deviceId: string,
 ): Promise<DeviceState> {
-  const response = await app.inject({ method: "GET", url: "/api/devices" });
+  const response = await apiInject(app, { method: "GET", url: "/api/devices" });
   expect(response.statusCode).toBe(200);
   const device = response
     .json()
@@ -53,7 +53,7 @@ async function createAutomation(
   app: ReturnType<typeof buildApp>,
   payload: Record<string, unknown>,
 ): Promise<string> {
-  const response = await app.inject({
+  const response = await apiInject(app, {
     method: "POST",
     url: "/api/automations",
     payload,

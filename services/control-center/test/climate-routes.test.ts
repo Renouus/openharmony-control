@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "./helpers/build-test-app";
+import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
   payload: Record<string, unknown>,
 ) {
-  const signed = await app.inject({
+  const signed = await demoInject(app, {
     method: "POST",
     url: "/api/demo/sign-command",
     payload,
@@ -18,7 +18,7 @@ async function sign(
 describe("climate prototype routes", () => {
   it("returns living room climate overview", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/climate" });
+    const response = await apiInject(app, { method: "GET", url: "/api/climate" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -33,7 +33,7 @@ describe("climate prototype routes", () => {
 
   it("updates climate mode", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/climate",
       payload: { mode: "auto" },
@@ -48,7 +48,7 @@ describe("climate prototype routes", () => {
 
   it("rejects invalid climate mode", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/climate",
       payload: { mode: "dry" },
@@ -60,7 +60,7 @@ describe("climate prototype routes", () => {
 
   it("rejects missing climate mode", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/climate",
       payload: {},
@@ -72,7 +72,7 @@ describe("climate prototype routes", () => {
 
   it("rejects empty climate payload", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/climate",
     });
@@ -83,7 +83,7 @@ describe("climate prototype routes", () => {
 
   it("rejects null climate payload", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/climate",
       payload: null as unknown as string,
@@ -103,12 +103,12 @@ describe("climate prototype routes", () => {
       payload: { targetTemperature: 22 },
     });
 
-    const command = await app.inject({
+    const command = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
     });
-    const climate = await app.inject({ method: "GET", url: "/api/climate" });
+    const climate = await apiInject(app, { method: "GET", url: "/api/climate" });
 
     expect(command.statusCode).toBe(200);
     expect(command.json()).toMatchObject({

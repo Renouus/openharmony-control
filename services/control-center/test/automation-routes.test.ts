@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildApp } from './helpers/build-test-app';
+import { apiInject, buildApp, demoInject } from './helpers/build-test-app';
 import { ProviderDeviceStore } from '../src/devices/provider-device-store';
 import { closeDatabase, getDb, initDatabase } from '../src/db/database';
 
@@ -14,7 +14,7 @@ describe('automation routes', () => {
 
   it('lists db-backed automation rules', async () => {
     const app = buildApp();
-    const response = await app.inject({ method: 'GET', url: '/api/automations' });
+    const response = await apiInject(app, { method: 'GET', url: '/api/automations' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().automations).toEqual(
@@ -32,7 +32,7 @@ describe('automation routes', () => {
   it('creates, updates, and deletes automation rules', async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -54,7 +54,7 @@ describe('automation routes', () => {
     });
     expect(created.actionJson).toContain('"type":"device_command"');
 
-    const updateResponse = await app.inject({
+    const updateResponse = await apiInject(app, {
       method: 'PUT',
       url: `/api/automations/${created.id}`,
       payload: {
@@ -70,7 +70,7 @@ describe('automation routes', () => {
     expect(updateResponse.json().automation.triggerJson).toContain('"deviceId":"door-front"');
     expect(updateResponse.json().automation.actionJson).toContain('"command":"lock:true"');
 
-    const listResponse = await app.inject({ method: 'GET', url: '/api/automations' });
+    const listResponse = await apiInject(app, { method: 'GET', url: '/api/automations' });
     expect(listResponse.json().automations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -83,20 +83,20 @@ describe('automation routes', () => {
       ]),
     );
 
-    const deleteResponse = await app.inject({
+    const deleteResponse = await apiInject(app, {
       method: 'DELETE',
       url: `/api/automations/${created.id}`,
     });
     expect(deleteResponse.statusCode).toBe(204);
 
-    const finalList = await app.inject({ method: 'GET', url: '/api/automations' });
+    const finalList = await apiInject(app, { method: 'GET', url: '/api/automations' });
     expect(finalList.json().automations.find((automation: { id: string }) => automation.id === created.id)).toBeUndefined();
   });
 
   it('executes an all-condition device command and records success after a matching event', async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -117,7 +117,7 @@ describe('automation routes', () => {
 
     expect(createResponse.statusCode).toBe(201);
 
-    const signResponse = await app.inject({
+    const signResponse = await demoInject(app, {
       method: 'POST',
       url: '/api/demo/sign-command',
       payload: {
@@ -130,7 +130,7 @@ describe('automation routes', () => {
     });
     expect(signResponse.statusCode).toBe(200);
 
-    const executeResponse = await app.inject({
+    const executeResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/commands',
       payload: signResponse.json(),
@@ -138,7 +138,7 @@ describe('automation routes', () => {
 
     expect(executeResponse.statusCode).toBe(200);
 
-    const devicesResponse = await app.inject({ method: 'GET', url: '/api/devices' });
+    const devicesResponse = await apiInject(app, { method: 'GET', url: '/api/devices' });
     const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');
     expect(door.state.locked).toBe(false);
 
@@ -176,7 +176,7 @@ describe('automation routes', () => {
     ]);
 
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -198,7 +198,7 @@ describe('automation routes', () => {
 
   it('does not execute an all-condition action when another device condition is false', async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -215,14 +215,14 @@ describe('automation routes', () => {
         enabled: true,
       },
     });
-    const signResponse = await app.inject({
+    const signResponse = await demoInject(app, {
       method: 'POST',
       url: '/api/demo/sign-command',
       payload: { requestId: 'blocked-light-on', timestamp: Date.now(), deviceId: 'light-living-room', name: 'switch', payload: { on: true } },
     });
-    await app.inject({ method: 'POST', url: '/api/commands', payload: signResponse.json() });
+    await apiInject(app, { method: 'POST', url: '/api/commands', payload: signResponse.json() });
 
-    const devicesResponse = await app.inject({ method: 'GET', url: '/api/devices' });
+    const devicesResponse = await apiInject(app, { method: 'GET', url: '/api/devices' });
     const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');
     expect(door.state.locked).toBe(true);
     const successCount = getDb().prepare(`
@@ -234,7 +234,7 @@ describe('automation routes', () => {
 
   it('rejects an invalid boolean condition group', async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -252,7 +252,7 @@ describe('automation routes', () => {
 
   it('rejects malformed legacy condition arrays', async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {

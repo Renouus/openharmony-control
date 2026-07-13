@@ -3,6 +3,7 @@ import { buildApp } from "../../src/app";
 import {
   API_AUTHORIZATION_HEADER,
   DEMO_AUTHORIZATION_HEADER,
+  buildApp as buildTestApp,
   createTestSecurityConfig,
 } from "../helpers/build-test-app";
 
@@ -21,6 +22,13 @@ function createApp(mode: "production" | "demo" = "demo", corsOrigins: string[] =
 }
 
 describe("API authentication", () => {
+  it("does not silently authenticate raw test-app injection", async () => {
+    const app = buildTestApp();
+    const response = await app.inject({ method: "GET", url: "/api/devices" });
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
   it.each([
     ["missing", undefined],
     ["malformed", "Basic abc"],

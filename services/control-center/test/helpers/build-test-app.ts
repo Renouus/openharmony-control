@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { buildApp as buildProductionApp, type AppBuildOptions } from "../../src/app";
 import type { SecurityConfig } from "../../src/config/security-config";
 import type { DeviceRegistry } from "../../src/registry/device-registry";
+import type { InjectOptions } from "light-my-request";
+import type { FastifyInstance } from "fastify";
 
 const generatedTestHmacKey = randomBytes(32).toString("base64");
 
@@ -11,6 +13,32 @@ export const API_AUTHORIZATION_HEADER = {
 export const DEMO_AUTHORIZATION_HEADER = {
   authorization: `Bearer ${"test-demo-token".padEnd(32, "d")}`,
 };
+
+function withAuthorization<T extends { headers?: unknown }>(
+  options: T,
+  authorization: { authorization: string },
+): T {
+  return {
+    ...options,
+    headers: { ...authorization, ...(options.headers as object | undefined) },
+  };
+}
+
+export function withApiAuth<T extends { headers?: unknown }>(options: T): T {
+  return withAuthorization(options, API_AUTHORIZATION_HEADER);
+}
+
+export function withDemoAuth<T extends { headers?: unknown }>(options: T): T {
+  return withAuthorization(options, DEMO_AUTHORIZATION_HEADER);
+}
+
+export function apiInject(app: FastifyInstance, options: InjectOptions) {
+  return app.inject(withApiAuth(options));
+}
+
+export function demoInject(app: FastifyInstance, options: InjectOptions) {
+  return app.inject(withDemoAuth(options));
+}
 
 type TestAppBuildOptions = Omit<AppBuildOptions, "legacyCommandHmacKey" | "securityConfig"> & {
   securityConfig?: SecurityConfig;
@@ -39,26 +67,9 @@ export function buildApp(
   legacyCommandHmacKey = generatedTestHmacKey,
   options: TestAppBuildOptions = {},
 ) {
-  const app = buildProductionApp(registry, {
+  return buildProductionApp(registry, {
     ...options,
     legacyCommandHmacKey,
     securityConfig: options.securityConfig ?? createTestSecurityConfig(),
   });
-  const originalInject = app.inject.bind(app);
-  const authenticatedInject = (injectOptions?: unknown, ...rest: unknown[]) => {
-    if (typeof injectOptions === "object" && injectOptions !== null) {
-      const request = injectOptions as { url?: string; headers?: Record<string, unknown> };
-      const url = String(request.url ?? "");
-      const defaultAuthorization = url.startsWith("/api/demo/")
-        ? DEMO_AUTHORIZATION_HEADER
-        : API_AUTHORIZATION_HEADER;
-      injectOptions = {
-        ...request,
-        headers: { ...defaultAuthorization, ...request.headers },
-      };
-    }
-    return (originalInject as unknown as (...args: unknown[]) => unknown)(injectOptions, ...rest);
-  };
-  app.inject = authenticatedInject as unknown as typeof app.inject;
-  return app;
 }

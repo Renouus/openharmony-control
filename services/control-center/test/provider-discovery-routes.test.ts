@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DeviceCapability } from "@smart-home/device-contract";
-import { buildApp } from "./helpers/build-test-app";
+import { apiInject, buildApp } from "./helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
@@ -59,7 +59,7 @@ describe("provider discovery routes", () => {
       vendorProvider: createDiscoveryProvider(),
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/providers/tuya/discover",
     });
@@ -97,7 +97,7 @@ describe("provider discovery routes", () => {
       vendorProvider: createDiscoveryProvider(),
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/providers/acme/discover",
     });

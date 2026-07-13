@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "./helpers/build-test-app";
+import { apiInject, buildApp } from "./helpers/build-test-app";
 
 describe("family prototype routes", () => {
   it("returns the family presence overview", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/family" });
+    const response = await apiInject(app, { method: "GET", url: "/api/family" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -37,12 +37,12 @@ describe("family prototype routes", () => {
 
   it("records a family broadcast activity with the message text", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/family/broadcast",
       payload: { message: "Dinner is ready." },
     });
-    const overview = await app.inject({ method: "GET", url: "/api/family" });
+    const overview = await apiInject(app, { method: "GET", url: "/api/family" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -64,7 +64,7 @@ describe("family prototype routes", () => {
 
   it("rejects invalid family broadcast payloads with a stable error code", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/family/broadcast",
       payload: { message: "" },
@@ -77,7 +77,7 @@ describe("family prototype routes", () => {
   it("returns family settings and persists updates", async () => {
     const app = buildApp();
 
-    const getBefore = await app.inject({
+    const getBefore = await apiInject(app, {
       method: "GET",
       url: "/api/family/settings",
     });
@@ -91,7 +91,7 @@ describe("family prototype routes", () => {
       emergencyContactPhone: expect.any(String),
     });
 
-    const updateResponse = await app.inject({
+    const updateResponse = await apiInject(app, {
       method: "PUT",
       url: "/api/family/settings",
       payload: {
@@ -112,7 +112,7 @@ describe("family prototype routes", () => {
       emergencyContactPhone: "13800000000",
     });
 
-    const getAfter = await app.inject({
+    const getAfter = await apiInject(app, {
       method: "GET",
       url: "/api/family/settings",
     });
