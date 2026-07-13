@@ -1,11 +1,18 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { loadSecurityConfig } from "../../src/config/security-config";
 
 const token = (character: string): string => character.repeat(32);
 const encodedKey = Buffer.alloc(32, 7).toString("base64");
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 const validDemoEnv = {
   CONTROL_CENTER_MODE: "demo",
@@ -24,6 +31,7 @@ describe("loadSecurityConfig", () => {
 
   it("loads valid production files", async () => {
     const directory = mkdtempSync(join(tmpdir(), "control-center-security-"));
+    temporaryDirectories.push(directory);
     const certPath = join(directory, "cert.pem");
     const keyPath = join(directory, "key.pem");
     const dataKeysPath = join(directory, "data-keys.json");
@@ -37,7 +45,7 @@ describe("loadSecurityConfig", () => {
       CONTROL_CENTER_ACTIVE_DATA_KEY_ID: "primary",
       TLS_CERT_PATH: certPath,
       TLS_KEY_PATH: keyPath,
-    });
+    }, { validateTls: () => {} });
 
     expect(config).toMatchObject({ mode: "production", host: "127.0.0.1", port: 3443 });
     expect(config.tls?.cert.toString()).toBe("certificate");
@@ -63,14 +71,14 @@ describe("loadSecurityConfig", () => {
     await expect(loadSecurityConfig(
       { ...validDemoEnv, CONTROL_CENTER_HOST: "localhost" },
       { resolveHost: async () => ["127.0.0.1", "::1"] },
-    )).resolves.toMatchObject({ host: "localhost", tls: undefined });
+    )).resolves.toMatchObject({ host: "127.0.0.1", tls: undefined });
   });
 
   it("resolves the runtime localhost before allowing HTTP", async () => {
     await expect(loadSecurityConfig({
       ...validDemoEnv,
       CONTROL_CENTER_HOST: "localhost",
-    })).resolves.toMatchObject({ host: "localhost", tls: undefined });
+    })).resolves.toMatchObject({ host: "127.0.0.1", tls: undefined });
   });
 
   it("fails closed when localhost resolution fails", async () => {
@@ -95,6 +103,21 @@ describe("loadSecurityConfig", () => {
     )).rejects.toThrow(/TLS.*readable/);
   });
 
+  it("rejects readable but invalid TLS PEM material", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "control-center-invalid-tls-"));
+    temporaryDirectories.push(directory);
+    const certPath = join(directory, "cert.pem");
+    const keyPath = join(directory, "key.pem");
+    writeFileSync(certPath, "not a certificate");
+    writeFileSync(keyPath, "not a private key");
+
+    await expect(loadSecurityConfig({
+      ...validDemoEnv,
+      TLS_CERT_PATH: certPath,
+      TLS_KEY_PATH: keyPath,
+    })).rejects.toThrow(/valid PEM pair/);
+  });
+
   it("rejects simultaneous inline and file data keys", async () => {
     await expect(loadSecurityConfig({ ...validDemoEnv, CONTROL_CENTER_DATA_KEYS_PATH: "keys.json" })).rejects.toThrow(/never both/);
   });
@@ -106,7 +129,10 @@ describe("loadSecurityConfig", () => {
       CONTROL_CENTER_ACTIVE_DATA_KEY_ID: "k1",
       TLS_CERT_PATH: "cert.pem",
       TLS_KEY_PATH: "key.pem",
-    }, { readFile: () => Buffer.from("tls") })).rejects.toThrow(/DATA_KEYS_PATH.*production/);
+    }, {
+      readFile: () => Buffer.from("tls"),
+      validateTls: () => {},
+    })).rejects.toThrow(/DATA_KEYS_PATH.*production/);
   });
 
   it("rejects an invalid mode", async () => {

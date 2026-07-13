@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
+import { createSecureContext } from "node:tls";
 
 export type ControlCenterMode = "production" | "demo";
 export type DataKeyring = ReadonlyMap<string, Buffer>;
@@ -24,6 +25,7 @@ export type SecurityEnv = Record<string, string | undefined>;
 export type SecurityConfigDependencies = {
   readFile?: (path: string) => Buffer;
   resolveHost?: (host: string) => Promise<readonly string[]>;
+  validateTls?: (tls: { cert: Buffer; key: Buffer }) => void;
 };
 
 const MINIMUM_CREDENTIAL_LENGTH = 32;
@@ -99,6 +101,7 @@ async function isLoopbackListenHost(
 function loadTls(
   env: SecurityEnv,
   readFile: (path: string) => Buffer,
+  validateTls: (tls: { cert: Buffer; key: Buffer }) => void,
 ): SecurityConfig["tls"] {
   const certPath = env.TLS_CERT_PATH;
   const keyPath = env.TLS_KEY_PATH;
@@ -107,9 +110,11 @@ function loadTls(
   }
   if (!certPath || !keyPath) return undefined;
   try {
-    return { cert: readFile(certPath), key: readFile(keyPath) };
+    const tls = { cert: readFile(certPath), key: readFile(keyPath) };
+    validateTls(tls);
+    return tls;
   } catch {
-    throw new Error("TLS certificate and key files must be readable");
+    throw new Error("TLS certificate and key files must be readable and form a valid PEM pair");
   }
 }
 
@@ -146,6 +151,7 @@ export async function loadSecurityConfig(
   dependencies: SecurityConfigDependencies = {},
 ): Promise<SecurityConfig> {
   const readFile = dependencies.readFile ?? readFileSync;
+  const validateTls = dependencies.validateTls ?? ((tls) => { createSecureContext(tls); });
   const resolveHost = dependencies.resolveHost ?? (async (host: string) =>
     (await lookup(host, { all: true })).map((result) => result.address));
   const modeValue = env.CONTROL_CENTER_MODE ?? "production";
@@ -153,7 +159,7 @@ export async function loadSecurityConfig(
     throw new Error("CONTROL_CENTER_MODE must be production or demo");
   }
   const mode: ControlCenterMode = modeValue;
-  const host = env.CONTROL_CENTER_HOST ?? "127.0.0.1";
+  const configuredHost = env.CONTROL_CENTER_HOST ?? "127.0.0.1";
   const apiToken = requiredCredential(env, "CONTROL_CENTER_API_TOKEN");
   const demoToken = mode === "demo" ? requiredCredential(env, "CONTROL_CENTER_DEMO_TOKEN") : undefined;
   const demoHmacKey = mode === "demo" ? requiredCredential(env, "CONTROL_CENTER_SHARED_KEY") : undefined;
@@ -162,7 +168,20 @@ export async function loadSecurityConfig(
     throw new Error("API, demo, and HMAC credentials must be separate");
   }
 
-  const tls = loadTls(env, readFile);
+  const tls = loadTls(env, readFile, validateTls);
+  let host = configuredHost;
+  if (!tls && mode === "demo" && configuredHost === "localhost") {
+    let addresses: readonly string[];
+    try {
+      addresses = await resolveHost(configuredHost);
+    } catch {
+      throw new Error(`failed to resolve listen host ${configuredHost}`);
+    }
+    if (addresses.length === 0 || !addresses.every(isLoopback)) {
+      throw new Error("TLS is required in production and for non-loopback listen addresses");
+    }
+    host = addresses.includes("127.0.0.1") ? "127.0.0.1" : "::1";
+  }
   if (!tls && (mode === "production" || !await isLoopbackListenHost(host, resolveHost))) {
     throw new Error("TLS is required in production and for non-loopback listen addresses");
   }

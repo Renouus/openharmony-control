@@ -66,7 +66,7 @@ function createNoopAutomationRuntime(): AutomationRuntime {
 export type AppBuildOptions = {
   legacyCommandHmacKey: string;
   vendorProvider?: VendorDeviceProvider;
-  securityConfig?: SecurityConfig;
+  securityConfig: SecurityConfig;
 };
 
 export function createVendorProviderFromEnv(
@@ -83,13 +83,16 @@ export function buildApp(
   if (!options?.legacyCommandHmacKey || options.legacyCommandHmacKey.length < 32) {
     throw new Error("legacyCommandHmacKey must be explicitly provided with at least 32 characters");
   }
+  if (!options.securityConfig) {
+    throw new Error("securityConfig must be explicitly provided and validated");
+  }
   registry ??= new DeviceRegistry();
   const securityConfig = options.securityConfig;
   const effectiveHmacKey = options.legacyCommandHmacKey;
   const app = Fastify({
     logger: false,
-    trustProxy: securityConfig?.trustProxy ?? false,
-    https: securityConfig?.tls,
+    trustProxy: securityConfig.trustProxy,
+    https: securityConfig.tls,
   } as never) as unknown as FastifyInstance;
   const history = new CommandHistory();
   const sceneRegistry = new SceneRegistry();
@@ -163,7 +166,7 @@ export function buildApp(
   app.decorate("automationRuntime", automationRuntime);
 
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问?
-  void app.register(cors, { origin: [...(securityConfig?.corsOrigins ?? [])] });
+  void app.register(cors, { origin: [...securityConfig.corsOrigins] });
 
   // 注册 WebSocket 插件
   void app.register(websocketPlugin);
@@ -193,13 +196,15 @@ export function buildApp(
       deviceStateTriggerAdapter,
     });
     await registerAutomationRoutes(scope);
-    await registerDemoRoutes(
-      scope,
-      registry,
-      faultState,
-      deviceStateTriggerAdapter,
-      sensorEventTriggerAdapter,
-    );
+    if (securityConfig.mode === "demo") {
+      await registerDemoRoutes(
+        scope,
+        registry,
+        faultState,
+        deviceStateTriggerAdapter,
+        sensorEventTriggerAdapter,
+      );
+    }
     await registerRoomRoutes(scope, roomRegistry, registry);
     await syncRoutes(scope, { vendorProvider });
     await websocketRoutes(scope);
