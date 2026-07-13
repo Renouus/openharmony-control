@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { EncryptedRepositories } from "../../src/db/encrypted-repositories";
@@ -148,7 +148,42 @@ describe("encrypted field migration", () => {
       backupFileSystem: { writeSync: () => { throw new Error("copy failed"); } },
     })).toThrow(/copy failed/i);
     expect(existsSync(backupPath)).toBe(false);
-    expect(existsSync(`${backupPath}.partial`)).toBe(false);
+    expect(readdirSync(dirname(backupPath)).filter((name) => name.includes(".partial-"))).toEqual([]);
+  });
+
+  it("preserves another process backup when publication loses an EEXIST race", () => {
+    const { dbPath, backupPath } = fixture();
+    expect(() => migrateEncryptedFields({
+      dbPath, backupPath, write: true, encryptedRepositories: repositories(),
+      backupFileSystem: {
+        linkSync: (_temporary, finalPath) => {
+          writeFileSync(finalPath, "other-process-backup");
+          const error = new Error("already exists") as NodeJS.ErrnoException;
+          error.code = "EEXIST";
+          throw error;
+        },
+      },
+    })).toThrow(/backup path already exists/i);
+    expect(readFileSync(backupPath, "utf8")).toBe("other-process-backup");
+    expect(readdirSync(dirname(backupPath)).filter((name) => name.includes(".partial-"))).toEqual([]);
+  });
+
+  it("keeps a published backup and continues when own temp unlink fails", () => {
+    const { dbPath, backupPath } = fixture();
+    const result = migrateEncryptedFields({
+      dbPath, backupPath, write: true, encryptedRepositories: repositories(),
+      backupFileSystem: {
+        unlinkSync: (path) => {
+          if (String(path).includes(".partial-")) throw new Error("temp cleanup failed");
+          return unlinkSync(path);
+        },
+      },
+    });
+    expect(result.migratedValues).toBe(9);
+    expect(existsSync(backupPath)).toBe(true);
+    const backup = new Database(backupPath, { readonly: true });
+    expect(backup.prepare("SELECT count(*) FROM devices").pluck().get()).toBe(1);
+    backup.close();
   });
 
   it("retains a completed plaintext backup and reports its path when later migration work fails", () => {

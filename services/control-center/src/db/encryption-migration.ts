@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import {
   closeSync, existsSync, fsyncSync, linkSync, openSync, readSync, unlinkSync, writeSync,
 } from "node:fs";
@@ -163,10 +164,9 @@ function formatRecordIds(ids: readonly string[]): string {
 
 function createSecureBackup(sourcePath: string, backupPath: string, overrides: Partial<BackupFileSystem> = {}): void {
   const fs: BackupFileSystem = { openSync, readSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync, existsSync, ...overrides };
-  const temporaryPath = `${backupPath}.partial`;
+  const temporaryPath = `${backupPath}.partial-${process.pid}-${randomUUID()}`;
   let source = -1;
   let destination = -1;
-  let published = false;
   try {
     source = fs.openSync(sourcePath, "r");
     destination = fs.openSync(temporaryPath, "wx", 0o600);
@@ -180,14 +180,17 @@ function createSecureBackup(sourcePath: string, backupPath: string, overrides: P
     fs.fsyncSync(destination);
     fs.closeSync(destination); destination = -1;
     fs.closeSync(source); source = -1;
-    fs.linkSync(temporaryPath, backupPath);
-    published = true;
-    fs.unlinkSync(temporaryPath);
+    try {
+      fs.linkSync(temporaryPath, backupPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Backup path already exists");
+      throw error;
+    }
+    try { fs.unlinkSync(temporaryPath); } catch { /* published backup remains authoritative */ }
   } catch (error) {
     if (destination >= 0) try { fs.closeSync(destination); } catch { /* best effort */ }
     if (source >= 0) try { fs.closeSync(source); } catch { /* best effort */ }
     if (fs.existsSync(temporaryPath)) try { fs.unlinkSync(temporaryPath); } catch { /* best effort */ }
-    if (!published && fs.existsSync(backupPath)) try { fs.unlinkSync(backupPath); } catch { /* best effort */ }
     throw error;
   }
 }
