@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { buildApp } from "./helpers/build-test-app";
 
 describe("camera prototype routes", () => {
   it("returns prototype camera descriptors", async () => {

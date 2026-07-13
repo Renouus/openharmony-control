@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
-import { buildApp } from '../../src/app';
+import { buildApp } from '../helpers/build-test-app';
 import { closeDatabase, getDb, initDatabase } from '../../src/db/database';
 import { broadcastEvent, clientConnections } from '../../src/routes/websocket';
 

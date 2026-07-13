@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { buildApp } from "./helpers/build-test-app";
 
 describe("environment and AC demo devices", () => {
   it("returns temperature and humidity for the sensor", async () => {

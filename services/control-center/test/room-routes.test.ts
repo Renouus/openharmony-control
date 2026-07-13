@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { buildApp } from "./helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 
 describe("room routes", () => {

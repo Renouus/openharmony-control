@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-contract';
-import { buildApp } from '../../src/app';
+import { buildApp } from '../helpers/build-test-app';
 import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { clientConnections } from '../../src/routes/websocket';

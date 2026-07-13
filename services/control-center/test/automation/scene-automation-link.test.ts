@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../../src/app";
+import { buildApp } from "../helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
 
 describe("scene to automation state-change link", () => {

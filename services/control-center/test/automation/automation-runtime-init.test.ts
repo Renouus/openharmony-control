@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildApp } from "../../src/app";
+import { buildApp } from "../helpers/build-test-app";
 import { closeDatabase, initDatabase } from "../../src/db/database";
 
 describe("automation runtime init resilience (故障 A)", () => {

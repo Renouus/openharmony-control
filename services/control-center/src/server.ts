@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { loadControlCenterEnv } from "./config/control-center-env";
 import { loadSecurityConfig } from "./config/security-config";
 import { buildApp } from "./app";
@@ -7,7 +8,7 @@ import { DeviceRegistry } from "./registry/device-registry";
 loadControlCenterEnv();
 
 async function main(): Promise<void> {
-  const securityConfig = loadSecurityConfig(process.env);
+  const securityConfig = await loadSecurityConfig(process.env);
   const registry = new DeviceRegistry();
   // Initialize the database BEFORE building the app — buildApp constructs the
   // automation runtime which calls getDb() at startup, so the DB must be ready
@@ -16,7 +17,11 @@ async function main(): Promise<void> {
   // automation ever fired in the real server.
   const dbPath = process.env.DATABASE_PATH || 'smarthome.db';
   const db = initDatabase(dbPath);
-  const app = buildApp(registry, undefined, { securityConfig });
+  // Transitional internal wiring for signed command envelopes. Task 6 removes
+  // this legacy command path; it is deliberately separate from configured API,
+  // demo, and data-encryption credentials.
+  const legacyCommandHmacKey = randomBytes(32).toString("base64");
+  const app = buildApp(registry, { securityConfig, legacyCommandHmacKey });
   app.log.info(`Database initialized at ${dbPath}`);
 
   try {

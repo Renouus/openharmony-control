@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { buildApp } from "./helpers/build-test-app";
 
 async function sign(
   app: ReturnType<typeof buildApp>,

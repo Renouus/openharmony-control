@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
+import { lookup } from "node:dns/promises";
 
 export type ControlCenterMode = "production" | "demo";
 export type DataKeyring = ReadonlyMap<string, Buffer>;
@@ -22,7 +23,7 @@ export type SecurityEnv = Record<string, string | undefined>;
 
 export type SecurityConfigDependencies = {
   readFile?: (path: string) => Buffer;
-  resolveHost?: (host: string) => readonly string[];
+  resolveHost?: (host: string) => Promise<readonly string[]>;
 };
 
 const MINIMUM_CREDENTIAL_LENGTH = 32;
@@ -82,11 +83,16 @@ function isLoopback(address: string): boolean {
   return false;
 }
 
-function isLoopbackListenHost(
+async function isLoopbackListenHost(
   host: string,
-  resolveHost: (host: string) => readonly string[],
-): boolean {
-  const addresses = host === "localhost" ? resolveHost(host) : [host];
+  resolveHost: (host: string) => Promise<readonly string[]>,
+): Promise<boolean> {
+  let addresses: readonly string[];
+  try {
+    addresses = host === "localhost" ? await resolveHost(host) : [host];
+  } catch {
+    throw new Error(`failed to resolve listen host ${host}`);
+  }
   return addresses.length > 0 && addresses.every(isLoopback);
 }
 
@@ -135,12 +141,13 @@ function parseDataKeys(json: string): DataKeyring {
   return keys;
 }
 
-export function loadSecurityConfig(
+export async function loadSecurityConfig(
   env: SecurityEnv = process.env,
   dependencies: SecurityConfigDependencies = {},
-): SecurityConfig {
+): Promise<SecurityConfig> {
   const readFile = dependencies.readFile ?? readFileSync;
-  const resolveHost = dependencies.resolveHost ?? ((host: string) => host === "localhost" ? ["127.0.0.1", "::1"] : [host]);
+  const resolveHost = dependencies.resolveHost ?? (async (host: string) =>
+    (await lookup(host, { all: true })).map((result) => result.address));
   const modeValue = env.CONTROL_CENTER_MODE ?? "production";
   if (modeValue !== "production" && modeValue !== "demo") {
     throw new Error("CONTROL_CENTER_MODE must be production or demo");
@@ -156,7 +163,7 @@ export function loadSecurityConfig(
   }
 
   const tls = loadTls(env, readFile);
-  if (!tls && (mode === "production" || !isLoopbackListenHost(host, resolveHost))) {
+  if (!tls && (mode === "production" || !await isLoopbackListenHost(host, resolveHost))) {
     throw new Error("TLS is required in production and for non-loopback listen addresses");
   }
 

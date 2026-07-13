@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { buildApp } from "./helpers/build-test-app";
 
 describe("family prototype routes", () => {
   it("returns the family presence overview", async () => {

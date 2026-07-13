@@ -13,7 +13,6 @@
  */
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
-import { randomBytes } from "node:crypto";
 import { SimulatedAirConditionerAdapter } from "./adapters/air-conditioner-adapter";
 import { ActionExecutor } from "./automation/action-executor";
 import { AutomationRepository } from "./automation/automation-repository";
@@ -54,11 +53,6 @@ import { createTuyaProvider } from "./integrations/tuya/tuya-provider";
 import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
 import type { SecurityConfig } from "./config/security-config";
 
-// Existing lightweight route tests build an in-memory app without starting the
-// runtime server. Give those instances an isolated, unpredictable HMAC key;
-// server.ts always supplies validated configuration and never uses this value.
-const isolatedInMemoryHmacKey = randomBytes(32).toString("base64");
-
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
     dispatch: async () => {},
@@ -70,6 +64,7 @@ function createNoopAutomationRuntime(): AutomationRuntime {
 }
 
 export type AppBuildOptions = {
+  legacyCommandHmacKey: string;
   vendorProvider?: VendorDeviceProvider;
   securityConfig?: SecurityConfig;
 };
@@ -82,12 +77,15 @@ export function createVendorProviderFromEnv(
 }
 
 export function buildApp(
-  registry = new DeviceRegistry(),
-  secret?: string,
-  options: AppBuildOptions = {},
+  registry: DeviceRegistry | undefined,
+  options: AppBuildOptions,
 ): FastifyInstance {
+  if (!options?.legacyCommandHmacKey || options.legacyCommandHmacKey.length < 32) {
+    throw new Error("legacyCommandHmacKey must be explicitly provided with at least 32 characters");
+  }
+  registry ??= new DeviceRegistry();
   const securityConfig = options.securityConfig;
-  const effectiveHmacKey = securityConfig?.demoHmacKey ?? secret ?? isolatedInMemoryHmacKey;
+  const effectiveHmacKey = options.legacyCommandHmacKey;
   const app = Fastify({
     logger: false,
     trustProxy: securityConfig?.trustProxy ?? false,
