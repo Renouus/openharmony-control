@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { closeDatabase, getDb, initDatabase } from '../helpers/test-database';
+import { createTestEncryptedRepositories } from '../helpers/build-test-app';
+import { migrateEncryptedFields } from '../../src/db/encryption-migration';
 
 describe('database init migrations', () => {
   afterEach(() => {
@@ -335,6 +337,13 @@ describe('database init migrations', () => {
       legacyDb.close();
       legacyClosed = true;
 
+      expect(() => initDatabase(dbPath)).toThrow(/migration/i);
+      migrateEncryptedFields({
+        dbPath,
+        backupPath: `${dbPath}.plaintext-backup`,
+        write: true,
+        encryptedRepositories: createTestEncryptedRepositories(),
+      });
       initDatabase(dbPath);
       const db = getDb();
       const rows = db.prepare(`
@@ -365,6 +374,7 @@ describe('database init migrations', () => {
       initDatabase(dbPath);
       const db = getDb();
       const deletedAt = Date.now();
+      const repositories = createTestEncryptedRepositories();
       db.prepare(`
         INSERT OR REPLACE INTO scenes (
           id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
@@ -381,10 +391,10 @@ describe('database init migrations', () => {
         0,
         99,
         1,
-        JSON.stringify({ type: 'manual', label: 'Run now' }),
+        repositories.scenes.encodeTrigger('home', { type: 'manual', label: 'Run now' }),
         JSON.stringify([]),
         JSON.stringify([]),
-        JSON.stringify([]),
+        repositories.scenes.encodeCommands('home', []),
       );
       closeDatabase();
 
