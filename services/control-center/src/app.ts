@@ -53,6 +53,8 @@ import { createTuyaProvider } from "./integrations/tuya/tuya-provider";
 import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
 import type { SecurityConfig } from "./config/security-config";
 import { createAuthenticationHook } from "./security/authentication";
+import { createRateLimitHook, createSelectedRateLimitHook } from "./security/rate-limit-hook";
+import { InMemoryRateLimiter, RATE_LIMIT_POLICIES, type RateLimiter, type RateLimitPolicies } from "./security/rate-limiter";
 
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
@@ -68,6 +70,8 @@ export type AppBuildOptions = {
   legacyCommandHmacKey: string;
   vendorProvider?: VendorDeviceProvider;
   securityConfig: SecurityConfig;
+  rateLimiter?: RateLimiter;
+  rateLimitPolicies?: RateLimitPolicies;
 };
 
 export function createVendorProviderFromEnv(
@@ -90,6 +94,8 @@ export function buildApp(
   registry ??= new DeviceRegistry();
   const securityConfig = options.securityConfig;
   const effectiveHmacKey = options.legacyCommandHmacKey;
+  const rateLimiter = options.rateLimiter ?? new InMemoryRateLimiter();
+  const rateLimitPolicies = options.rateLimitPolicies ?? RATE_LIMIT_POLICIES;
   const app = Fastify({
     logger: false,
     trustProxy: securityConfig.trustProxy,
@@ -177,6 +183,11 @@ export function buildApp(
     scope.addHook("onRequest", createAuthenticationHook([
       { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
     ], "api"));
+    scope.addHook("onRequest", createSelectedRateLimitHook(rateLimiter, (request) => {
+      const isCommandExecution = request.method === "POST" && request.url.split("?", 1)[0] === "/api/commands";
+      const policyName = isCommandExecution ? "command" : "baseline";
+      return [policyName, rateLimitPolicies[policyName]];
+    }));
     await registerProviderRoutes(scope, { vendorProvider });
     await registerDeviceRoutes(scope, registry, simulators, { vendorProvider });
     await registerAccessRoutes(scope, registry);
@@ -210,6 +221,7 @@ export function buildApp(
         { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
         { subject: "demo-operator", permissions: ["demo"], token: securityConfig.demoToken! },
       ], "demo"));
+      scope.addHook("onRequest", createRateLimitHook(rateLimiter, "demo", rateLimitPolicies.demo));
       await registerDemoRoutes(
         scope,
         registry,
