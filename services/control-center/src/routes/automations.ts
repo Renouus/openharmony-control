@@ -10,6 +10,8 @@ import {
   assertDevicesAreActive,
   InactiveDeviceReferenceError,
 } from '../devices/device-lifecycle-guard';
+import { automationIdParamsSchema, automationMutationSchema, automationUpdateSchema } from '@smart-home/device-contract/schemas';
+import { parseRequest } from './parse-request';
 
 type AutomationRow = {
   id: string;
@@ -44,10 +46,9 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
   });
 
   app.post('/api/automations', async (request, reply) => {
-    const body = request.body as Partial<AutomationDescriptor>;
-    if (!body?.name || !body.triggerType || !body.triggerJson || !body.actionJson) {
-      return reply.code(400).send({ code: 'INVALID_PAYLOAD' });
-    }
+    const parsed = parseRequest(automationMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const body = parsed.value;
     if (!isValidAutomationConditionGroup(body.triggerJson)) {
       return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
     }
@@ -89,8 +90,11 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
   });
 
   app.put('/api/automations/:automationId', async (request, reply) => {
-    const { automationId } = request.params as { automationId: string };
-    const body = request.body as Partial<AutomationDescriptor>;
+    const params = parseRequest(automationIdParamsSchema, request.params, reply);
+    const parsed = parseRequest(automationUpdateSchema, request.body, reply);
+    if (!params.ok || !parsed.ok) return;
+    const { automationId } = params.value;
+    const body = parsed.value;
     if (body.triggerJson && !isValidAutomationConditionGroup(body.triggerJson)) {
       return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
     }
@@ -114,7 +118,9 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
   });
 
   app.delete('/api/automations/:automationId', async (request, reply) => {
-    const { automationId } = request.params as { automationId: string };
+    const params = parseRequest(automationIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const { automationId } = params.value;
     const success = deleteAutomation(automationId);
     if (!success) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });

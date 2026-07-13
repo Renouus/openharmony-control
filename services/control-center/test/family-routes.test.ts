@@ -71,7 +71,7 @@ describe("family prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "BROADCAST_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("returns family settings and persists updates", async () => {

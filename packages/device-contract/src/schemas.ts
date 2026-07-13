@@ -121,6 +121,12 @@ export const familySettingsMutationSchema = z.object({
   emergencyContactPhone: z.string().trim().max(64).optional(),
 }).strict();
 export const websocketQuerySchema = z.object({ clientId: z.string().max(128).optional() }).strict();
+export const routeIdParamsSchema = z.object({ id: shortId }).strict();
+export const deviceIdParamsSchema = z.object({ deviceId: shortId }).strict();
+export const sceneIdParamsSchema = z.object({ sceneId: shortId }).strict();
+export const automationIdParamsSchema = z.object({ automationId: shortId }).strict();
+export const cameraIdParamsSchema = z.object({ cameraId: shortId }).strict();
+export const providerIdParamsSchema = z.object({ providerId: shortId }).strict();
 
 export type ParsedDeviceCommand = z.infer<typeof deviceCommandSchema>;
 export type ParsedSignedCommandEnvelope = z.infer<typeof signedCommandEnvelopeSchema>;

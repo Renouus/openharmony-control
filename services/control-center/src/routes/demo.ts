@@ -16,6 +16,8 @@ import { mapDeviceRowToSyncDto, type DeviceSyncRow } from "../db/device-sync-map
 import { broadcastEvent } from "./websocket";
 import { signCommand } from "../security/envelope";
 import type { DeviceCommand } from "@smart-home/device-contract";
+import { demoEnvironmentSchema, demoMotionSchema, demoOfflineFaultSchema, demoSecurityFaultSchema, deviceCommandSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 type OfflineFaultRequest = {
   deviceId?: string;
@@ -44,16 +46,15 @@ export async function registerDemoRoutes(
   commandSigningKey?: string,
 ): Promise<void> {
   if (commandSigningKey) {
-    app.post("/api/demo/sign-command", async (request) => {
-      return signCommand(request.body as DeviceCommand, commandSigningKey);
+    app.post("/api/demo/sign-command", async (request, reply) => {
+      const parsed = parseRequest(deviceCommandSchema, request.body, reply); if (!parsed.ok) return;
+      return signCommand(parsed.value, commandSigningKey);
     });
   }
   /** 故障注入：切换设备在线/离线 */
   app.post("/api/demo/faults/offline", async (request, reply) => {
-    const body = request.body as OfflineFaultRequest;
-    if (!body.deviceId) {
-      return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
-    }
+    const parsed = parseRequest(demoOfflineFaultSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
 
     const beforeState = { ...(registry.find(body.deviceId)?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update(body.deviceId, {
@@ -103,15 +104,8 @@ export async function registerDemoRoutes(
 
   /** 演示环境模拟：修改传感器读数（含范围校验） */
   app.post("/api/demo/environment", async (request, reply) => {
-    const body = request.body as EnvironmentRequest;
-    if (
-      (body.temperature !== undefined && (body.temperature < -10 || body.temperature > 50)) ||
-      (body.humidity !== undefined && (body.humidity < 0 || body.humidity > 100)) ||
-      (body.aqi !== undefined && (body.aqi < 0 || body.aqi > 500)) ||
-      (body.filterLife !== undefined && (body.filterLife < 0 || body.filterLife > 100))
-    ) {
-      return reply.code(400).send({ code: "ENVIRONMENT_INVALID" });
-    }
+    const parsed = parseRequest(demoEnvironmentSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
 
     const nextState: Partial<DeviceState> = {};
     if (body.temperature !== undefined) nextState.temperature = body.temperature;
@@ -165,10 +159,8 @@ export async function registerDemoRoutes(
 
   /** 人体感应联动演示：模拟人体经过或离开 */
   app.post("/api/demo/motion", async (request, reply) => {
-    const body = request.body as MotionRequest;
-    if (!body.deviceId) {
-      return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
-    }
+    const parsed = parseRequest(demoMotionSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
 
     const beforeMotionState = { ...(registry.find(body.deviceId)?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update(body.deviceId, {
@@ -275,8 +267,9 @@ export async function registerDemoRoutes(
   });
 
   /** 安全演示：强制拒绝所有命令 */
-  app.post("/api/demo/faults/security", async (request) => {
-    const body = request.body as { forceUnauthorizedCommands?: boolean };
+  app.post("/api/demo/faults/security", async (request, reply) => {
+    const parsed = parseRequest(demoSecurityFaultSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
     faultState.forceUnauthorizedCommands = body.forceUnauthorizedCommands === true;
     return {
       forceUnauthorizedCommands: faultState.forceUnauthorizedCommands,

@@ -65,6 +65,6 @@ describe("environment and AC demo devices", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toMatchObject({ code: "ENVIRONMENT_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 });

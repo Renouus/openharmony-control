@@ -15,6 +15,8 @@ import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { DeviceCommandService } from "../services/device-command-service";
 import type { DemoFaultState } from "./demo-fault-state";
 import { ReplayGuard } from "../security/envelope";
+import { commandHistoryQuerySchema, deviceCommandSchema, signedCommandEnvelopeSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 export type CommandRouteOptions = {
   registry: DeviceRegistry;
@@ -44,9 +46,18 @@ export async function registerCommandRoutes(
   );
 
   app.post("/api/commands", async (request, reply) => {
-    const unsignedCommand = request.body as Partial<DeviceCommand>;
-    const maybeEnvelope = request.body as { command?: Partial<DeviceCommand> };
-    const command = maybeEnvelope.command ?? unsignedCommand;
+    const envelopeResult = signedCommandEnvelopeSchema.safeParse(request.body);
+    let validatedBody: unknown;
+    let command: DeviceCommand;
+    if (envelopeResult.success) {
+      validatedBody = envelopeResult.data;
+      command = envelopeResult.data.command;
+    } else {
+      const commandResult = parseRequest(deviceCommandSchema, request.body, reply);
+      if (!commandResult.ok) return;
+      validatedBody = commandResult.value;
+      command = commandResult.value;
+    }
 
     if (options.faultState.forceUnauthorizedCommands) {
       const historyEntry = options.history.add({
@@ -63,7 +74,7 @@ export async function registerCommandRoutes(
       });
     }
 
-    const result = await deviceCommandService.executeSignedCommand(request.body);
+    const result = await deviceCommandService.executeSignedCommand(validatedBody);
     if (!result.ok) {
       return reply.code(result.statusCode).send(result.body);
     }
@@ -71,9 +82,10 @@ export async function registerCommandRoutes(
     return result.body;
   });
 
-  app.get("/api/commands/history", async (request) => {
-    const query = request.query as { limit?: string };
-    const limit = Number(query.limit ?? 20);
+  app.get("/api/commands/history", async (request, reply) => {
+    const parsed = parseRequest(commandHistoryQuerySchema, request.query, reply);
+    if (!parsed.ok) return;
+    const limit = parsed.value.limit;
     return {
       entries: options.history.list(Number.isFinite(limit) ? limit : 20),
     };

@@ -6,6 +6,8 @@
  */
 import type { CameraDescriptor } from "@smart-home/device-contract";
 import type { FastifyInstance } from "fastify";
+import { cameraIdParamsSchema, cameraMutationSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 type CameraUpdateRequest = {
   recording: boolean;
@@ -51,35 +53,31 @@ export async function registerCameraRoutes(app: FastifyInstance): Promise<void> 
 
   /** 切换摄像头录制状态 */
   app.patch("/api/cameras/:cameraId", async (request, reply) => {
-    const { cameraId } = request.params as { cameraId: string };
+    const params = parseRequest(cameraIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { cameraId } = params.value;
     const camera = cameras.find((item) => item.id === cameraId);
 
     if (!camera) {
       return reply.code(404).send({ code: "CAMERA_NOT_FOUND" });
     }
 
-    if (!isCameraUpdateRequest(request.body)) {
-      return reply.code(400).send({ code: "CAMERA_UPDATE_INVALID" });
-    }
-
-    camera.recording = request.body.recording;
+    const parsed = parseRequest(cameraMutationSchema, request.body, reply); if (!parsed.ok) return;
+    camera.recording = parsed.value.recording;
 
     return { camera };
   });
 
   app.put("/api/cameras/:cameraId", async (request, reply) => {
-    const { cameraId } = request.params as { cameraId: string };
+    const params = parseRequest(cameraIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { cameraId } = params.value;
     const camera = cameras.find((item) => item.id === cameraId);
 
     if (!camera) {
       return reply.code(404).send({ code: "CAMERA_NOT_FOUND" });
     }
 
-    if (!isCameraUpdateRequest(request.body)) {
-      return reply.code(400).send({ code: "CAMERA_UPDATE_INVALID" });
-    }
-
-    camera.recording = request.body.recording;
+    const parsed = parseRequest(cameraMutationSchema, request.body, reply); if (!parsed.ok) return;
+    camera.recording = parsed.value.recording;
 
     return { camera };
   });

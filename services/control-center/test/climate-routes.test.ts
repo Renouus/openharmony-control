@@ -55,7 +55,7 @@ describe("climate prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("rejects missing climate mode", async () => {
@@ -67,7 +67,7 @@ describe("climate prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("rejects empty climate payload", async () => {
@@ -78,7 +78,7 @@ describe("climate prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("rejects null climate payload", async () => {
@@ -90,7 +90,7 @@ describe("climate prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "CLIMATE_MODE_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("reflects signed AC target temperature commands", async () => {

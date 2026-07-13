@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
+import { websocketQuerySchema } from '@smart-home/device-contract/schemas';
 
 // WebSocket OPEN ready state (ws library constant).
 const WS_OPEN = 1;
@@ -34,7 +35,12 @@ export default async function websocketRoutes(fastify: FastifyInstance) {
   // events never reach the frontend.
   fastify.get('/ws/events', { websocket: true }, (socket: WebSocket, req: FastifyRequest) => {
     // Basic isolation via query param (can be upgraded to JWT auth later)
-    const query = req.query as { clientId?: string };
+    const parsed = websocketQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      socket.close(1008, 'Invalid query');
+      return;
+    }
+    const query = parsed.data;
     const clientId = query.clientId || `anon-${Date.now()}`;
 
     clientConnections.set(clientId, socket);

@@ -10,6 +10,8 @@ import type { DeviceRegistry } from "../registry/device-registry";
 import type { SceneRegistry } from "../scenes/scene-registry";
 import { SceneService } from "../services/scene-service";
 import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
+import { sceneCreateSchema, sceneEnabledMutationSchema, sceneIdParamsSchema, sceneUpdateSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 export type SceneRouteOptions = {
   registry: DeviceRegistry;
@@ -37,10 +39,9 @@ export async function registerSceneRoutes(
   }));
 
   app.post("/api/scenes", async (request, reply) => {
-    const body = request.body as Omit<SceneDescriptor, "id">;
-    if (!body || !body.name || !body.trigger) {
-      return reply.code(400).send({ code: "INVALID_PAYLOAD" });
-    }
+    const parsed = parseRequest(sceneCreateSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const body = parsed.value;
 
     try {
       const scene = sceneService.createScene(body);
@@ -57,12 +58,14 @@ export async function registerSceneRoutes(
   });
 
   app.patch("/api/scenes/:sceneId", async (request, reply) => {
-    const { sceneId } = request.params as { sceneId: string };
+    const params = parseRequest(sceneIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { sceneId } = params.value;
     if (!isSceneId(sceneId)) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }
 
-    const body = request.body as { enabled?: boolean };
+    const parsed = parseRequest(sceneEnabledMutationSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
     const scene = sceneService.updateScene(sceneId, { enabled: body.enabled });
     if (!scene) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
@@ -71,12 +74,14 @@ export async function registerSceneRoutes(
   });
 
   app.put("/api/scenes/:sceneId", async (request, reply) => {
-    const { sceneId } = request.params as { sceneId: string };
+    const params = parseRequest(sceneIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { sceneId } = params.value;
     if (!isSceneId(sceneId)) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }
 
-    const body = request.body as Partial<Omit<SceneDescriptor, "id">>;
+    const parsed = parseRequest(sceneUpdateSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
     try {
       const scene = sceneService.updateScene(sceneId, body);
       if (!scene) {
@@ -95,7 +100,8 @@ export async function registerSceneRoutes(
   });
 
   app.delete("/api/scenes/:sceneId", async (request, reply) => {
-    const { sceneId } = request.params as { sceneId: string };
+    const params = parseRequest(sceneIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { sceneId } = params.value;
     if (!isSceneId(sceneId)) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }
@@ -108,7 +114,8 @@ export async function registerSceneRoutes(
   });
 
   app.post("/api/scenes/:sceneId/run", async (request, reply) => {
-    const { sceneId } = request.params as { sceneId: string };
+    const params = parseRequest(sceneIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { sceneId } = params.value;
     if (!isSceneId(sceneId)) {
       return reply.code(404).send({ code: "SCENE_NOT_FOUND" });
     }

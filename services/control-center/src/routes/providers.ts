@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { getDb } from "../db/database";
 import { ProviderDeviceStore } from "../devices/provider-device-store";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
+import { providerIdParamsSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 type ProviderRouteOptions = {
   vendorProvider?: VendorDeviceProvider;
@@ -12,7 +14,8 @@ export async function registerProviderRoutes(
   options: ProviderRouteOptions = {},
 ): Promise<void> {
   app.post("/api/providers/:providerId/discover", async (request, reply) => {
-    const { providerId } = request.params as { providerId: string };
+    const params = parseRequest(providerIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { providerId } = params.value;
     const provider = options.vendorProvider;
 
     if (!provider || provider.providerId !== providerId) {

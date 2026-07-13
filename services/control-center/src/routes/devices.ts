@@ -30,6 +30,8 @@ import {
   type DeviceMetadataUpdate,
   validateDeviceMetadataUpdate,
 } from "../devices/device-metadata";
+import { createDeviceSchema, deviceIdParamsSchema, deviceMetadataMutationSchema, deviceRoomMutationSchema, joinPendingDeviceSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 type DeviceRow = {
   id: string;
@@ -74,22 +76,11 @@ export async function registerDeviceRoutes(
   });
 
   app.post("/api/devices/:deviceId/join-home", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const body = request.body as JoinPendingDeviceRequest;
-
-    if (typeof body.displayName !== "string" || body.displayName.trim().length === 0) {
-      return reply
-        .code(400)
-        .send({ code: "BAD_REQUEST", message: "displayName is required" });
-    }
-    if (typeof body.roomId !== "string" || body.roomId.trim().length === 0) {
-      return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is required" });
-    }
-    if (typeof body.deviceType !== "string" || !isSupportedDeviceKind(body.deviceType)) {
-      return reply
-        .code(400)
-        .send({ code: "BAD_REQUEST", message: "deviceType is invalid" });
-    }
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    const parsed = parseRequest(joinPendingDeviceSchema, request.body, reply);
+    if (!params.ok || !parsed.ok) return;
+    const { deviceId } = params.value;
+    const body = parsed.value;
 
     const store = new ProviderDeviceStore(getDb());
     const device = store.joinHome(deviceId, {
@@ -105,7 +96,8 @@ export async function registerDeviceRoutes(
   });
 
   app.post("/api/devices/:deviceId/reject", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { deviceId } = params.value;
     const store = new ProviderDeviceStore(getDb());
     if (!store.rejectDevice(deviceId)) {
       return reply.code(404).send({ code: "PENDING_DEVICE_NOT_FOUND" });
@@ -115,7 +107,8 @@ export async function registerDeviceRoutes(
   });
 
   app.get("/api/devices/:deviceId", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { deviceId } = params.value;
     const device = await loadDevice(deviceId, registry, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
@@ -199,8 +192,11 @@ export async function registerDeviceRoutes(
   });
 
   app.put("/api/devices/:deviceId/room", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const body = request.body as { roomId?: string; room?: string };
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    const parsed = parseRequest(deviceRoomMutationSchema, request.body, reply);
+    if (!params.ok || !parsed.ok) return;
+    const { deviceId } = params.value;
+    const body = parsed.value;
     const targetRoomId = body.roomId ?? body.room;
     if (!targetRoomId) {
       return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is required" });
@@ -215,12 +211,11 @@ export async function registerDeviceRoutes(
   });
 
   app.put("/api/devices/:deviceId", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const validation = validateDeviceMetadataUpdate(request.body);
-    if (!validation.ok) {
-      return reply.code(400).send({ code: "BAD_REQUEST", message: validation.message });
-    }
-    const update = validation.value;
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    const parsed = parseRequest(deviceMetadataMutationSchema, request.body, reply);
+    if (!params.ok || !parsed.ok) return;
+    const { deviceId } = params.value;
+    const update = parsed.value;
     if (!roomExists(update.roomId)) {
       return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is invalid" });
     }
@@ -247,7 +242,8 @@ export async function registerDeviceRoutes(
   });
 
   app.delete("/api/devices/:deviceId", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { deviceId } = params.value;
     const device = await loadDevice(deviceId, registry, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
@@ -273,16 +269,9 @@ export async function registerDeviceRoutes(
   });
 
   app.post("/api/devices", async (request, reply) => {
-    const body = request.body as CreateDeviceRequest;
-    const deviceCode = body.deviceCode?.trim() ?? "";
-    const roomId = body.roomId?.trim() ?? "";
-
-    if (deviceCode.length === 0 || roomId.length === 0) {
-      return reply.code(400).send({
-        code: "BAD_REQUEST",
-        message: "deviceCode and roomId are required",
-      });
-    }
+    const parsed = parseRequest(createDeviceSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { deviceCode, roomId } = parsed.value;
 
     const template = findCreatableDeviceTemplate(deviceCode);
     if (!template) {
