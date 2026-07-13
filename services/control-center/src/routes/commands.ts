@@ -5,7 +5,6 @@ import type { FastifyInstance } from "fastify";
 import {
   CommandStatus,
   type DeviceCommand,
-  type DeviceCommandName,
 } from "@smart-home/device-contract";
 import type { DeviceSimulator } from "../devices/device-simulator";
 import type { CommandHistory } from "../history/command-history";
@@ -63,7 +62,7 @@ export async function registerCommandRoutes(
       const historyEntry = options.history.add({
         requestId: command.requestId ?? "cmd-unauthorized",
         deviceId: command.deviceId ?? "unknown",
-        commandName: (command.name ?? "switch") as DeviceCommandName,
+        commandName: command.name,
         status: CommandStatus.CommandUnauthorized,
         message: "安全演示模式已拒绝该命令",
       });

@@ -16,10 +16,6 @@ type FamilyActivity = {
   createdAt: number;
 };
 
-type BroadcastRequest = {
-  message: string;
-};
-
 type FamilySettings = {
   homeName: string;
   address: string;
@@ -80,30 +76,6 @@ function createActivities(): FamilyActivity[] {
 }
 
 /** 类型守卫：校验广播请求体 */
-function isBroadcastRequest(body: unknown): body is BroadcastRequest {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const candidate = body as Partial<BroadcastRequest>;
-  return typeof candidate.message === "string" && candidate.message.trim().length > 0;
-}
-
-function isFamilySettingsPatch(body: unknown): body is Partial<FamilySettings> {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const candidate = body as Partial<FamilySettings>;
-  return [
-    candidate.homeName,
-    candidate.address,
-    candidate.timezone,
-    candidate.emergencyContactName,
-    candidate.emergencyContactPhone,
-  ].every((field) => field === undefined || typeof field === "string");
-}
-
 export async function registerFamilyRoutes(app: FastifyInstance): Promise<void> {
   const activities = createActivities();
   const familySettings: FamilySettings = {

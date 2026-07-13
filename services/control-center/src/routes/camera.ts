@@ -9,10 +9,6 @@ import type { FastifyInstance } from "fastify";
 import { cameraIdParamsSchema, cameraMutationSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
 
-type CameraUpdateRequest = {
-  recording: boolean;
-};
-
 /** 创建演示用摄像头数据（入口 + 庭院） */
 function createCameras(): CameraDescriptor[] {
   return [
@@ -36,15 +32,6 @@ function createCameras(): CameraDescriptor[] {
 }
 
 /** 类型守卫：校验录制更新请求 */
-function isCameraUpdateRequest(body: unknown): body is CameraUpdateRequest {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const candidate = body as Partial<CameraUpdateRequest>;
-  return typeof candidate.recording === "boolean";
-}
-
 export async function registerCameraRoutes(app: FastifyInstance): Promise<void> {
   const cameras = createCameras();
 

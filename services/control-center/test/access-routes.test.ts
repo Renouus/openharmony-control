@@ -61,7 +61,7 @@ describe("access prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("rejects guest keys with an overflowing expiry", async () => {
@@ -73,7 +73,19 @@ describe("access prototype routes", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+  });
+
+  it("rejects unknown guest key fields", async () => {
+    const app = buildApp();
+    const response = await apiInject(app, {
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "Guest", hours: 4, isAdmin: true },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
   });
 
   it("trims guest key holder names before returning the key", async () => {

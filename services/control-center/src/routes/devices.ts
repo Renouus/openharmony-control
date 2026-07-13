@@ -26,10 +26,7 @@ import type { DeviceRegistry } from "../registry/device-registry";
 import { broadcastEvent } from "./websocket";
 import { mapDeviceRowToSyncDto, mapVendorDeviceToSyncDto } from "../db/device-sync-mapper";
 import { getDb } from "../db/database";
-import {
-  type DeviceMetadataUpdate,
-  validateDeviceMetadataUpdate,
-} from "../devices/device-metadata";
+import { type DeviceMetadataUpdate } from "../devices/device-metadata";
 import { createDeviceSchema, deviceIdParamsSchema, deviceMetadataMutationSchema, deviceRoomMutationSchema, joinPendingDeviceSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
 
@@ -45,17 +42,6 @@ type DeviceRow = {
   updated_at: number;
   version: number;
   is_deleted: number;
-};
-
-type CreateDeviceRequest = {
-  deviceCode?: string;
-  roomId?: string;
-};
-
-type JoinPendingDeviceRequest = {
-  displayName?: string;
-  roomId?: string;
-  deviceType?: string;
 };
 
 type DeviceRouteOptions = {
@@ -615,16 +601,6 @@ function toDeviceKind(type: string): DeviceKindName {
     default:
       return DeviceKind.Light;
   }
-}
-
-function isSupportedDeviceKind(value: string): value is DeviceKindName {
-  return [
-    DeviceKind.DoorLock,
-    DeviceKind.Light,
-    DeviceKind.EnvironmentSensor,
-    DeviceKind.AirConditioner,
-    DeviceKind.MotionSensor,
-  ].includes(value as DeviceKindName);
 }
 
 function capabilitiesForKind(kind: DeviceKindName) {
