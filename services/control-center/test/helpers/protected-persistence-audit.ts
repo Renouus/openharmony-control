@@ -141,9 +141,12 @@ function auditSourceFile(ast: ts.SourceFile, checker?: ts.TypeChecker): string[]
       return expressionIsTainted(expression.whenTrue, functionContext, seen) || expressionIsTainted(expression.whenFalse, functionContext, seen);
     }
     if (ts.isCallExpression(expression)) {
+      if (isApprovedEncoderCall(expression, checker)) return false;
       const declaration = resolveLocalFunction(expression);
-      return declaration ? returnExpressions(declaration).some((returned) =>
-        expressionIsTainted(returned, { declaration, call: expression, parent: functionContext }, new Set(seen))) : false;
+      const returnedTaint = declaration && returnExpressions(declaration).some((returned) =>
+        expressionIsTainted(returned, { declaration, call: expression, parent: functionContext }, new Set(seen)));
+      return returnedTaint === true || expression.arguments.some((argument) =>
+        expressionIsTainted(argument, functionContext, new Set(seen)));
     }
     return false;
   };
@@ -166,10 +169,13 @@ function auditSourceFile(ast: ts.SourceFile, checker?: ts.TypeChecker): string[]
       return expressionIsSerialized(expression.whenTrue, functionContext, seen) || expressionIsSerialized(expression.whenFalse, functionContext, seen);
     }
     if (ts.isCallExpression(expression)) {
+      if (isApprovedEncoderCall(expression, checker)) return false;
       if (jsonOperation(expression) === "stringify") return true;
       const declaration = resolveLocalFunction(expression);
-      return declaration ? returnExpressions(declaration).some((returned) =>
-        expressionIsSerialized(returned, { declaration, call: expression, parent: functionContext }, new Set(seen))) : false;
+      const returnedSerialization = declaration && returnExpressions(declaration).some((returned) =>
+        expressionIsSerialized(returned, { declaration, call: expression, parent: functionContext }, new Set(seen)));
+      return returnedSerialization === true || expression.arguments.some((argument) =>
+        expressionIsSerialized(argument, functionContext, new Set(seen)));
     }
     return false;
   };
@@ -254,23 +260,23 @@ function functionLikeFromDeclaration(declaration: ts.Declaration): ts.FunctionLi
 }
 
 function hasApprovedEncoderAncestor(node: ts.Node, checker?: ts.TypeChecker): boolean {
-  if (!checker) return false;
   for (let current = node.parent; current; current = current.parent) {
-    if (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression)) {
-      const methodName = current.expression.name.text;
-      let symbol = checker.getSymbolAtLocation(current.expression.name);
-      if (symbol && (symbol.flags & ts.SymbolFlags.Alias)) symbol = checker.getAliasedSymbol(symbol);
-      const approved = symbol?.declarations?.some((declaration) => {
-        if (!ts.isMethodDeclaration(declaration) || !ts.isClassDeclaration(declaration.parent) || !declaration.parent.name) return false;
-        const methods = APPROVED_ENCODERS.get(declaration.parent.name.text);
-        return resolve(declaration.getSourceFile().fileName) === PRODUCTION_ENCRYPTED_REPOSITORIES &&
-          methods?.has(methodName) === true;
-      });
-      if (approved) return true;
-    }
+    if (ts.isCallExpression(current) && isApprovedEncoderCall(current, checker)) return true;
     if (ts.isStatement(current)) return false;
   }
   return false;
+}
+
+function isApprovedEncoderCall(call: ts.CallExpression, checker?: ts.TypeChecker): boolean {
+  if (!checker || !ts.isPropertyAccessExpression(call.expression)) return false;
+  const methodName = call.expression.name.text;
+  let symbol = checker.getSymbolAtLocation(call.expression.name);
+  if (symbol && (symbol.flags & ts.SymbolFlags.Alias)) symbol = checker.getAliasedSymbol(symbol);
+  return symbol?.declarations?.some((declaration) => {
+    if (!ts.isMethodDeclaration(declaration) || !ts.isClassDeclaration(declaration.parent) || !declaration.parent.name) return false;
+    const methods = APPROVED_ENCODERS.get(declaration.parent.name.text);
+    return resolve(declaration.getSourceFile().fileName) === PRODUCTION_ENCRYPTED_REPOSITORIES && methods?.has(methodName) === true;
+  }) === true;
 }
 
 function isRunCall(node: ts.CallExpression): boolean {

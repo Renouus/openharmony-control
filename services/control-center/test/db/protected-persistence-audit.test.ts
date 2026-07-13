@@ -26,6 +26,7 @@ describe("protected persistence source audit", () => {
     "nested-helper-serialize.ts",
     "arrow-helper-serialize.ts",
     "function-expression-serialize.ts",
+    "wrapped-plaintext-sql-bind.ts",
   ])("rejects adversarial program fixture %s", (name) => {
     const path = resolve(import.meta.dirname, `../fixtures/protected-persistence/${name}`);
     expect(auditProtectedPersistenceFile(path)).not.toEqual([]);
