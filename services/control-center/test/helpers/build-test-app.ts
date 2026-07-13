@@ -61,11 +61,13 @@ export function createTestSecurityConfig(
   };
 }
 
-export function createTestEncryptedRepositories(): EncryptedRepositories {
+export function createTestEncryptedRepositories(
+  options: { allowLegacyPlaintextReads?: boolean } = {},
+): EncryptedRepositories {
   const config = createTestSecurityConfig();
   return new EncryptedRepositories(
     new EncryptedFieldCodec(config.dataKeys, config.activeDataKeyId),
-    true,
+    options,
   );
 }
 
@@ -75,7 +77,6 @@ export function buildApp(
 ) {
   return buildProductionApp(registry, {
     ...options,
-    allowPlaintextProtectedFieldsForTestsOrMigration: true,
     securityConfig: options.securityConfig ?? createTestSecurityConfig(),
   });
 }

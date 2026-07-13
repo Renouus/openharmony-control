@@ -5,9 +5,10 @@ import {
   DeviceHealth,
   DeviceKind,
 } from "@smart-home/device-contract";
-import { apiInject, buildApp } from "./helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
+import type { JsonValue } from "../src/security/encrypted-field-codec";
 
 function createVendorDevices() {
   return [
@@ -143,7 +144,10 @@ function seedManagedVendorDevices(): void {
       device.name,
       device.kind,
       device.room,
-      JSON.stringify(device.state),
+      createTestEncryptedRepositories().devices.encodeState(
+        device.id,
+        device.state as unknown as Record<string, JsonValue>,
+      ),
       device.state.updatedAt,
       device.state.updatedAt,
       device.displayOrder,

@@ -15,12 +15,12 @@ import { parseRequest } from "./parse-request";
 import type { EncryptedRepositories } from "../db/encrypted-repositories";
 
 export type SceneRouteOptions = {
+  encryptedRepositories: EncryptedRepositories;
   registry: DeviceRegistry;
   sceneRegistry: SceneRegistry;
   history: CommandHistory;
   simulators: Map<string, DeviceSimulator>;
   deviceStateTriggerAdapter?: DeviceStateTriggerAdapter;
-  encryptedRepositories?: EncryptedRepositories;
 };
 
 export async function registerSceneRoutes(
@@ -32,9 +32,9 @@ export async function registerSceneRoutes(
     options.sceneRegistry,
     options.history,
     options.simulators,
+    options.encryptedRepositories,
     app.log,
     options.deviceStateTriggerAdapter,
-    options.encryptedRepositories,
   );
 
   app.get("/api/scenes", async () => ({

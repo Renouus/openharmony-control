@@ -7,13 +7,13 @@ import { parseRequest } from "./parse-request";
 import type { EncryptedRepositories } from "../db/encrypted-repositories";
 
 type ProviderRouteOptions = {
+  encryptedRepositories: EncryptedRepositories;
   vendorProvider?: VendorDeviceProvider;
-  encryptedRepositories?: EncryptedRepositories;
 };
 
 export async function registerProviderRoutes(
   app: FastifyInstance,
-  options: ProviderRouteOptions = {},
+  options: ProviderRouteOptions,
 ): Promise<void> {
   app.post("/api/providers/:providerId/discover", async (request, reply) => {
     const params = parseRequest(providerIdParamsSchema, request.params, reply); if (!params.ok) return;
@@ -25,7 +25,7 @@ export async function registerProviderRoutes(
     }
 
     const discoveredDevices = await provider.discoverDevices();
-    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     const result = store.upsertDiscoveredDevices(discoveredDevices);
 
     return reply.send(result);

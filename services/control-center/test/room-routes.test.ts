@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { apiInject, buildApp } from "./helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 
 describe("room routes", () => {
   beforeEach(() => {

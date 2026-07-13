@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeDatabase, getDb, initDatabase } from '../../src/db/database';
+import { closeDatabase, getDb, initDatabase } from '../helpers/test-database';
 
 describe('database init migrations', () => {
   afterEach(() => {

@@ -37,12 +37,12 @@ type AutomationDescriptor = {
   enabled: boolean;
 };
 
-export async function registerAutomationRoutes(app: FastifyInstance, encryptedRepositories?: EncryptedRepositories): Promise<void> {
+export async function registerAutomationRoutes(app: FastifyInstance, encryptedRepositories: EncryptedRepositories): Promise<void> {
   const runtime = (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
 
   app.get('/api/automations', async () => {
     return {
-      automations: listAutomations(encryptedRepositories!),
+      automations: listAutomations(encryptedRepositories),
     };
   });
 
@@ -83,7 +83,7 @@ export async function registerAutomationRoutes(app: FastifyInstance, encryptedRe
       triggerJson: normalized.triggerJson,
       actionJson: normalized.actionJson,
       enabled: body.enabled ?? true,
-    }, encryptedRepositories!);
+    }, encryptedRepositories);
     if (automation.enabled) {
       await runtime.reload(automation.id);
     }
@@ -102,7 +102,7 @@ export async function registerAutomationRoutes(app: FastifyInstance, encryptedRe
     }
     let automation: AutomationDescriptor | undefined;
     try {
-      automation = updateAutomation(automationId, body, encryptedRepositories!);
+      automation = updateAutomation(automationId, body, encryptedRepositories);
     } catch (error) {
       if (error instanceof InactiveDeviceReferenceError) {
         return reply.code(409).send({

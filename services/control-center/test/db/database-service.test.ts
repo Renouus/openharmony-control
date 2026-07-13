@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-contract';
-import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
+import { initDatabase, closeDatabase, getDb } from '../helpers/test-database';
 import { DatabaseService } from '../../src/db/database-service';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { createTestEncryptedRepositories } from '../helpers/build-test-app';
@@ -53,7 +53,10 @@ function insertActiveVendorDevice(version = 1): void {
     'Ceiling lighting',
     'light',
     'living-room',
-    JSON.stringify({ power: true, online: true, updatedAt: version }),
+    createTestEncryptedRepositories().devices.encodeState(
+      'tuya-vdevo178318782505115',
+      { power: true, online: true, updatedAt: version },
+    ),
     version,
     version,
     80,
@@ -71,13 +74,26 @@ describe('DatabaseService', () => {
 
   it('should return changes since a given version and correctly read global_version', async () => {
     const db = getDb();
-    const service = new DatabaseService(db, undefined, createTestEncryptedRepositories());
+    const service = new DatabaseService(db, createTestEncryptedRepositories());
     
     // Simulate updating global version and inserting a deleted device
     db.prepare("UPDATE metadata SET value = '10' WHERE key = 'global_version'").run();
     db.prepare(
       "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run('dev-1', 'Light 1', 'light', 'room-1', '{}', Date.now(), 10, 1);
+    ).run(
+      'dev-1',
+      'Light 1',
+      'light',
+      'room-1',
+      createTestEncryptedRepositories().devices.encodeState('dev-1', {
+        power: false,
+        online: false,
+        updatedAt: 10,
+      }),
+      Date.now(),
+      10,
+      1,
+    );
 
     const syncResult = await service.getSyncData(5);
     
@@ -88,12 +104,25 @@ describe('DatabaseService', () => {
 
   it('should derive currentVersion from changed rows when metadata is stale', async () => {
     const db = getDb();
-    const service = new DatabaseService(db, undefined, createTestEncryptedRepositories());
+    const service = new DatabaseService(db, createTestEncryptedRepositories());
 
     db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
     db.prepare(
       "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run('dev-2', 'Light 2', 'light', 'room-1', '{}', Date.now(), 12, 0);
+    ).run(
+      'dev-2',
+      'Light 2',
+      'light',
+      'room-1',
+      createTestEncryptedRepositories().devices.encodeState('dev-2', {
+        power: false,
+        online: true,
+        updatedAt: 12,
+      }),
+      Date.now(),
+      12,
+      0,
+    );
 
     const syncResult = await service.getSyncData(1);
 
@@ -104,9 +133,10 @@ describe('DatabaseService', () => {
 
   it('should include scene ordering fields in sync responses', async () => {
     const db = getDb();
-    const service = new DatabaseService(db, undefined, createTestEncryptedRepositories());
+    const service = new DatabaseService(db, createTestEncryptedRepositories());
 
     const now = Date.now();
+    const encryptedRepositories = createTestEncryptedRepositories();
     db.prepare(
       `INSERT INTO scenes (
         id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
@@ -123,10 +153,13 @@ describe('DatabaseService', () => {
       7,
       21,
       0,
-      JSON.stringify({ type: 'manual', label: 'Run now' }),
+      encryptedRepositories.scenes.encodeTrigger('scene-focus', { type: 'manual', label: 'Run now' }),
       JSON.stringify(['Mon']),
       JSON.stringify(['Desk light on']),
-      JSON.stringify([{ deviceId: 'light-living-room', name: 'switch', payload: { on: true } }]),
+      encryptedRepositories.scenes.encodeCommands(
+        'scene-focus',
+        [{ deviceId: 'light-living-room', name: 'switch', payload: { on: true } }],
+      ),
     );
 
     const syncResult = await service.getSyncData(0);
@@ -147,7 +180,7 @@ describe('DatabaseService', () => {
   it('should include vendor devices in sync data when their version is newer than lastVersion', async () => {
     const db = getDb();
     insertActiveVendorDevice();
-    const service = new DatabaseService(db, fakeVendorProvider(1720100000000), createTestEncryptedRepositories());
+    const service = new DatabaseService(db, createTestEncryptedRepositories(), fakeVendorProvider(1720100000000));
 
     const syncResult = await service.getSyncData(0);
     const vendorDevice = syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115');
@@ -175,7 +208,7 @@ describe('DatabaseService', () => {
   it('should exclude vendor devices from incremental sync when lastVersion already covers them', async () => {
     const db = getDb();
     insertActiveVendorDevice();
-    const service = new DatabaseService(db, fakeVendorProvider(1720100000000), createTestEncryptedRepositories());
+    const service = new DatabaseService(db, createTestEncryptedRepositories(), fakeVendorProvider(1720100000000));
 
     const syncResult = await service.getSyncData(1720100000000);
 

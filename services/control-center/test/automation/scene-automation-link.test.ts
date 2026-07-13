@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { apiInject, buildApp } from "../helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 
 describe("scene to automation state-change link", () => {
   beforeEach(() => {

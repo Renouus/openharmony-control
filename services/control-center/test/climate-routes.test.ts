@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
-import { closeDatabase, initDatabase } from "../src/db/database";
+import { closeDatabase, initDatabase } from "./helpers/test-database";
 
 async function sign(
   app: ReturnType<typeof buildApp>,

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 import { AutomationRepository } from "../../src/automation/automation-repository";
 import { createTestEncryptedRepositories } from "../helpers/build-test-app";
 import { AutomationRuntime } from "../../src/automation/automation-runtime";
@@ -14,6 +14,7 @@ describe("AutomationRuntime", () => {
   });
 
   it("loads enabled rules and ignores soft-deleted rules", async () => {
+    const encryptedRepositories = createTestEncryptedRepositories();
     getDb().prepare(`
       INSERT INTO automations (
         id,
@@ -33,8 +34,8 @@ describe("AutomationRuntime", () => {
       null,
       "Enabled rule",
       "time",
-      JSON.stringify({ at: "22:00" }),
-      JSON.stringify({ type: "scene_run", config: { sceneId: "away" } }),
+      encryptedRepositories.automations.encodeTriggerJson("auto-enabled", JSON.stringify({ at: "22:00" })),
+      encryptedRepositories.automations.encodeActionJson("auto-enabled", JSON.stringify({ type: "scene_run", config: { sceneId: "away" } })),
       1,
       Date.now(),
       1,
@@ -60,15 +61,15 @@ describe("AutomationRuntime", () => {
       null,
       "Deleted rule",
       "time",
-      JSON.stringify({ at: "23:00" }),
-      JSON.stringify([{ type: "scene_run", config: { sceneId: "sleep" } }]),
+      encryptedRepositories.automations.encodeTriggerJson("auto-deleted", JSON.stringify({ at: "23:00" })),
+      encryptedRepositories.automations.encodeActionJson("auto-deleted", JSON.stringify([{ type: "scene_run", config: { sceneId: "sleep" } }])),
       1,
       Date.now(),
       1,
       1,
     );
 
-    const runtime = new AutomationRuntime(new AutomationRepository(getDb(), createTestEncryptedRepositories()));
+    const runtime = new AutomationRuntime(new AutomationRepository(getDb(), encryptedRepositories));
     await runtime.loadEnabledAutomations();
 
     expect(runtime.hasRule("auto-enabled")).toBe(true);

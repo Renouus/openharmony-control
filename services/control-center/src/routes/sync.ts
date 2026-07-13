@@ -7,18 +7,18 @@ import { parseRequest } from './parse-request';
 import type { EncryptedRepositories } from '../db/encrypted-repositories';
 
 type SyncRouteOptions = {
+  encryptedRepositories: EncryptedRepositories;
   vendorProvider?: VendorDeviceProvider;
-  encryptedRepositories?: EncryptedRepositories;
 };
 
 export default async function syncRoutes(
   fastify: FastifyInstance,
-  options: SyncRouteOptions = {},
+  options: SyncRouteOptions,
 ) {
   fastify.get('/api/sync', async (request, reply) => {
     const parsed = parseRequest(syncQuerySchema, request.query, reply);
     if (!parsed.ok) return;
-    const dbService = new DatabaseService(getDb(), options.vendorProvider, options.encryptedRepositories);
+    const dbService = new DatabaseService(getDb(), options.encryptedRepositories, options.vendorProvider);
     const lastVersion = parsed.value.lastVersion;
     
     const syncData = await dbService.getSyncData(lastVersion);

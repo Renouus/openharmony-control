@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { closeDatabase, initDatabase } from "../../src/db/database";
+import { closeDatabase, initDatabase } from "../helpers/test-database";
 import { clientConnections } from "../../src/routes/websocket";
 import { InMemoryRateLimiter, type RateLimiter, type RateLimitPolicies, type RateLimitPolicy } from "../../src/security/rate-limiter";
 import { WebSocketTicketStore } from "../../src/security/websocket-ticket-store";

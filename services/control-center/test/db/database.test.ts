@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
+import { initDatabase, closeDatabase, getDb } from '../helpers/test-database';
 
 describe('Database Initialization', () => {
   beforeEach(() => {

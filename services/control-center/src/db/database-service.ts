@@ -113,8 +113,8 @@ export class DatabaseService {
   // DI: Dependency Injection over Singleton binding
   constructor(
     db: Database.Database,
+    private readonly encryptedRepositories: EncryptedRepositories,
     private readonly vendorProvider?: VendorDeviceProvider,
-    private readonly encryptedRepositories?: EncryptedRepositories,
   ) {
     this.db = db;
   }
@@ -126,7 +126,7 @@ export class DatabaseService {
       .all(lastVersion) as DeviceSyncRow[];
     const dbDevices = devicesRaw
       .filter((row: DeviceSyncRow) => !this.vendorProvider?.ownsDevice(row.id))
-      .map((row) => mapDeviceRowToSyncDto(row, this.encryptedRepositories!.devices));
+      .map((row) => mapDeviceRowToSyncDto(row, this.encryptedRepositories.devices));
     const vendorDevices = await this.loadAllVendorSyncDevices();
     const devices = [
       ...dbDevices,
@@ -152,10 +152,10 @@ export class DatabaseService {
       description: row.description ?? '',
       enabled: row.enabled === 1,
       roomId: row.room_id ?? undefined,
-      trigger: row.trigger_json ? this.encryptedRepositories!.scenes.decodeTrigger(row.id, row.trigger_json) as SyncScenePayload['trigger'] : { type: 'manual', label: 'Run now' },
+      trigger: row.trigger_json ? this.encryptedRepositories.scenes.decodeTrigger(row.id, row.trigger_json) as SyncScenePayload['trigger'] : { type: 'manual', label: 'Run now' },
       repeat: parseJson(row.repeat_json, []),
       actionsLabel: parseJson(row.actions_label_json, []),
-      commands: row.commands_json ? this.encryptedRepositories!.scenes.decodeCommands(row.id, row.commands_json) as SceneSyncCommand[] : [],
+      commands: row.commands_json ? this.encryptedRepositories.scenes.decodeCommands(row.id, row.commands_json) as SceneSyncCommand[] : [],
       sortOrder: row.sort_order,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -169,8 +169,8 @@ export class DatabaseService {
       icon: row.icon ?? undefined,
       name: row.name,
       triggerType: row.trigger_type,
-      triggerJson: this.encryptedRepositories!.automations.decodeTriggerJson(row.id, row.trigger_json),
-      actionJson: this.encryptedRepositories!.automations.decodeActionJson(row.id, row.action_json),
+      triggerJson: this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_json),
+      actionJson: this.encryptedRepositories.automations.decodeActionJson(row.id, row.action_json),
       enabled: row.enabled === 1,
       updatedAt: row.updated_at,
       version: row.version,
@@ -219,7 +219,7 @@ export class DatabaseService {
   }
 
   private async loadAllVendorSyncDevices(): Promise<DeviceSyncDto[]> {
-    return await listManagedVendorSyncDevices(this.db, this.vendorProvider, this.encryptedRepositories!.devices);
+    return await listManagedVendorSyncDevices(this.db, this.vendorProvider, this.encryptedRepositories.devices);
   }
 
   private ensureBuiltInScenesPersisted(): void {
@@ -245,10 +245,10 @@ export class DatabaseService {
         seededAt,
         seededAt,
         index,
-        this.encryptedRepositories!.scenes.encodeTrigger(scene.id, scene.trigger as Record<string, JsonValue>),
+        this.encryptedRepositories.scenes.encodeTrigger(scene.id, scene.trigger as Record<string, JsonValue>),
         JSON.stringify(scene.repeat),
         JSON.stringify(scene.actionsLabel),
-        this.encryptedRepositories!.scenes.encodeCommands(scene.id, scene.commands as JsonValue[]),
+        this.encryptedRepositories.scenes.encodeCommands(scene.id, scene.commands as JsonValue[]),
       );
     });
   }

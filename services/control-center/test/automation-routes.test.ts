@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from './helpers/build-test-app';
 import { ProviderDeviceStore } from '../src/devices/provider-device-store';
-import { closeDatabase, getDb, initDatabase } from '../src/db/database';
+import { closeDatabase, getDb, initDatabase } from './helpers/test-database';
 
 describe('automation routes', () => {
   beforeEach(() => {

@@ -5,6 +5,7 @@ import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 import { DeviceRegistry } from "../src/registry/device-registry";
 import { ReplayGuard, signCommand } from "../src/security/envelope";
 import { DeviceCommandService } from "../src/services/device-command-service";
+import { createTestEncryptedRepositories } from "./helpers/build-test-app";
 
 describe("vendor command service", () => {
   it("routes signed vendor commands through the provider", async () => {
@@ -30,6 +31,7 @@ describe("vendor command service", () => {
       new CommandHistory(),
       new ReplayGuard(),
       "demo-shared-key",
+      createTestEncryptedRepositories(),
       undefined,
       undefined,
       vendorProvider,

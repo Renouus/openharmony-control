@@ -5,7 +5,7 @@ import { SceneRegistry } from '../scenes/scene-registry';
 let dbInstance: Database.Database | null = null;
 const SCHEMA_VERSION = 9;
 
-export function initDatabase(dbPath: string = 'smarthome.db', encryptedRepositories?: EncryptedRepositories): Database.Database {
+export function initDatabase(dbPath: string, encryptedRepositories: EncryptedRepositories): Database.Database {
   dbInstance = new Database(dbPath);
 
   dbInstance.exec(`
@@ -414,7 +414,7 @@ function backfillLegacySceneOrdering(db: Database.Database): void {
   updateOrdering();
 }
 
-function seedDefaultAutomations(db: Database.Database, encryptedRepositories?: EncryptedRepositories): void {
+function seedDefaultAutomations(db: Database.Database, encryptedRepositories: EncryptedRepositories): void {
   db.prepare(`
     INSERT OR IGNORE INTO automations (
       id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
@@ -425,12 +425,8 @@ function seedDefaultAutomations(db: Database.Database, encryptedRepositories?: E
     'auto_awesome',
     'Night Routine',
     'time',
-    encryptedRepositories
-      ? encryptedRepositories.automations.encodeTriggerJson('night-routine', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]))
-      : JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-    encryptedRepositories
-      ? encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]))
-      : JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
+    encryptedRepositories.automations.encodeTriggerJson('night-routine', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
+    encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }])),
     1,
     Date.now(),
     1,

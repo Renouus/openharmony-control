@@ -60,20 +60,21 @@ export const deviceMetadataMutationSchema = z.object({
   roomId: shortId,
 }).strict();
 
-const sceneCommandSchema = z.discriminatedUnion("name", [
+export const sceneCommandSchema = z.discriminatedUnion("name", [
   z.object({ deviceId: shortId, name: z.literal("switch"), payload: z.object({ on: z.boolean() }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("lock"), payload: z.object({ locked: z.boolean() }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-target-temperature"), payload: z.object({ targetTemperature: z.number().finite().min(16).max(30) }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-brightness"), payload: z.object({ brightness: z.number().int().min(0).max(100) }).strict() }).strict(),
   z.object({ deviceId: shortId, name: z.literal("set-color-temperature"), payload: z.object({ colorTemperature: z.number().int().min(2200).max(6500) }).strict() }).strict(),
 ]);
+export const sceneTriggerSchema = z.object({ type: z.enum(["time", "location", "manual"]), label: boundedText, value: z.string().trim().max(128).optional() }).strict();
 const sceneFields = {
   name: boundedText,
   icon: z.string().trim().max(64).optional(),
   description: z.string().trim().max(500),
   enabled: z.boolean(),
   roomId: shortId.optional(),
-  trigger: z.object({ type: z.enum(["time", "location", "manual"]), label: boundedText, value: z.string().trim().max(128).optional() }).strict(),
+  trigger: sceneTriggerSchema,
   repeat: z.array(z.string().trim().min(1).max(32)).max(31),
   actionsLabel: z.array(z.string().trim().min(1).max(128)).max(100),
   commands: z.array(sceneCommandSchema).min(1).max(100),

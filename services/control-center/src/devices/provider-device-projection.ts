@@ -18,8 +18,8 @@ type ActiveVendorRow = DeviceSyncRow & {
 
 export async function listManagedVendorDevices(
   db: Database.Database,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
-  encryptedRepositories?: EncryptedRepositories,
 ): Promise<EnhancedDeviceDescriptor[]> {
   if (!vendorProvider) {
     return [];
@@ -33,7 +33,7 @@ export async function listManagedVendorDevices(
   const liveDevices = await vendorProvider.listDevices();
   const liveById = new Map(liveDevices.map((device) => [device.id, device]));
   const fallbackById = new Map(
-    new ProviderDeviceStore(db, encryptedRepositories!)
+    new ProviderDeviceStore(db, encryptedRepositories)
       .listActiveDevices()
       .filter((device) => vendorProvider.ownsDevice(device.id))
       .map((device) => [device.id, device]),
@@ -53,8 +53,8 @@ export async function listManagedVendorDevices(
 export async function loadManagedVendorDevice(
   db: Database.Database,
   deviceId: string,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
-  encryptedRepositories?: EncryptedRepositories,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (!vendorProvider || !vendorProvider.ownsDevice(deviceId)) {
     return undefined;
@@ -70,7 +70,7 @@ export async function loadManagedVendorDevice(
     return applyVendorOverlay(liveDevice, row);
   }
 
-  return new ProviderDeviceStore(db, encryptedRepositories!)
+  return new ProviderDeviceStore(db, encryptedRepositories)
     .listActiveDevices()
     .find((device) => device.id === deviceId);
 }

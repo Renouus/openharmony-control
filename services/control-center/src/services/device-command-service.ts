@@ -136,10 +136,10 @@ export class DeviceCommandService {
     private readonly history: CommandHistory,
     private readonly replayGuard: ReplayGuard,
     private readonly secret: string,
+    private readonly encryptedRepositories: EncryptedRepositories,
     private readonly logger: ServiceLogger = noopLogger,
     private readonly deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
     private readonly vendorProvider?: VendorDeviceProvider,
-    private readonly encryptedRepositories?: EncryptedRepositories,
   ) {}
 
   async executeSignedCommand(envelope: unknown): Promise<DeviceCommandExecutionResult> {
@@ -276,7 +276,7 @@ export class DeviceCommandService {
         logger: this.logger,
         failurePrefix: "Failed to update database or broadcast after command:",
         mode: "update",
-        encryptedRepositories: this.encryptedRepositories!,
+        encryptedRepositories: this.encryptedRepositories,
       });
 
       const historyEntry = this.history.add({

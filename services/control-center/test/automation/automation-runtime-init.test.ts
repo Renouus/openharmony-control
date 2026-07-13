@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../helpers/build-test-app";
-import { closeDatabase, initDatabase } from "../../src/db/database";
+import { closeDatabase, initDatabase } from "../helpers/test-database";
 
 describe("automation runtime init resilience (故障 A)", () => {
   afterEach(() => {

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-contract';
-import { apiInject, buildApp, demoInject } from '../helpers/build-test-app';
-import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from '../helpers/build-test-app';
+import { initDatabase, closeDatabase, getDb } from '../helpers/test-database';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { clientConnections } from '../../src/routes/websocket';
 
@@ -192,7 +192,7 @@ describe('GET /api/sync', () => {
     db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
     db.prepare(
       "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run('dev-sync', 'Sync Light', 'light', 'room-1', '{}', Date.now(), 8, 0);
+    ).run('dev-sync', 'Sync Light', 'light', 'room-1', createTestEncryptedRepositories().devices.encodeState('dev-sync', { updatedAt: 1, online: true }), Date.now(), 8, 0);
 
     const response = await apiInject(app, {
       method: 'GET',
@@ -218,7 +218,7 @@ describe('GET /api/sync', () => {
       'outlet',
       'light',
       'study',
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState('db-light', {
         power: true,
         brightness: 55,
         colorTemperature: 3200,

@@ -47,20 +47,20 @@ type DeviceRow = {
 };
 
 type DeviceRouteOptions = {
+  encryptedRepositories: EncryptedRepositories;
   vendorProvider?: VendorDeviceProvider;
-  encryptedRepositories?: EncryptedRepositories;
 };
 
 export async function registerDeviceRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
   simulators: Map<string, DeviceSimulator>,
-  options: DeviceRouteOptions = {},
+  options: DeviceRouteOptions,
 ): Promise<void> {
-  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.encryptedRepositories!, options.vendorProvider) }));
+  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.encryptedRepositories, options.vendorProvider) }));
 
   app.get("/api/devices/pending", async () => {
-    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     return { devices: store.listPendingDevices() };
   });
 
@@ -72,7 +72,7 @@ export async function registerDeviceRoutes(
     const { deviceId } = params.value;
     const body = parsed.value;
 
-    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     const device = store.joinHome(deviceId, {
       displayName: body.displayName,
       roomId: body.roomId.trim(),
@@ -88,7 +88,7 @@ export async function registerDeviceRoutes(
   app.post("/api/devices/:deviceId/reject", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
     const { deviceId } = params.value;
-    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     if (!store.rejectDevice(deviceId)) {
       return reply.code(404).send({ code: "PENDING_DEVICE_NOT_FOUND" });
     }
@@ -99,7 +99,7 @@ export async function registerDeviceRoutes(
   app.get("/api/devices/:deviceId", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
     const { deviceId } = params.value;
-    const device = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
@@ -107,7 +107,7 @@ export async function registerDeviceRoutes(
   });
 
   app.get("/api/summary", async () => {
-    const devices = await loadDevices(registry, options.encryptedRepositories!, options.vendorProvider);
+    const devices = await loadDevices(registry, options.encryptedRepositories, options.vendorProvider);
     const door = findLoadedDevice(devices, "door-front");
     const lights = devices.filter((device) => device.kind === DeviceKind.Light);
     const lightCount = lights.filter((device) => device.state.power === true).length;
@@ -212,22 +212,22 @@ export async function registerDeviceRoutes(
       return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is invalid" });
     }
 
-    const device = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
-    persistRegistryDeviceIfNeeded(device, options.encryptedRepositories!);
+    persistRegistryDeviceIfNeeded(device, options.encryptedRepositories);
     if (!updateStoredDeviceMetadata(deviceId, update)) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
-    const updatedDevice = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
+    const updatedDevice = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!updatedDevice) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
     const payload = options.vendorProvider?.ownsDevice(deviceId)
       ? mapVendorDeviceToSyncDto(updatedDevice)
-      : loadSyncDeviceRow(deviceId, options.encryptedRepositories!) ?? mapVendorDeviceToSyncDto(updatedDevice);
+      : loadSyncDeviceRow(deviceId, options.encryptedRepositories) ?? mapVendorDeviceToSyncDto(updatedDevice);
 
     broadcastEvent("DeviceStateUpdated", payload);
     return reply.send({ device: updatedDevice });
@@ -236,7 +236,7 @@ export async function registerDeviceRoutes(
   app.delete("/api/devices/:deviceId", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
     const { deviceId } = params.value;
-    const device = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
@@ -252,7 +252,7 @@ export async function registerDeviceRoutes(
 
     registry.delete(deviceId);
 
-    const syncRow = loadSyncDeviceRow(deviceId, options.encryptedRepositories!);
+    const syncRow = loadSyncDeviceRow(deviceId, options.encryptedRepositories);
     if (syncRow) {
       broadcastEvent("DeviceStateUpdated", syncRow);
     }
@@ -274,8 +274,8 @@ export async function registerDeviceRoutes(
       return reply.code(409).send({ code: "DEVICE_ALREADY_EXISTS" });
     }
 
-    ensureRegistryDevicesPersisted(registry, options.encryptedRepositories!);
-    const createdDevice = createDevice(template, roomId, registry, options.encryptedRepositories!);
+    ensureRegistryDevicesPersisted(registry, options.encryptedRepositories);
+    const createdDevice = createDevice(template, roomId, registry, options.encryptedRepositories);
     const simulator = createSimulatorFromTemplate(template, createdDevice);
     if (simulator !== undefined) {
       simulators.set(simulator.deviceId, simulator);
@@ -293,7 +293,7 @@ async function loadDevices(
   const dbDevices = loadDevicesFromDb(encryptedRepositories);
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
   const vendorDevices = vendorProvider
-    ? await listManagedVendorDevices(getDb(), vendorProvider, encryptedRepositories)
+    ? await listManagedVendorDevices(getDb(), encryptedRepositories, vendorProvider)
     : [];
   return [...baseDevices, ...vendorDevices]
     .map(applyStoredCustomName)
@@ -309,7 +309,7 @@ async function loadDevice(
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (vendorProvider?.ownsDevice(deviceId)) {
     return applyStoredCustomName(
-      await loadManagedVendorDevice(getDb(), deviceId, vendorProvider, encryptedRepositories),
+      await loadManagedVendorDevice(getDb(), deviceId, encryptedRepositories, vendorProvider),
     );
   }
 

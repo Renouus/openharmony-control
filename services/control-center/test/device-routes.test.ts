@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { apiInject, buildApp, createTestEncryptedRepositories } from "./helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import {
   DeviceCapability,
   DeviceHealth,
@@ -9,6 +9,7 @@ import {
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
 import { clientConnections } from "../src/routes/websocket";
+import type { JsonValue } from "../src/security/encrypted-field-codec";
 
 function fakeVendorProvider(): VendorDeviceProvider {
   return {
@@ -57,7 +58,7 @@ function insertManagedVendorDeviceRow(
   name: string,
   type: string,
   roomId: string,
-  state: Record<string, unknown>,
+  state: Record<string, JsonValue>,
 ): void {
   getDb().prepare(`
     INSERT INTO devices (
@@ -69,7 +70,7 @@ function insertManagedVendorDeviceRow(
     name,
     type,
     roomId,
-    JSON.stringify(state),
+    createTestEncryptedRepositories().devices.encodeState(deviceId, state),
     state.updatedAt,
     state.updatedAt,
   );
@@ -192,7 +193,7 @@ describe("device snapshot routes", () => {
       "Database Light",
       "light",
       "study",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("db-light", {
         power: true,
         brightness: 61,
         colorTemperature: 3300,
@@ -230,7 +231,7 @@ describe("device snapshot routes", () => {
       "Movable Light",
       "light",
       "entry",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("movable-light", {
         power: false,
         brightness: 0,
         colorTemperature: 3000,
@@ -273,7 +274,7 @@ describe("device snapshot routes", () => {
       null,
       "light",
       "bedroom",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("rename-light", {
         power: true,
         brightness: 70,
         colorTemperature: 3000,
@@ -366,7 +367,7 @@ describe("device snapshot routes", () => {
       "Old Alias",
       "light",
       "bedroom",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("rename-light", {
         power: true,
         brightness: 70,
         colorTemperature: 3000,
@@ -461,7 +462,7 @@ describe("device snapshot routes", () => {
       "Hall Light",
       "light",
       "living-room",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("tuya-light-1", {
         power: true,
         brightness: 50,
         colorTemperature: 4350,

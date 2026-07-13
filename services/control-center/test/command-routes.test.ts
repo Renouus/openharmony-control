@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import { CommandHistory } from "../src/history/command-history";
 import { DeviceRegistry } from "../src/registry/device-registry";
 import { ReplayGuard, signCommand } from "../src/security/envelope";
@@ -568,6 +568,7 @@ describe("secure device commands", () => {
       history,
       new ReplayGuard(),
       "demo-shared-key",
+      createTestEncryptedRepositories(),
       logger,
     );
 

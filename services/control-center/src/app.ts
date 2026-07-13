@@ -77,8 +77,6 @@ export type AppBuildOptions = {
   rateLimitPolicies?: RateLimitPolicies;
   websocketTicketStore?: WebSocketTicketStore;
   maxWebSocketConnectionsPerSubject?: number;
-  /** Transitional plaintext reads are restricted to tests and Task 10 migration tooling. */
-  allowPlaintextProtectedFieldsForTestsOrMigration?: boolean;
 };
 
 export function createVendorProviderFromEnv(
@@ -99,7 +97,6 @@ export function buildApp(
   const securityConfig = options.securityConfig;
   const encryptedRepositories = new EncryptedRepositories(
     new EncryptedFieldCodec(securityConfig.dataKeys, securityConfig.activeDataKeyId),
-    options.allowPlaintextProtectedFieldsForTestsOrMigration === true,
   );
   const rateLimiter = options.rateLimiter ?? new InMemoryRateLimiter();
   const rateLimitPolicies = options.rateLimitPolicies ?? RATE_LIMIT_POLICIES;
@@ -151,9 +148,9 @@ export function buildApp(
     sceneRegistry,
     history,
     simulators,
+    encryptedRepositories,
     app.log,
     deviceStateTriggerAdapter,
-    encryptedRepositories,
   );
   const deviceCommandService = new DeviceCommandService(
     registry,
@@ -161,10 +158,10 @@ export function buildApp(
     history,
     replayGuard,
     securityConfig.demoHmacKey ?? "demo-command-signing-disabled",
+    encryptedRepositories,
     app.log,
     deviceStateTriggerAdapter,
     vendorProvider,
-    encryptedRepositories,
   );
   try {
     const db = getDb();
@@ -254,12 +251,12 @@ export function buildApp(
       await registerDemoRoutes(
         scope,
         registry,
+        encryptedRepositories,
         faultState,
         deviceStateTriggerAdapter,
         sensorEventTriggerAdapter,
         securityConfig.demoHmacKey,
         deviceCommandService,
-        encryptedRepositories,
       );
     });
   }

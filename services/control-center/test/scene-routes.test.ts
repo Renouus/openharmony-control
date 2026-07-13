@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from "./helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import { DoorLockDevice } from "../src/devices/door-lock-device";
 import { AirConditionerDevice } from "../src/devices/air-conditioner-device";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
@@ -446,8 +446,6 @@ describe("scene routes", () => {
         ["light-living-room", new LightDevice()],
         ["ac-living-room", new AirConditionerDevice()],
       ]),
-      undefined,
-      undefined,
       createTestEncryptedRepositories(),
     );
 
@@ -556,9 +554,9 @@ describe("scene routes", () => {
         ["light-living-room", new LightDevice()],
         ["ac-living-room", new AirConditionerDevice()],
       ]),
+      createTestEncryptedRepositories(),
       logger,
       undefined,
-      createTestEncryptedRepositories(),
     );
 
     getDb().prepare("DROP TABLE metadata").run();

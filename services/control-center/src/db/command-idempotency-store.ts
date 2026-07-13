@@ -10,11 +10,6 @@ export interface CommandResultCodec {
   decode(value: string): unknown;
 }
 
-export class PlaintextResultCodec implements CommandResultCodec {
-  encode(result: StoredCommandResult): string { return JSON.stringify(result); }
-  decode(value: string): unknown { return JSON.parse(value); }
-}
-
 export type ClaimResult =
   | { state: "acquired"; token: string }
   | { state: "pending" }

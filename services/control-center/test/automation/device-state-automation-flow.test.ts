@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { apiInject, buildApp, demoInject } from "../helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 
 /**
  * 端到端集成测试：验证设备状态的自动创建流程及条件触发机制。

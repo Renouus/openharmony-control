@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 import { ExecutionLogService } from "../../src/automation/execution-log-service";
 
 describe("ExecutionLogService", () => {

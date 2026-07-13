@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DeviceCapability } from "@smart-home/device-contract";
 import { apiInject, buildApp } from "./helpers/build-test-app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
 function createDiscoveryProvider(): VendorDeviceProvider {

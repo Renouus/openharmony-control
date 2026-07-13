@@ -7,10 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DeviceCommand } from "@smart-home/device-contract";
 import {
   CommandIdempotencyStore,
-  PlaintextResultCodec,
   canonicalCommandHash,
 } from "../../src/db/command-idempotency-store";
-import { closeDatabase, initDatabase } from "../../src/db/database";
+import { TestPlaintextResultCodec } from "../helpers/plaintext-result-codec";
+import { closeDatabase, initDatabase } from "../helpers/test-database";
 
 const command: DeviceCommand = {
   requestId: "request-1",
@@ -25,7 +25,7 @@ describe("CommandIdempotencyStore", () => {
 
   it("claims once, reports pending, replays completion, and rejects a different hash", () => {
     const db = initDatabase(":memory:");
-    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => 1000 });
+    const store = new CommandIdempotencyStore(db, new TestPlaintextResultCodec(), { now: () => 1000 });
     const acquired = store.claim("app", command.requestId, "hash-a");
     expect(acquired).toMatchObject({ state: "acquired", token: expect.any(String) });
     expect(store.claim("app", command.requestId, "hash-a")).toEqual({ state: "pending" });
@@ -43,13 +43,13 @@ describe("CommandIdempotencyStore", () => {
     const path = join(directory, "db.sqlite");
     try {
       const firstDb = initDatabase(path);
-      const first = new CommandIdempotencyStore(firstDb, new PlaintextResultCodec());
+      const first = new CommandIdempotencyStore(firstDb, new TestPlaintextResultCodec());
       expect(first.claim("app", command.requestId, "hash-a").state).toBe("acquired");
       closeDatabase();
       const secondDb = initDatabase(path);
-      const second = new CommandIdempotencyStore(secondDb, new PlaintextResultCodec());
+      const second = new CommandIdempotencyStore(secondDb, new TestPlaintextResultCodec());
       const competingDb = new Database(path);
-      const competing = new CommandIdempotencyStore(competingDb, new PlaintextResultCodec());
+      const competing = new CommandIdempotencyStore(competingDb, new TestPlaintextResultCodec());
       expect(second.claim("app", command.requestId, "hash-a").state).toBe("pending");
       expect(competing.claim("app", command.requestId, "hash-a").state).toBe("pending");
       competingDb.close();
@@ -65,13 +65,13 @@ describe("CommandIdempotencyStore", () => {
     let now = 1000;
     try {
       const firstDb = initDatabase(path);
-      const first = new CommandIdempotencyStore(firstDb, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+      const first = new CommandIdempotencyStore(firstDb, new TestPlaintextResultCodec(), { now: () => now, leaseMs: 10 });
       const crashedOwner = first.claim("app", "crashed", "hash");
       expect(crashedOwner.state).toBe("acquired");
       closeDatabase();
       now = 1011;
       const restartedDb = initDatabase(path);
-      const restarted = new CommandIdempotencyStore(restartedDb, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+      const restarted = new CommandIdempotencyStore(restartedDb, new TestPlaintextResultCodec(), { now: () => now, leaseMs: 10 });
       const takeover = restarted.claim("app", "crashed", "hash");
       expect(takeover).toMatchObject({ state: "acquired", token: expect.any(String) });
     } finally {
@@ -100,7 +100,7 @@ describe("CommandIdempotencyStore", () => {
   it("handles a short-lease gated ABA race without allowing the old executor to complete", async () => {
     let now = 1000;
     const db = initDatabase(":memory:");
-    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+    const store = new CommandIdempotencyStore(db, new TestPlaintextResultCodec(), { now: () => now, leaseMs: 10 });
     const first = store.claim("app", "aba", "hash");
     if (first.state !== "acquired") throw new Error("first claim not acquired");
     let release!: () => void;
@@ -120,7 +120,7 @@ describe("CommandIdempotencyStore", () => {
   it("renews only the active owner lease", () => {
     let now = 1000;
     const db = initDatabase(":memory:");
-    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => now, leaseMs: 10 });
+    const store = new CommandIdempotencyStore(db, new TestPlaintextResultCodec(), { now: () => now, leaseMs: 10 });
     const claim = store.claim("app", "renew", "hash");
     if (claim.state !== "acquired") throw new Error("claim not acquired");
     now = 1005;
@@ -132,7 +132,7 @@ describe("CommandIdempotencyStore", () => {
 
   it("classifies corrupted completed result data as invalid", () => {
     const db = initDatabase(":memory:");
-    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec());
+    const store = new CommandIdempotencyStore(db, new TestPlaintextResultCodec());
     const claim = store.claim("app", "corrupt", "hash");
     if (claim.state !== "acquired") throw new Error("claim not acquired");
     db.prepare("UPDATE command_idempotency SET state='completed', result_json=?, completed_at=? WHERE request_id='corrupt'")
@@ -142,7 +142,7 @@ describe("CommandIdempotencyStore", () => {
 
   it("cleans only expired completed rows in bounded batches", () => {
     const db = initDatabase(":memory:");
-    const store = new CommandIdempotencyStore(db, new PlaintextResultCodec(), { now: () => 1000, retentionMs: 1 });
+    const store = new CommandIdempotencyStore(db, new TestPlaintextResultCodec(), { now: () => 1000, retentionMs: 1 });
     for (let index = 0; index < 3; index += 1) {
       const claim = store.claim("app", `request-${index}`, `hash-${index}`);
       if (claim.state !== "acquired") throw new Error("claim not acquired");

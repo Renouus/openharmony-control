@@ -6,7 +6,7 @@ import {
   DeviceKind,
 } from "@smart-home/device-contract";
 import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
-import { closeDatabase, initDatabase } from "../src/db/database";
+import { closeDatabase, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
 function fakeVendorProvider(): VendorDeviceProvider {
