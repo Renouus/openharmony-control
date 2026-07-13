@@ -8,6 +8,7 @@ import {
 const keyA = Buffer.alloc(32, 0x11);
 const keyB = Buffer.alloc(32, 0x22);
 const binding = { table: "devices", recordId: "device-1", field: "settings" } as const;
+const ONE_MIB = 1024 * 1024;
 
 function codec(activeKeyId = "a", keys = new Map([["a", keyA], ["b", keyB]])) {
   return new EncryptedFieldCodec(keys, activeKeyId);
@@ -107,6 +108,56 @@ describe("EncryptedFieldCodec", () => {
   it("validates keyring keys and the active key at construction", () => {
     expectInvalid(() => new EncryptedFieldCodec(new Map([["a", Buffer.alloc(31)]]), "a"));
     expectInvalid(() => new EncryptedFieldCodec(new Map([["a", keyA]]), "missing"));
+  });
+
+  it("owns key bytes and keyring membership after construction", () => {
+    const sourceKey = Buffer.from(keyA);
+    const sourceKeys = new Map([["a", sourceKey]]);
+    const isolated = new EncryptedFieldCodec(sourceKeys, "a");
+    sourceKey.fill(0xff);
+    sourceKeys.clear();
+    const encoded = isolated.encode("secret", binding);
+    expect(isolated.decode(encoded, binding)).toBe("secret");
+    expect(new EncryptedFieldCodec(new Map([["a", keyA]]), "a").decode(encoded, binding)).toBe("secret");
+  });
+
+  it("accepts the maximum plaintext byte length and rejects one byte more", () => {
+    const maximum = "x".repeat(ONE_MIB - 2); // JSON string quotes occupy two bytes.
+    expect(codec().decode(codec().encode(maximum, binding), binding)).toBe(maximum);
+    expectInvalid(() => codec().encode("x".repeat(ONE_MIB - 1), binding));
+    const oversizedKeyId = "k".repeat(5000);
+    expectInvalid(() => new EncryptedFieldCodec(new Map([[oversizedKeyId, keyA]]), oversizedKeyId).encode(maximum, binding));
+  });
+
+  it("rejects oversized outer and ciphertext encodings", () => {
+    expectInvalid(() => codec().decode(`ENC1:${"A".repeat(2 * ONE_MIB)}`, binding));
+    const original = envelope(codec().encode("secret", binding));
+    expectInvalid(() => codec().decode(packed({ ...original, ciphertext: "A".repeat(1_398_103) }), binding));
+  });
+
+  it("rejects malformed Unicode in AAD and accepts valid surrogate pairs", () => {
+    expectInvalid(() => codec().encode("secret", { ...binding, field: "\uD800" }));
+    expectInvalid(() => codec().encode("secret", { ...binding, field: "\uDC00" }));
+    const emojiBinding = { ...binding, field: "temperature-\uD83C\uDF21" };
+    expect(codec().decode(codec().encode("secret", emojiBinding), emojiBinding)).toBe("secret");
+  });
+
+  it("rejects properties JSON serialization would hide or execute", () => {
+    const hidden = { visible: true };
+    Object.defineProperty(hidden, "secret", { value: true, enumerable: false });
+    const symbol = { visible: true } as Record<PropertyKey, unknown>;
+    symbol[Symbol("secret")] = true;
+    const getter = Object.defineProperty({}, "secret", {
+      enumerable: true,
+      get(): never { throw new Error("must not execute"); },
+    });
+    const extraArray = [1] as unknown[] & { extra?: boolean };
+    extraArray.extra = true;
+    const accessorArray = [1];
+    Object.defineProperty(accessorArray, "0", { enumerable: true, get: () => 1 });
+    for (const value of [hidden, symbol, getter, extraArray, accessorArray]) {
+      expectInvalid(() => codec().encode(value as never, binding));
+    }
   });
 });
 
