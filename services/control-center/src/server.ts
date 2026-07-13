@@ -1,16 +1,14 @@
-import { readFileSync } from "node:fs";
 import { loadControlCenterEnv } from "./config/control-center-env";
+import { loadSecurityConfig } from "./config/security-config";
 import { buildApp } from "./app";
 import { initDatabase } from "./db/database";
 import { DeviceRegistry } from "./registry/device-registry";
 
 loadControlCenterEnv();
 
-const port = Number(process.env.CONTROL_CENTER_PORT ?? 3443);
-const host = process.env.CONTROL_CENTER_HOST ?? "0.0.0.0";
-const registry = new DeviceRegistry();
-
 async function main(): Promise<void> {
+  const securityConfig = loadSecurityConfig(process.env);
+  const registry = new DeviceRegistry();
   // Initialize the database BEFORE building the app — buildApp constructs the
   // automation runtime which calls getDb() at startup, so the DB must be ready
   // first. Previously buildApp ran at module load (before initDatabase), which
@@ -18,7 +16,7 @@ async function main(): Promise<void> {
   // automation ever fired in the real server.
   const dbPath = process.env.DATABASE_PATH || 'smarthome.db';
   const db = initDatabase(dbPath);
-  const app = buildApp(registry);
+  const app = buildApp(registry, undefined, { securityConfig });
   app.log.info(`Database initialized at ${dbPath}`);
 
   try {
@@ -51,21 +49,7 @@ async function main(): Promise<void> {
     app.log.error(`Failed to seed initial data: ${error}`);
   }
 
-  const tlsCertPath = process.env.TLS_CERT_PATH;
-  const tlsKeyPath = process.env.TLS_KEY_PATH;
-  const listenOptions =
-    tlsCertPath && tlsKeyPath
-      ? {
-          host,
-          port,
-          https: {
-            cert: readFileSync(tlsCertPath),
-            key: readFileSync(tlsKeyPath),
-          },
-        }
-      : { host, port };
-
-  await app.listen(listenOptions);
+  await app.listen({ host: securityConfig.host, port: securityConfig.port });
 }
 
 main().catch((error) => {

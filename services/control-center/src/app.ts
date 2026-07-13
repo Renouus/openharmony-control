@@ -9,10 +9,11 @@
  * 5. 依次注册设备 / 门禁 / 摄像头 / 家庭 / 气候 / 命令 / 场景 / 演示路由
  *
  * @param registry 设备注册表（可注入测试替身）
- * @param secret HMAC 共享密钥（默认取环境变量 CONTROL_CENTER_SHARED_KEY）
+ * @param secret 测试可显式注入的 HMAC 密钥；运行时服务器使用已验证的 securityConfig
  */
 import cors from "@fastify/cors";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
+import { randomBytes } from "node:crypto";
 import { SimulatedAirConditionerAdapter } from "./adapters/air-conditioner-adapter";
 import { ActionExecutor } from "./automation/action-executor";
 import { AutomationRepository } from "./automation/automation-repository";
@@ -51,6 +52,12 @@ import websocketRoutes from "./routes/websocket";
 import type { VendorDeviceProvider } from "./integrations/vendor-provider";
 import { createTuyaProvider } from "./integrations/tuya/tuya-provider";
 import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
+import type { SecurityConfig } from "./config/security-config";
+
+// Existing lightweight route tests build an in-memory app without starting the
+// runtime server. Give those instances an isolated, unpredictable HMAC key;
+// server.ts always supplies validated configuration and never uses this value.
+const isolatedInMemoryHmacKey = randomBytes(32).toString("base64");
 
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
@@ -64,6 +71,7 @@ function createNoopAutomationRuntime(): AutomationRuntime {
 
 export type AppBuildOptions = {
   vendorProvider?: VendorDeviceProvider;
+  securityConfig?: SecurityConfig;
 };
 
 export function createVendorProviderFromEnv(
@@ -75,10 +83,16 @@ export function createVendorProviderFromEnv(
 
 export function buildApp(
   registry = new DeviceRegistry(),
-  secret = process.env.CONTROL_CENTER_SHARED_KEY ?? "demo-shared-key",
+  secret?: string,
   options: AppBuildOptions = {},
-) {
-  const app = Fastify({ logger: false });
+): FastifyInstance {
+  const securityConfig = options.securityConfig;
+  const effectiveHmacKey = securityConfig?.demoHmacKey ?? secret ?? isolatedInMemoryHmacKey;
+  const app = Fastify({
+    logger: false,
+    trustProxy: securityConfig?.trustProxy ?? false,
+    https: securityConfig?.tls,
+  } as never) as unknown as FastifyInstance;
   const history = new CommandHistory();
   const sceneRegistry = new SceneRegistry();
   const faultState = createDemoFaultState();
@@ -125,7 +139,7 @@ export function buildApp(
     simulators,
     history,
     replayGuard,
-    secret,
+    effectiveHmacKey,
     app.log,
     deviceStateTriggerAdapter,
     vendorProvider,
@@ -151,7 +165,7 @@ export function buildApp(
   app.decorate("automationRuntime", automationRuntime);
 
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问?
-  void app.register(cors, { origin: true });
+  void app.register(cors, { origin: [...(securityConfig?.corsOrigins ?? [])] });
 
   // 注册 WebSocket 插件
   void app.register(websocketPlugin);
@@ -166,7 +180,7 @@ export function buildApp(
     await registerClimateRoutes(scope, registry);
     await registerCommandRoutes(scope, {
       registry,
-      secret,
+      secret: effectiveHmacKey,
       simulators,
       history,
       faultState,
