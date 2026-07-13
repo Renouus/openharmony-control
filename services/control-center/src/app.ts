@@ -57,6 +57,8 @@ import { createRateLimitHook, createSelectedRateLimitHook } from "./security/rat
 import { InMemoryRateLimiter, RATE_LIMIT_POLICIES, type RateLimiter, type RateLimitPolicies } from "./security/rate-limiter";
 import { WebSocketTicketStore } from "./security/websocket-ticket-store";
 import { z } from "zod";
+import { EncryptedFieldCodec } from "./security/encrypted-field-codec";
+import { EncryptedRepositories } from "./db/encrypted-repositories";
 
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
@@ -75,6 +77,8 @@ export type AppBuildOptions = {
   rateLimitPolicies?: RateLimitPolicies;
   websocketTicketStore?: WebSocketTicketStore;
   maxWebSocketConnectionsPerSubject?: number;
+  /** Transitional plaintext reads are restricted to tests and Task 10 migration tooling. */
+  allowPlaintextProtectedFieldsForTestsOrMigration?: boolean;
 };
 
 export function createVendorProviderFromEnv(
@@ -93,6 +97,10 @@ export function buildApp(
   }
   registry ??= new DeviceRegistry();
   const securityConfig = options.securityConfig;
+  const encryptedRepositories = new EncryptedRepositories(
+    new EncryptedFieldCodec(securityConfig.dataKeys, securityConfig.activeDataKeyId),
+    options.allowPlaintextProtectedFieldsForTestsOrMigration === true,
+  );
   const rateLimiter = options.rateLimiter ?? new InMemoryRateLimiter();
   const rateLimitPolicies = options.rateLimitPolicies ?? RATE_LIMIT_POLICIES;
   const websocketTicketStore = options.websocketTicketStore ?? new WebSocketTicketStore();
@@ -145,6 +153,7 @@ export function buildApp(
     simulators,
     app.log,
     deviceStateTriggerAdapter,
+    encryptedRepositories,
   );
   const deviceCommandService = new DeviceCommandService(
     registry,
@@ -155,13 +164,14 @@ export function buildApp(
     app.log,
     deviceStateTriggerAdapter,
     vendorProvider,
+    encryptedRepositories,
   );
   try {
     const db = getDb();
     const realExecutionLogService = new ExecutionLogService(db);
     const realActionExecutor = new ActionExecutor(deviceCommandService, sceneService, realExecutionLogService);
     automationRuntime = new AutomationRuntime(
-      new AutomationRepository(db),
+      new AutomationRepository(db, encryptedRepositories),
       new RuleEvaluator(),
       realActionExecutor,
       realExecutionLogService,
@@ -205,8 +215,8 @@ export function buildApp(
         return reply.code(503).send({ code: "WEBSOCKET_TICKET_UNAVAILABLE" });
       }
     });
-    await registerProviderRoutes(scope, { vendorProvider });
-    await registerDeviceRoutes(scope, registry, simulators, { vendorProvider });
+    await registerProviderRoutes(scope, { vendorProvider, encryptedRepositories });
+    await registerDeviceRoutes(scope, registry, simulators, { vendorProvider, encryptedRepositories });
     await registerAccessRoutes(scope, registry);
     await registerCameraRoutes(scope);
     await registerFamilyRoutes(scope);
@@ -219,6 +229,7 @@ export function buildApp(
       deviceCommandService,
       deviceStateTriggerAdapter,
       vendorProvider,
+      encryptedRepositories,
     });
     await registerSceneRoutes(scope, {
       registry,
@@ -226,10 +237,11 @@ export function buildApp(
       history,
       simulators,
       deviceStateTriggerAdapter,
+      encryptedRepositories,
     });
-    await registerAutomationRoutes(scope);
+    await registerAutomationRoutes(scope, encryptedRepositories);
     await registerRoomRoutes(scope, roomRegistry, registry);
-    await syncRoutes(scope, { vendorProvider });
+    await syncRoutes(scope, { vendorProvider, encryptedRepositories });
   });
 
   if (securityConfig.mode === "demo" && securityConfig.demoToken) {
@@ -247,6 +259,7 @@ export function buildApp(
         sensorEventTriggerAdapter,
         securityConfig.demoHmacKey,
         deviceCommandService,
+        encryptedRepositories,
       );
     });
   }

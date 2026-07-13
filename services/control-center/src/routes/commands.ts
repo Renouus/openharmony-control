@@ -15,7 +15,8 @@ import { DeviceCommandService } from "../services/device-command-service";
 import type { DemoFaultState } from "./demo-fault-state";
 import { commandHistoryQuerySchema, deviceCommandSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
-import { CommandIdempotencyStore, PlaintextResultCodec, canonicalCommandHash } from "../db/command-idempotency-store";
+import { CommandIdempotencyStore, canonicalCommandHash } from "../db/command-idempotency-store";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
 import { getDb } from "../db/database";
 
 export type CommandRouteOptions = {
@@ -26,6 +27,7 @@ export type CommandRouteOptions = {
   deviceCommandService: DeviceCommandService;
   deviceStateTriggerAdapter?: DeviceStateTriggerAdapter;
   vendorProvider?: VendorDeviceProvider;
+  encryptedRepositories: EncryptedRepositories;
 };
 
 export async function registerCommandRoutes(
@@ -40,7 +42,10 @@ export async function registerCommandRoutes(
     const command: DeviceCommand = commandResult.value;
     const subject = request.principal?.subject;
     if (!subject) return reply.code(401).send({ code: "AUTHENTICATION_REQUIRED" });
-    const idempotencyStore = new CommandIdempotencyStore(getDb(), new PlaintextResultCodec());
+    const idempotencyStore = new CommandIdempotencyStore(
+      getDb(),
+      options.encryptedRepositories.commandResults.forRequest(subject, command.requestId),
+    );
     const contentHash = canonicalCommandHash(command);
     const claim = idempotencyStore.claim(subject, command.requestId, contentHash);
     if (claim.state === "conflict") return reply.code(409).send({ code: "REQUEST_ID_CONFLICT" });

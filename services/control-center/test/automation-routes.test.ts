@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { apiInject, buildApp, demoInject } from './helpers/build-test-app';
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from './helpers/build-test-app';
 import { ProviderDeviceStore } from '../src/devices/provider-device-store';
 import { closeDatabase, getDb, initDatabase } from '../src/db/database';
 
@@ -153,7 +153,7 @@ describe('automation routes', () => {
   });
 
   it('rejects pending devices when creating automations', async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([
       {
         provider: 'tuya',

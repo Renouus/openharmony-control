@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { apiInject, buildApp } from "./helpers/build-test-app";
+import { apiInject, buildApp, createTestEncryptedRepositories } from "./helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../src/db/database";
 import {
   DeviceCapability,
@@ -566,7 +566,7 @@ describe("device snapshot routes", () => {
   });
 
   it("keeps discovered provider devices pending until the user joins or rejects them", async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([
       {
         provider: "tuya",

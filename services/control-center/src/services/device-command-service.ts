@@ -13,6 +13,8 @@ import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-st
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { ReplayGuard, verifyEnvelope } from "../security/envelope";
 import { broadcastEvent } from "../routes/websocket";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 export type ServiceLogger = {
   error: (message: string) => void;
@@ -46,6 +48,7 @@ type PersistDeviceStateInput = {
   logger?: ServiceLogger;
   failurePrefix: string;
   mode?: "update" | "upsert";
+  encryptedRepositories: EncryptedRepositories;
 };
 
 export function persistDeviceStateUpdate(input: PersistDeviceStateInput): DeviceSyncDto | undefined {
@@ -92,7 +95,7 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
           updated.name,
           updated.kind,
           updated.room ?? "living-room",
-          JSON.stringify(updated.state),
+          input.encryptedRepositories.devices.encodeState(updated.id, updated.state as Record<string, JsonValue>),
           updatedAt,
           newVersion,
         );
@@ -101,7 +104,7 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
           UPDATE devices
           SET state_json = ?, updated_at = ?, version = ?
           WHERE id = ?
-        `).run(JSON.stringify(updated.state), updatedAt, newVersion, deviceId);
+        `).run(input.encryptedRepositories.devices.encodeState(deviceId, updated.state as Record<string, JsonValue>), updatedAt, newVersion, deviceId);
       }
 
       const syncedDeviceRaw = db.prepare(`
@@ -111,7 +114,7 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
       `).get(deviceId) as DeviceSyncRow | undefined;
 
       if (syncedDeviceRaw) {
-        syncedDevice = mapDeviceRowToSyncDto(syncedDeviceRaw);
+        syncedDevice = mapDeviceRowToSyncDto(syncedDeviceRaw, input.encryptedRepositories.devices);
       }
     })();
 
@@ -136,6 +139,7 @@ export class DeviceCommandService {
     private readonly logger: ServiceLogger = noopLogger,
     private readonly deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
     private readonly vendorProvider?: VendorDeviceProvider,
+    private readonly encryptedRepositories?: EncryptedRepositories,
   ) {}
 
   async executeSignedCommand(envelope: unknown): Promise<DeviceCommandExecutionResult> {
@@ -272,6 +276,7 @@ export class DeviceCommandService {
         logger: this.logger,
         failurePrefix: "Failed to update database or broadcast after command:",
         mode: "update",
+        encryptedRepositories: this.encryptedRepositories!,
       });
 
       const historyEntry = this.history.add({

@@ -3,6 +3,7 @@ import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-c
 import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
 import { DatabaseService } from '../../src/db/database-service';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
+import { createTestEncryptedRepositories } from '../helpers/build-test-app';
 
 function fakeVendorProvider(updatedAt = 1720100000000): VendorDeviceProvider {
   return {
@@ -70,7 +71,7 @@ describe('DatabaseService', () => {
 
   it('should return changes since a given version and correctly read global_version', async () => {
     const db = getDb();
-    const service = new DatabaseService(db);
+    const service = new DatabaseService(db, undefined, createTestEncryptedRepositories());
     
     // Simulate updating global version and inserting a deleted device
     db.prepare("UPDATE metadata SET value = '10' WHERE key = 'global_version'").run();
@@ -87,7 +88,7 @@ describe('DatabaseService', () => {
 
   it('should derive currentVersion from changed rows when metadata is stale', async () => {
     const db = getDb();
-    const service = new DatabaseService(db);
+    const service = new DatabaseService(db, undefined, createTestEncryptedRepositories());
 
     db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
     db.prepare(
@@ -103,7 +104,7 @@ describe('DatabaseService', () => {
 
   it('should include scene ordering fields in sync responses', async () => {
     const db = getDb();
-    const service = new DatabaseService(db);
+    const service = new DatabaseService(db, undefined, createTestEncryptedRepositories());
 
     const now = Date.now();
     db.prepare(
@@ -146,7 +147,7 @@ describe('DatabaseService', () => {
   it('should include vendor devices in sync data when their version is newer than lastVersion', async () => {
     const db = getDb();
     insertActiveVendorDevice();
-    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000), createTestEncryptedRepositories());
 
     const syncResult = await service.getSyncData(0);
     const vendorDevice = syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115');
@@ -174,7 +175,7 @@ describe('DatabaseService', () => {
   it('should exclude vendor devices from incremental sync when lastVersion already covers them', async () => {
     const db = getDb();
     insertActiveVendorDevice();
-    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000), createTestEncryptedRepositories());
 
     const syncResult = await service.getSyncData(1720100000000);
 

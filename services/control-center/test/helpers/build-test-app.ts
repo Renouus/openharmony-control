@@ -3,6 +3,8 @@ import type { SecurityConfig } from "../../src/config/security-config";
 import type { DeviceRegistry } from "../../src/registry/device-registry";
 import type { InjectOptions } from "light-my-request";
 import type { FastifyInstance } from "fastify";
+import { EncryptedRepositories } from "../../src/db/encrypted-repositories";
+import { EncryptedFieldCodec } from "../../src/security/encrypted-field-codec";
 
 export const API_AUTHORIZATION_HEADER = {
   authorization: `Bearer ${"test-api-token".padEnd(32, "a")}`,
@@ -59,12 +61,21 @@ export function createTestSecurityConfig(
   };
 }
 
+export function createTestEncryptedRepositories(): EncryptedRepositories {
+  const config = createTestSecurityConfig();
+  return new EncryptedRepositories(
+    new EncryptedFieldCodec(config.dataKeys, config.activeDataKeyId),
+    true,
+  );
+}
+
 export function buildApp(
   registry?: DeviceRegistry,
   options: TestAppBuildOptions = {},
 ) {
   return buildProductionApp(registry, {
     ...options,
+    allowPlaintextProtectedFieldsForTestsOrMigration: true,
     securityConfig: options.securityConfig ?? createTestSecurityConfig(),
   });
 }

@@ -29,6 +29,8 @@ import { getDb } from "../db/database";
 import { type DeviceMetadataUpdate } from "../devices/device-metadata";
 import { createDeviceSchema, deviceIdParamsSchema, deviceMetadataMutationSchema, deviceRoomMutationSchema, joinPendingDeviceSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 type DeviceRow = {
   id: string;
@@ -46,6 +48,7 @@ type DeviceRow = {
 
 type DeviceRouteOptions = {
   vendorProvider?: VendorDeviceProvider;
+  encryptedRepositories?: EncryptedRepositories;
 };
 
 export async function registerDeviceRoutes(
@@ -54,10 +57,10 @@ export async function registerDeviceRoutes(
   simulators: Map<string, DeviceSimulator>,
   options: DeviceRouteOptions = {},
 ): Promise<void> {
-  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.vendorProvider) }));
+  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.encryptedRepositories!, options.vendorProvider) }));
 
   app.get("/api/devices/pending", async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
     return { devices: store.listPendingDevices() };
   });
 
@@ -69,7 +72,7 @@ export async function registerDeviceRoutes(
     const { deviceId } = params.value;
     const body = parsed.value;
 
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
     const device = store.joinHome(deviceId, {
       displayName: body.displayName,
       roomId: body.roomId.trim(),
@@ -85,7 +88,7 @@ export async function registerDeviceRoutes(
   app.post("/api/devices/:deviceId/reject", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
     const { deviceId } = params.value;
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
     if (!store.rejectDevice(deviceId)) {
       return reply.code(404).send({ code: "PENDING_DEVICE_NOT_FOUND" });
     }
@@ -96,7 +99,7 @@ export async function registerDeviceRoutes(
   app.get("/api/devices/:deviceId", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
     const { deviceId } = params.value;
-    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
@@ -104,7 +107,7 @@ export async function registerDeviceRoutes(
   });
 
   app.get("/api/summary", async () => {
-    const devices = await loadDevices(registry, options.vendorProvider);
+    const devices = await loadDevices(registry, options.encryptedRepositories!, options.vendorProvider);
     const door = findLoadedDevice(devices, "door-front");
     const lights = devices.filter((device) => device.kind === DeviceKind.Light);
     const lightCount = lights.filter((device) => device.state.power === true).length;
@@ -209,22 +212,22 @@ export async function registerDeviceRoutes(
       return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is invalid" });
     }
 
-    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
-    persistRegistryDeviceIfNeeded(device);
+    persistRegistryDeviceIfNeeded(device, options.encryptedRepositories!);
     if (!updateStoredDeviceMetadata(deviceId, update)) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
-    const updatedDevice = await loadDevice(deviceId, registry, options.vendorProvider);
+    const updatedDevice = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
     if (!updatedDevice) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
     const payload = options.vendorProvider?.ownsDevice(deviceId)
       ? mapVendorDeviceToSyncDto(updatedDevice)
-      : loadSyncDeviceRow(deviceId) ?? mapVendorDeviceToSyncDto(updatedDevice);
+      : loadSyncDeviceRow(deviceId, options.encryptedRepositories!) ?? mapVendorDeviceToSyncDto(updatedDevice);
 
     broadcastEvent("DeviceStateUpdated", payload);
     return reply.send({ device: updatedDevice });
@@ -233,7 +236,7 @@ export async function registerDeviceRoutes(
   app.delete("/api/devices/:deviceId", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
     const { deviceId } = params.value;
-    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories!, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
@@ -249,7 +252,7 @@ export async function registerDeviceRoutes(
 
     registry.delete(deviceId);
 
-    const syncRow = loadSyncDeviceRow(deviceId);
+    const syncRow = loadSyncDeviceRow(deviceId, options.encryptedRepositories!);
     if (syncRow) {
       broadcastEvent("DeviceStateUpdated", syncRow);
     }
@@ -271,8 +274,8 @@ export async function registerDeviceRoutes(
       return reply.code(409).send({ code: "DEVICE_ALREADY_EXISTS" });
     }
 
-    ensureRegistryDevicesPersisted(registry);
-    const createdDevice = createDevice(template, roomId, registry);
+    ensureRegistryDevicesPersisted(registry, options.encryptedRepositories!);
+    const createdDevice = createDevice(template, roomId, registry, options.encryptedRepositories!);
     const simulator = createSimulatorFromTemplate(template, createdDevice);
     if (simulator !== undefined) {
       simulators.set(simulator.deviceId, simulator);
@@ -284,12 +287,13 @@ export async function registerDeviceRoutes(
 
 async function loadDevices(
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor[]> {
-  const dbDevices = loadDevicesFromDb();
+  const dbDevices = loadDevicesFromDb(encryptedRepositories);
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
   const vendorDevices = vendorProvider
-    ? await listManagedVendorDevices(getDb(), vendorProvider)
+    ? await listManagedVendorDevices(getDb(), vendorProvider, encryptedRepositories)
     : [];
   return [...baseDevices, ...vendorDevices]
     .map(applyStoredCustomName)
@@ -300,15 +304,16 @@ async function loadDevices(
 async function loadDevice(
   deviceId: string,
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (vendorProvider?.ownsDevice(deviceId)) {
     return applyStoredCustomName(
-      await loadManagedVendorDevice(getDb(), deviceId, vendorProvider),
+      await loadManagedVendorDevice(getDb(), deviceId, vendorProvider, encryptedRepositories),
     );
   }
 
-  const dbDevices = loadDevicesFromDb();
+  const dbDevices = loadDevicesFromDb(encryptedRepositories);
   if (dbDevices.length > 0) {
     return findLoadedDevice(dbDevices, deviceId);
   }
@@ -322,7 +327,7 @@ function findLoadedDevice(
   return devices.find((device) => device.id === deviceId);
 }
 
-function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
+function loadDevicesFromDb(encryptedRepositories: EncryptedRepositories): EnhancedDeviceDescriptor[] {
   try {
     const db = getDb();
     const rows = db
@@ -334,13 +339,13 @@ function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
       `)
       .all() as DeviceRow[];
 
-    return rows.map(mapDeviceRow);
+    return rows.map((row) => mapDeviceRow(row, encryptedRepositories));
   } catch {
     return [];
   }
 }
 
-function loadSyncDeviceRow(deviceId: string) {
+function loadSyncDeviceRow(deviceId: string, encryptedRepositories: EncryptedRepositories) {
   try {
     const db = getDb();
     const row = db
@@ -351,13 +356,13 @@ function loadSyncDeviceRow(deviceId: string) {
       `)
       .get(deviceId) as DeviceRow | undefined;
 
-    return row ? mapDeviceRowToSyncDto(row) : undefined;
+    return row ? mapDeviceRowToSyncDto(row, encryptedRepositories.devices) : undefined;
   } catch {
     return undefined;
   }
 }
 
-function ensureRegistryDevicesPersisted(registry: DeviceRegistry): void {
+function ensureRegistryDevicesPersisted(registry: DeviceRegistry, encryptedRepositories: EncryptedRepositories): void {
   const db = getDb();
   const row = db.prepare(`
     SELECT COUNT(*) AS count
@@ -381,7 +386,7 @@ function ensureRegistryDevicesPersisted(registry: DeviceRegistry): void {
         device.name,
         device.kind,
         device.room,
-        JSON.stringify(device.state),
+        encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
         device.state.updatedAt,
       );
     });
@@ -392,6 +397,7 @@ function createDevice(
   template: NonNullable<ReturnType<typeof findCreatableDeviceTemplate>>,
   roomId: string,
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
 ): EnhancedDeviceDescriptor {
   const now = Date.now();
   const device = createDeviceFromTemplate(template, roomId, now);
@@ -418,7 +424,7 @@ function createDevice(
     device.name,
     device.kind,
     device.room,
-    JSON.stringify(device.state),
+    encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
     now,
     version,
   );
@@ -431,11 +437,11 @@ function createDevice(
     custom_icon: null,
     type: device.kind,
     room_id: device.room,
-    state_json: JSON.stringify(device.state),
+    state_json: encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
     updated_at: now,
     version,
     is_deleted: 0,
-  });
+  }, encryptedRepositories);
 }
 
 function updateDeviceRoomInDb(deviceId: string, roomId: string): boolean {
@@ -484,9 +490,9 @@ function incrementGlobalVersion(): number {
   return parseInt(row.value, 10);
 }
 
-function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
+function mapDeviceRow(row: DeviceRow, encryptedRepositories: EncryptedRepositories): EnhancedDeviceDescriptor {
   const kind = toDeviceKind(row.type);
-  const state = parseDeviceState(row.state_json, row.updated_at);
+  const state = parseDeviceState(row.id, row.state_json, row.updated_at, encryptedRepositories);
   const descriptor: DeviceDescriptor = {
     id: row.id,
     name: row.name,
@@ -535,7 +541,7 @@ function lookupStoredCustomName(deviceId: string): string | undefined {
   }
 }
 
-function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor): void {
+function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor, encryptedRepositories: EncryptedRepositories): void {
   const db = getDb();
   db.prepare(`
     INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
@@ -546,7 +552,7 @@ function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor): void {
     device.name,
     device.kind,
     device.room,
-    JSON.stringify(device.state),
+    encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
     device.state.updatedAt,
   );
 }
@@ -584,8 +590,8 @@ function updateStoredDeviceMetadata(deviceId: string, update: DeviceMetadataUpda
   })();
 }
 
-function parseDeviceState(rawState: string, updatedAt: number): DeviceState {
-  const parsed = JSON.parse(rawState) as Partial<DeviceState>;
+function parseDeviceState(id: string, rawState: string, updatedAt: number, encryptedRepositories: EncryptedRepositories): DeviceState {
+  const parsed = encryptedRepositories.devices.decodeState(id, rawState) as Partial<DeviceState>;
   return {
     ...parsed,
     updatedAt: parsed.updatedAt ?? updatedAt,

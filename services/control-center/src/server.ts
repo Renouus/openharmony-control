@@ -3,6 +3,8 @@ import { loadSecurityConfig } from "./config/security-config";
 import { buildApp } from "./app";
 import { initDatabase } from "./db/database";
 import { DeviceRegistry } from "./registry/device-registry";
+import { EncryptedFieldCodec } from "./security/encrypted-field-codec";
+import { EncryptedRepositories } from "./db/encrypted-repositories";
 
 loadControlCenterEnv();
 
@@ -15,7 +17,10 @@ async function main(): Promise<void> {
   // made getDb() throw and the runtime silently fall back to a no-op, so no
   // automation ever fired in the real server.
   const dbPath = process.env.DATABASE_PATH || 'smarthome.db';
-  const db = initDatabase(dbPath);
+  const encryptedRepositories = new EncryptedRepositories(
+    new EncryptedFieldCodec(securityConfig.dataKeys, securityConfig.activeDataKeyId),
+  );
+  const db = initDatabase(dbPath, encryptedRepositories);
   const app = buildApp(registry, { securityConfig });
   app.log.info(`Database initialized at ${dbPath}`);
 
@@ -37,7 +42,7 @@ async function main(): Promise<void> {
         device.name,
         device.kind,
         device.room || 'living-room',
-        JSON.stringify(device.state),
+        encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, import("./security/encrypted-field-codec").JsonValue>),
         now,
         version++,
       );

@@ -4,9 +4,11 @@ import { ProviderDeviceStore } from "../devices/provider-device-store";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { providerIdParamsSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
 
 type ProviderRouteOptions = {
   vendorProvider?: VendorDeviceProvider;
+  encryptedRepositories?: EncryptedRepositories;
 };
 
 export async function registerProviderRoutes(
@@ -23,7 +25,7 @@ export async function registerProviderRoutes(
     }
 
     const discoveredDevices = await provider.discoverDevices();
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories!);
     const result = store.upsertDiscoveredDevices(discoveredDevices);
 
     return reply.send(result);

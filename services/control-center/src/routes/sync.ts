@@ -4,9 +4,11 @@ import { getDb } from '../db/database';
 import type { VendorDeviceProvider } from '../integrations/vendor-provider';
 import { syncQuerySchema } from '@smart-home/device-contract/schemas';
 import { parseRequest } from './parse-request';
+import type { EncryptedRepositories } from '../db/encrypted-repositories';
 
 type SyncRouteOptions = {
   vendorProvider?: VendorDeviceProvider;
+  encryptedRepositories?: EncryptedRepositories;
 };
 
 export default async function syncRoutes(
@@ -16,7 +18,7 @@ export default async function syncRoutes(
   fastify.get('/api/sync', async (request, reply) => {
     const parsed = parseRequest(syncQuerySchema, request.query, reply);
     if (!parsed.ok) return;
-    const dbService = new DatabaseService(getDb(), options.vendorProvider);
+    const dbService = new DatabaseService(getDb(), options.vendorProvider, options.encryptedRepositories);
     const lastVersion = parsed.value.lastVersion;
     
     const syncData = await dbService.getSyncData(lastVersion);

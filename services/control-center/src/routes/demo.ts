@@ -20,6 +20,8 @@ import { demoEnvironmentSchema, demoMotionSchema, demoOfflineFaultSchema, demoSe
 import { parseRequest } from "./parse-request";
 import { signedCommandEnvelopeSchema } from "@smart-home/device-contract/schemas";
 import type { DeviceCommandService } from "../services/device-command-service";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 type OfflineFaultRequest = {
   deviceId?: string;
@@ -47,6 +49,7 @@ export async function registerDemoRoutes(
   sensorEventTriggerAdapter?: SensorEventTriggerAdapter,
   commandSigningKey?: string,
   deviceCommandService?: DeviceCommandService,
+  encryptedRepositories?: EncryptedRepositories,
 ): Promise<void> {
   if (commandSigningKey) {
     app.post("/api/demo/sign-command", async (request, reply) => {
@@ -81,11 +84,11 @@ export async function registerDemoRoutes(
         const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
         const newVersion = parseInt(newVersionRow.value, 10);
         db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-          .run(JSON.stringify(updated.state), Date.now(), newVersion, body.deviceId);
+          .run(encryptedRepositories!.devices.encodeState(body.deviceId, updated.state as Record<string, JsonValue>), Date.now(), newVersion, body.deviceId);
       })();
       const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get(body.deviceId) as DeviceSyncRow;
       if (syncedRaw) {
-        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw, encryptedRepositories!.devices));
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/offline: " + dbErr);
@@ -135,11 +138,11 @@ export async function registerDemoRoutes(
         const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
         const newVersion = parseInt(newVersionRow.value, 10);
         db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-          .run(JSON.stringify(updated?.state ?? nextState), Date.now(), newVersion, "sensor-living-room");
+          .run(encryptedRepositories!.devices.encodeState("sensor-living-room", (updated?.state ?? nextState) as Record<string, JsonValue>), Date.now(), newVersion, "sensor-living-room");
       })();
       const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get("sensor-living-room") as DeviceSyncRow;
       if (syncedRaw) {
-        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw, encryptedRepositories!.devices));
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/environment: " + dbErr);
@@ -188,11 +191,11 @@ export async function registerDemoRoutes(
         const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
         const newVersion = parseInt(newVersionRow.value, 10);
         db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-          .run(JSON.stringify(updated.state), Date.now(), newVersion, body.deviceId);
+          .run(encryptedRepositories!.devices.encodeState(body.deviceId, updated.state as Record<string, JsonValue>), Date.now(), newVersion, body.deviceId);
       })();
       const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get(body.deviceId) as DeviceSyncRow;
       if (syncedRaw) {
-        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw, encryptedRepositories!.devices));
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/motion sensor: " + dbErr);
@@ -239,11 +242,11 @@ export async function registerDemoRoutes(
               const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
               const newVersion = parseInt(newVersionRow.value, 10);
               db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-                .run(JSON.stringify(lightUpdated.state), Date.now(), newVersion, "light-living-room");
+                .run(encryptedRepositories!.devices.encodeState("light-living-room", lightUpdated.state as Record<string, JsonValue>), Date.now(), newVersion, "light-living-room");
             })();
             const lightRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get("light-living-room") as DeviceSyncRow;
             if (lightRaw) {
-              broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(lightRaw));
+              broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(lightRaw, encryptedRepositories!.devices));
             }
           }
         } catch (dbErr) {

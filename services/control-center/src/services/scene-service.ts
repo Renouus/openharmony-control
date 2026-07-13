@@ -13,6 +13,8 @@ import type { DeviceRegistry } from "../registry/device-registry";
 import type { SceneRegistry } from "../scenes/scene-registry";
 import { persistDeviceStateUpdate, type ServiceLogger } from "./device-command-service";
 import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 type SceneRow = {
   id: string;
@@ -67,6 +69,7 @@ export class SceneService {
     private readonly simulators: Map<string, DeviceSimulator>,
     private readonly logger: ServiceLogger = noopLogger,
     private readonly deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
+    private readonly encryptedRepositories?: EncryptedRepositories,
   ) {}
 
   listScenes(): PersistedSceneDescriptor[] {
@@ -123,10 +126,10 @@ export class SceneService {
       now,
       nextSortOrderRow.next_sort_order,
       version,
-      JSON.stringify(sceneData.trigger),
+      this.encryptedRepositories!.scenes.encodeTrigger(id, sceneData.trigger as Record<string, JsonValue>),
       JSON.stringify(sceneData.repeat ?? []),
       JSON.stringify(sceneData.actionsLabel ?? []),
-      JSON.stringify(sceneData.commands ?? []),
+      this.encryptedRepositories!.scenes.encodeCommands(id, (sceneData.commands ?? []) as JsonValue[]),
     );
 
     return this.findScene(id)!;
@@ -167,10 +170,10 @@ export class SceneService {
       nextScene.roomId ?? null,
       updatedAt,
       version,
-      JSON.stringify(nextScene.trigger),
+      this.encryptedRepositories!.scenes.encodeTrigger(sceneId, nextScene.trigger as Record<string, JsonValue>),
       JSON.stringify(nextScene.repeat),
       JSON.stringify(nextScene.actionsLabel),
-      JSON.stringify(nextScene.commands),
+      this.encryptedRepositories!.scenes.encodeCommands(sceneId, nextScene.commands as JsonValue[]),
       sceneId,
     );
 
@@ -279,6 +282,7 @@ export class SceneService {
           logger: this.logger,
           failurePrefix: "Failed to persist scene device update:",
           mode: "upsert",
+          encryptedRepositories: this.encryptedRepositories!,
         });
 
         if (syncedDevice) {
@@ -359,10 +363,10 @@ export class SceneService {
         seededAt,
         seededAt,
         index,
-        JSON.stringify(scene.trigger),
+        this.encryptedRepositories!.scenes.encodeTrigger(scene.id, scene.trigger as Record<string, JsonValue>),
         JSON.stringify(scene.repeat),
         JSON.stringify(scene.actionsLabel),
-        JSON.stringify(scene.commands),
+        this.encryptedRepositories!.scenes.encodeCommands(scene.id, scene.commands as JsonValue[]),
       );
     });
   }
@@ -422,10 +426,14 @@ export class SceneService {
       description: row.description ?? "",
       enabled: row.enabled === 1,
       roomId: row.room_id ?? undefined,
-      trigger: this.parseJson(row.trigger_json, { type: "manual", label: "Run now" }) as SceneDescriptor["trigger"],
+      trigger: row.trigger_json
+        ? this.encryptedRepositories!.scenes.decodeTrigger(row.id, row.trigger_json) as SceneDescriptor["trigger"]
+        : { type: "manual", label: "Run now" },
       repeat: this.parseJson(row.repeat_json, []) as string[],
       actionsLabel: this.parseJson(row.actions_label_json, []) as string[],
-      commands: this.parseJson(row.commands_json, []) as SceneDescriptor["commands"],
+      commands: row.commands_json
+        ? this.encryptedRepositories!.scenes.decodeCommands(row.id, row.commands_json) as SceneDescriptor["commands"]
+        : [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       sortOrder: row.sort_order,

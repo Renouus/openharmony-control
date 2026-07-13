@@ -12,6 +12,7 @@ import { SceneService } from "../services/scene-service";
 import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
 import { sceneCreateSchema, sceneEnabledMutationSchema, sceneIdParamsSchema, sceneUpdateSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
 
 export type SceneRouteOptions = {
   registry: DeviceRegistry;
@@ -19,6 +20,7 @@ export type SceneRouteOptions = {
   history: CommandHistory;
   simulators: Map<string, DeviceSimulator>;
   deviceStateTriggerAdapter?: DeviceStateTriggerAdapter;
+  encryptedRepositories?: EncryptedRepositories;
 };
 
 export async function registerSceneRoutes(
@@ -32,6 +34,7 @@ export async function registerSceneRoutes(
     options.simulators,
     app.log,
     options.deviceStateTriggerAdapter,
+    options.encryptedRepositories,
   );
 
   app.get("/api/scenes", async () => ({

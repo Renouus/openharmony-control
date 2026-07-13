@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
 import { AutomationRepository } from "../../src/automation/automation-repository";
+import { createTestEncryptedRepositories } from "../helpers/build-test-app";
 import { AutomationRuntime } from "../../src/automation/automation-runtime";
 
 describe("AutomationRuntime", () => {
@@ -67,7 +68,7 @@ describe("AutomationRuntime", () => {
       1,
     );
 
-    const runtime = new AutomationRuntime(new AutomationRepository(getDb()));
+    const runtime = new AutomationRuntime(new AutomationRepository(getDb(), createTestEncryptedRepositories()));
     await runtime.loadEnabledAutomations();
 
     expect(runtime.hasRule("auto-enabled")).toBe(true);

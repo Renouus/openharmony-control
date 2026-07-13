@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AutomationRepository } from "../../src/automation/automation-repository";
+import { createTestEncryptedRepositories } from "../helpers/build-test-app";
 import { AutomationRuntime } from "../../src/automation/automation-runtime";
 import { ExecutionLogService } from "../../src/automation/execution-log-service";
 import { RuleEvaluator } from "../../src/automation/rule-evaluator";
@@ -68,7 +69,7 @@ describe("automation runtime guards", () => {
     );
 
     const runtime = new AutomationRuntime(
-      new AutomationRepository(getDb()),
+      new AutomationRepository(getDb(), createTestEncryptedRepositories()),
       new RuleEvaluator(),
       undefined,
       new ExecutionLogService(getDb()),
@@ -127,7 +128,7 @@ describe("automation runtime guards", () => {
     );
 
     const runtime = new AutomationRuntime(
-      new AutomationRepository(getDb()),
+      new AutomationRepository(getDb(), createTestEncryptedRepositories()),
       new RuleEvaluator(),
       undefined,
       new ExecutionLogService(getDb()),
@@ -186,7 +187,7 @@ describe("automation runtime guards", () => {
     );
 
     const runtime = new AutomationRuntime(
-      new AutomationRepository(getDb()),
+      new AutomationRepository(getDb(), createTestEncryptedRepositories()),
       new RuleEvaluator(),
       undefined,
       new ExecutionLogService(getDb()),

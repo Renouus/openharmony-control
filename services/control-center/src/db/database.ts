@@ -1,10 +1,11 @@
 import Database from 'better-sqlite3';
+import type { EncryptedRepositories } from './encrypted-repositories';
 import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
 const SCHEMA_VERSION = 9;
 
-export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
+export function initDatabase(dbPath: string = 'smarthome.db', encryptedRepositories?: EncryptedRepositories): Database.Database {
   dbInstance = new Database(dbPath);
 
   dbInstance.exec(`
@@ -130,7 +131,7 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
   const currentVersion = ensureSchemaVersion(dbInstance);
   applyMigrations(dbInstance, currentVersion);
   reconcileCriticalSchema(dbInstance);
-  seedDefaultAutomations(dbInstance);
+  seedDefaultAutomations(dbInstance, encryptedRepositories);
   return dbInstance;
 }
 
@@ -413,7 +414,7 @@ function backfillLegacySceneOrdering(db: Database.Database): void {
   updateOrdering();
 }
 
-function seedDefaultAutomations(db: Database.Database): void {
+function seedDefaultAutomations(db: Database.Database, encryptedRepositories?: EncryptedRepositories): void {
   db.prepare(`
     INSERT OR IGNORE INTO automations (
       id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
@@ -424,8 +425,12 @@ function seedDefaultAutomations(db: Database.Database): void {
     'auto_awesome',
     'Night Routine',
     'time',
-    JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-    JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
+    encryptedRepositories
+      ? encryptedRepositories.automations.encodeTriggerJson('night-routine', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]))
+      : JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
+    encryptedRepositories
+      ? encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]))
+      : JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
     1,
     Date.now(),
     1,

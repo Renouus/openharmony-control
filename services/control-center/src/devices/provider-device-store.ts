@@ -9,6 +9,8 @@ import {
   type DeviceState,
   type EnhancedDeviceDescriptor,
 } from "@smart-home/device-contract";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 export type DeviceLifecycleState =
   | "pending"
@@ -69,7 +71,7 @@ type DeviceRow = {
 };
 
 export class ProviderDeviceStore {
-  public constructor(private readonly db: Database.Database) {}
+  public constructor(private readonly db: Database.Database, private readonly encryptedRepositories: EncryptedRepositories) {}
 
   public upsertDiscoveredDevices(
     devices: DiscoveredProviderDevice[],
@@ -130,9 +132,9 @@ export class ProviderDeviceStore {
             device.originalIcon ?? null,
             device.online ? 1 : 0,
             JSON.stringify(device.capabilities),
-            JSON.stringify(device.status),
-            JSON.stringify(device.functions),
-            JSON.stringify(device.raw),
+            this.encryptedRepositories.providerSources.encodeStatus(localId, device.status as JsonValue),
+            this.encryptedRepositories.providerSources.encodeFunctions(localId, device.functions as JsonValue),
+            this.encryptedRepositories.providerSources.encodeRaw(localId, device.raw as JsonValue),
             now,
             now,
             now,
@@ -153,7 +155,7 @@ export class ProviderDeviceStore {
               device.originalName,
               device.deviceType,
               device.deviceType,
-              JSON.stringify(device.state),
+              this.encryptedRepositories.devices.encodeState(localId, device.state as Record<string, JsonValue>),
               now,
               version,
             );
@@ -176,7 +178,7 @@ export class ProviderDeviceStore {
             device.originalName,
             device.deviceType,
             device.deviceType,
-            JSON.stringify(device.state),
+            this.encryptedRepositories.devices.encodeState(localId, device.state as Record<string, JsonValue>),
             now,
             version,
             localId,
@@ -229,7 +231,7 @@ export class ProviderDeviceStore {
       `)
       .all() as DeviceRow[];
 
-    return rows.map(mapDeviceRow);
+    return rows.map((row) => mapDeviceRow(row, this.encryptedRepositories));
   }
 
   public joinHome(
@@ -349,10 +351,10 @@ function parseCapabilities(raw: string | null): DeviceCapabilityName[] {
   }
 }
 
-function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
+function mapDeviceRow(row: DeviceRow, encryptedRepositories: EncryptedRepositories): EnhancedDeviceDescriptor {
   const kind = toDeviceKind(row.type);
   const capabilities = parseCapabilities(row.source_capabilities_json);
-  const parsed = JSON.parse(row.state_json) as Partial<DeviceState>;
+  const parsed = encryptedRepositories.devices.decodeState(row.id, row.state_json) as Partial<DeviceState>;
   const state: DeviceState = {
     ...parsed,
     updatedAt: parsed.updatedAt ?? row.updated_at,

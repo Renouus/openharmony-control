@@ -12,6 +12,7 @@ import {
 } from '../devices/device-lifecycle-guard';
 import { automationIdParamsSchema, automationMutationSchema, automationUpdateSchema } from '@smart-home/device-contract/schemas';
 import { parseRequest } from './parse-request';
+import type { EncryptedRepositories } from '../db/encrypted-repositories';
 
 type AutomationRow = {
   id: string;
@@ -36,12 +37,12 @@ type AutomationDescriptor = {
   enabled: boolean;
 };
 
-export async function registerAutomationRoutes(app: FastifyInstance): Promise<void> {
+export async function registerAutomationRoutes(app: FastifyInstance, encryptedRepositories?: EncryptedRepositories): Promise<void> {
   const runtime = (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
 
   app.get('/api/automations', async () => {
     return {
-      automations: listAutomations(),
+      automations: listAutomations(encryptedRepositories!),
     };
   });
 
@@ -82,7 +83,7 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
       triggerJson: normalized.triggerJson,
       actionJson: normalized.actionJson,
       enabled: body.enabled ?? true,
-    });
+    }, encryptedRepositories!);
     if (automation.enabled) {
       await runtime.reload(automation.id);
     }
@@ -101,7 +102,7 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
     }
     let automation: AutomationDescriptor | undefined;
     try {
-      automation = updateAutomation(automationId, body);
+      automation = updateAutomation(automationId, body, encryptedRepositories!);
     } catch (error) {
       if (error instanceof InactiveDeviceReferenceError) {
         return reply.code(409).send({
@@ -131,8 +132,8 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
   });
 }
 
-function listAutomations(): AutomationDescriptor[] {
-  seedBuiltInAutomations();
+function listAutomations(encryptedRepositories: EncryptedRepositories): AutomationDescriptor[] {
+  seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const rows = db.prepare(`
     SELECT *
@@ -140,11 +141,11 @@ function listAutomations(): AutomationDescriptor[] {
     WHERE is_deleted = 0
     ORDER BY updated_at ASC, id ASC
   `).all() as AutomationRow[];
-  return rows.map(mapAutomationRow);
+  return rows.map((row) => mapAutomationRow(row, encryptedRepositories));
 }
 
-function createAutomation(payload: Omit<AutomationDescriptor, 'id'>): AutomationDescriptor {
-  seedBuiltInAutomations();
+function createAutomation(payload: Omit<AutomationDescriptor, 'id'>, encryptedRepositories: EncryptedRepositories): AutomationDescriptor {
+  seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const now = Date.now();
   const version = incrementAndGetVersion(db);
@@ -159,8 +160,8 @@ function createAutomation(payload: Omit<AutomationDescriptor, 'id'>): Automation
     payload.icon ?? null,
     payload.name,
     payload.triggerType,
-    payload.triggerJson,
-    payload.actionJson,
+    encryptedRepositories.automations.encodeTriggerJson(id, payload.triggerJson),
+    encryptedRepositories.automations.encodeActionJson(id, payload.actionJson),
     payload.enabled ? 1 : 0,
     now,
     version,
@@ -171,8 +172,8 @@ function createAutomation(payload: Omit<AutomationDescriptor, 'id'>): Automation
   };
 }
 
-function updateAutomation(automationId: string, patch: Partial<AutomationDescriptor>): AutomationDescriptor | undefined {
-  seedBuiltInAutomations();
+function updateAutomation(automationId: string, patch: Partial<AutomationDescriptor>, encryptedRepositories: EncryptedRepositories): AutomationDescriptor | undefined {
+  seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const existing = db.prepare(`
     SELECT *
@@ -183,7 +184,7 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
     return undefined;
   }
 
-  const base = mapAutomationRow(existing);
+  const base = mapAutomationRow(existing, encryptedRepositories);
   const normalizedPatch = patch.triggerType && patch.triggerJson && patch.actionJson
     ? normalizeAutomationTransport({
         triggerType: patch.triggerType,
@@ -214,8 +215,8 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
     next.icon ?? null,
     next.name,
     next.triggerType,
-    next.triggerJson,
-    next.actionJson,
+    encryptedRepositories.automations.encodeTriggerJson(automationId, next.triggerJson),
+    encryptedRepositories.automations.encodeActionJson(automationId, next.actionJson),
     next.enabled ? 1 : 0,
     now,
     version,
@@ -225,7 +226,6 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
 }
 
 function deleteAutomation(automationId: string): boolean {
-  seedBuiltInAutomations();
   const db = getDb();
   const version = incrementAndGetVersion(db);
   const result = db.prepare(`
@@ -236,11 +236,11 @@ function deleteAutomation(automationId: string): boolean {
   return result.changes > 0;
 }
 
-function mapAutomationRow(row: AutomationRow): AutomationDescriptor {
+function mapAutomationRow(row: AutomationRow, encryptedRepositories: EncryptedRepositories): AutomationDescriptor {
   const normalized = normalizeAutomationTransport({
     triggerType: row.trigger_type,
-    triggerJson: row.trigger_json,
-    actionJson: row.action_json,
+    triggerJson: encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_json),
+    actionJson: encryptedRepositories.automations.decodeActionJson(row.id, row.action_json),
   });
   return {
     id: row.id,
@@ -253,7 +253,7 @@ function mapAutomationRow(row: AutomationRow): AutomationDescriptor {
   };
 }
 
-function seedBuiltInAutomations(): void {
+function seedBuiltInAutomations(encryptedRepositories: EncryptedRepositories): void {
   const db = getDb();
   const countRow = db.prepare('SELECT COUNT(*) AS total FROM automations WHERE is_deleted = 0').get() as { total: number };
   if (countRow.total > 0) {
@@ -271,8 +271,8 @@ function seedBuiltInAutomations(): void {
     'auto_awesome',
     'Night Routine',
     'time',
-    JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-    JSON.stringify([{ id: 'seed-lock', type: 'device_command', deviceId: 'door-front', command: 'lock:true' }]),
+    encryptedRepositories.automations.encodeTriggerJson('night-routine', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
+    encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device_command', deviceId: 'door-front', command: 'lock:true' }])),
     1,
     now,
     1,
