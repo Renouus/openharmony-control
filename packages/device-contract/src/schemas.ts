@@ -120,7 +120,9 @@ export const familySettingsMutationSchema = z.object({
   emergencyContactName: z.string().trim().max(128).optional(),
   emergencyContactPhone: z.string().trim().max(64).optional(),
 }).strict();
-export const websocketQuerySchema = z.object({ clientId: z.string().max(128).optional() }).strict();
+export const websocketQuerySchema = z.object({
+  clientId: z.string().trim().min(1).max(128).optional(),
+}).strict();
 export const routeIdParamsSchema = z.object({ id: shortId }).strict();
 export const deviceIdParamsSchema = z.object({ deviceId: shortId }).strict();
 export const sceneIdParamsSchema = z.object({ sceneId: shortId }).strict();

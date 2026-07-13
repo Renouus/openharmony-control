@@ -71,6 +71,36 @@ describe('/ws/events websocket route', () => {
     }
   });
 
+  it('keeps the transitional anonymous fallback when clientId is omitted', async () => {
+    const socket = await app.injectWS('/ws/events');
+    try {
+      expect([...clientConnections.keys()]).toHaveLength(1);
+      expect([...clientConnections.keys()][0]).toMatch(/^anon-/);
+    } finally {
+      socket.terminate();
+    }
+  });
+
+  it('trims a supplied clientId before registration', async () => {
+    const socket = await app.injectWS('/ws/events?clientId=%20trimmed-client%20');
+    try {
+      expect(clientConnections.has('trimmed-client')).toBe(true);
+    } finally {
+      socket.terminate();
+    }
+  });
+
+  it('closes an empty supplied clientId with policy violation details', async () => {
+    const address = await app.listen({ host: '127.0.0.1', port: 0 });
+    const client = new WebSocket(address.replace('http://', 'ws://') + '/ws/events?clientId=');
+    const closed = new Promise<{ code: number; reason: string }>((resolve, reject) => {
+      client.on('close', (code: number, reason: Buffer) => resolve({ code, reason: reason.toString() }));
+      client.on('error', reject);
+    });
+    await expect(closed).resolves.toEqual({ code: 1008, reason: 'Invalid query' });
+    expect(clientConnections.has('')).toBe(false);
+  });
+
   it('removes the client from the registry when the socket closes', async () => {
     // Use a real listening server + ws client here: injectWS uses an in-process
     // socket pair that does not reliably propagate the server-side 'close'

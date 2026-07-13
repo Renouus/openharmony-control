@@ -3,12 +3,14 @@ import { apiInject, buildApp } from "../helpers/build-test-app";
 
 const expectValidationError = (response: { statusCode: number; json(): unknown }) => {
   expect(response.statusCode).toBe(400);
-  expect(response.json()).toMatchObject({
+  const body = response.json();
+  expect(body).toMatchObject({
     code: "VALIDATION_ERROR",
     fields: expect.arrayContaining([
       expect.objectContaining({ path: expect.any(String), message: expect.any(String) }),
     ]),
   });
+  expect(body).not.toHaveProperty("stack");
 };
 
 describe("request validation", () => {
@@ -45,6 +47,17 @@ describe("request validation", () => {
   it("validates the complete command payload before dispatch", async () => {
     const app = buildApp();
     expectValidationError(await apiInject(app, { method: "POST", url: "/api/commands", payload: { requestId: "request-123", timestamp: Date.now(), deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 101 } } }));
+    await app.close();
+  });
+
+  it("returns one stable validation response when params and body are both invalid", async () => {
+    const app = buildApp();
+    const response = await apiInject(app, {
+      method: "PUT",
+      url: "/api/rooms/%20",
+      payload: { name: "", unexpected: true },
+    });
+    expectValidationError(response);
     await app.close();
   });
 });

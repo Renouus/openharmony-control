@@ -91,8 +91,9 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
 
   app.put('/api/automations/:automationId', async (request, reply) => {
     const params = parseRequest(automationIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
     const parsed = parseRequest(automationUpdateSchema, request.body, reply);
-    if (!params.ok || !parsed.ok) return;
+    if (!parsed.ok) return;
     const { automationId } = params.value;
     const body = parsed.value;
     if (body.triggerJson && !isValidAutomationConditionGroup(body.triggerJson)) {

@@ -41,8 +41,9 @@ export async function registerRoomRoutes(
 
   app.put("/api/rooms/:id", async (request, reply) => {
     const params = parseRequest(routeIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
     const parsed = parseRequest(roomUpdateSchema, request.body, reply);
-    if (!params.ok || !parsed.ok) return;
+    if (!parsed.ok) return;
     const { id } = params.value;
     const body = parsed.value;
 

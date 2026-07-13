@@ -63,8 +63,9 @@ export async function registerDeviceRoutes(
 
   app.post("/api/devices/:deviceId/join-home", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
     const parsed = parseRequest(joinPendingDeviceSchema, request.body, reply);
-    if (!params.ok || !parsed.ok) return;
+    if (!parsed.ok) return;
     const { deviceId } = params.value;
     const body = parsed.value;
 
@@ -179,8 +180,9 @@ export async function registerDeviceRoutes(
 
   app.put("/api/devices/:deviceId/room", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
     const parsed = parseRequest(deviceRoomMutationSchema, request.body, reply);
-    if (!params.ok || !parsed.ok) return;
+    if (!parsed.ok) return;
     const { deviceId } = params.value;
     const body = parsed.value;
     const targetRoomId = body.roomId ?? body.room;
@@ -198,8 +200,9 @@ export async function registerDeviceRoutes(
 
   app.put("/api/devices/:deviceId", async (request, reply) => {
     const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
     const parsed = parseRequest(deviceMetadataMutationSchema, request.body, reply);
-    if (!params.ok || !parsed.ok) return;
+    if (!parsed.ok) return;
     const { deviceId } = params.value;
     const update = parsed.value;
     if (!roomExists(update.roomId)) {

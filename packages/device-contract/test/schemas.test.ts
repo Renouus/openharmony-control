@@ -155,6 +155,7 @@ describe("route body schemas", () => {
     expect(familySettingsMutationSchema.safeParse({ timezone: 8 }).success).toBe(false);
     expect(websocketQuerySchema.safeParse({}).success).toBe(true);
     expect(websocketQuerySchema.safeParse({ clientId: "client-1" }).success).toBe(true);
-    expect(websocketQuerySchema.safeParse({ clientId: "", extra: true }).success).toBe(false);
+    expect(websocketQuerySchema.parse({ clientId: "  client-1  " }).clientId).toBe("client-1");
+    expect(websocketQuerySchema.safeParse({ clientId: "" }).success).toBe(false);
   });
 });

@@ -62,6 +62,7 @@ describe("access prototype routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 
   it("rejects guest keys with an overflowing expiry", async () => {
@@ -74,6 +75,7 @@ describe("access prototype routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 
   it("rejects unknown guest key fields", async () => {
@@ -86,6 +88,7 @@ describe("access prototype routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 
   it("trims guest key holder names before returning the key", async () => {

@@ -68,5 +68,6 @@ describe("camera prototype routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 });
