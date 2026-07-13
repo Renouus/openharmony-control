@@ -82,7 +82,7 @@ describe("tiered HTTP rate limiting", () => {
 
   it("uses only the most-specific command policy", async () => {
     let now = 10_000;
-    const app = buildApp(undefined, undefined, {
+    const app = buildApp(undefined, {
       rateLimitPolicies: policies,
       rateLimiter: new InMemoryRateLimiter({ now: () => now }),
     });
@@ -106,7 +106,7 @@ describe("tiered HTTP rate limiting", () => {
   });
 
   it("applies the strict demo policy to signing and mutations", async () => {
-    const app = buildApp(undefined, undefined, { rateLimitPolicies: policies });
+    const app = buildApp(undefined, { rateLimitPolicies: policies });
     const request = { method: "POST", url: "/api/demo/sign-command", payload: {} } as const;
     expect((await demoInject(app, request)).statusCode).not.toBe(429);
     expect((await demoInject(app, {
@@ -118,7 +118,7 @@ describe("tiered HTTP rate limiting", () => {
   });
 
   it("uses Fastify's trusted request.ip instead of parsing forwarded headers", async () => {
-    const app = buildApp(undefined, undefined, {
+    const app = buildApp(undefined, {
       rateLimitPolicies: { ...policies, baseline: { limit: 1, windowMs: 60_000 } },
       securityConfig: createTestSecurityConfig({ trustProxy: false }),
     });

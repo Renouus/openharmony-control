@@ -133,7 +133,7 @@ describe('automation routes', () => {
     const executeResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/commands',
-      payload: signResponse.json(),
+      payload: signResponse.json().command,
     });
 
     expect(executeResponse.statusCode).toBe(200);
@@ -220,7 +220,7 @@ describe('automation routes', () => {
       url: '/api/demo/sign-command',
       payload: { requestId: 'blocked-light-on', timestamp: Date.now(), deviceId: 'light-living-room', name: 'switch', payload: { on: true } },
     });
-    await apiInject(app, { method: 'POST', url: '/api/commands', payload: signResponse.json() });
+    await apiInject(app, { method: 'POST', url: '/api/commands', payload: signResponse.json().command });
 
     const devicesResponse = await apiInject(app, { method: 'GET', url: '/api/devices' });
     const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');

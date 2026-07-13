@@ -472,7 +472,7 @@ describe("device snapshot routes", () => {
       40,
     );
 
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const response = await apiInject(app, {
       method: "GET",
       url: "/api/devices/tuya-light-1",
@@ -498,7 +498,7 @@ describe("device snapshot routes", () => {
       online: true,
     });
 
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const response = await apiInject(app, {
       method: "PUT",
       url: "/api/devices/tuya-light-1",
@@ -535,7 +535,7 @@ describe("device snapshot routes", () => {
     clientConnections.set("test-client", fakeClient);
 
     try {
-      const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+      const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
       const response = await apiInject(app, {
         method: "PUT",
         url: "/api/devices/tuya-light-1",
@@ -588,7 +588,7 @@ describe("device snapshot routes", () => {
       },
     ]);
 
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
     const listBeforeJoin = await apiInject(app, { method: "GET", url: "/api/devices" });
     expect(listBeforeJoin.statusCode).toBe(200);

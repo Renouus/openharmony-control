@@ -237,7 +237,7 @@ describe('GET /api/sync', () => {
     `).run('Hall Accent', 'North wall', 'lightbulb', 'tuya-light-1');
 
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
 
     const response = await apiInject(app, {
       method: 'GET',
@@ -312,7 +312,7 @@ describe('GET /api/sync', () => {
       const commandResponse = await apiInject(app, {
         method: 'POST',
         url: '/api/commands',
-        payload: signResponse.json(),
+        payload: signResponse.json().command,
       });
       expect(commandResponse.statusCode).toBe(200);
 
@@ -346,7 +346,7 @@ describe('GET /api/sync', () => {
   it('returns vendor devices through /api/sync when a provider is configured', async () => {
     seedManagedVendorDevices();
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
     const response = await apiInject(app, {
       method: 'GET',
@@ -397,7 +397,7 @@ describe('GET /api/sync', () => {
     );
 
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
     const response = await apiInject(app, {
       method: 'GET',
@@ -420,7 +420,7 @@ describe('GET /api/sync', () => {
   it('returns only vendor devices whose version is newer than lastVersion', async () => {
     seedManagedVendorDevices();
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
     const response = await apiInject(app, {
       method: 'GET',

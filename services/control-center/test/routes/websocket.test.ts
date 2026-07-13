@@ -168,7 +168,7 @@ describe('/ws/events websocket route', () => {
       const commandResponse = await apiInject(app, {
         method: 'POST',
         url: '/api/commands',
-        payload: signResponse.json(),
+        payload: signResponse.json().command,
       });
       expect(commandResponse.statusCode).toBe(200);
 

@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { SceneRegistry } from '../scenes/scene-registry';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
   dbInstance = new Database(dbPath);
@@ -111,6 +111,18 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       action_index INTEGER,
       action_type TEXT,
       created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS command_idempotency (
+      subject TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      state TEXT NOT NULL,
+      result_json TEXT,
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      PRIMARY KEY(subject, request_id)
     );
   `);
 
@@ -254,6 +266,30 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     nextVersion = 8;
     setSchemaVersion(db, nextVersion);
   }
+
+  if (nextVersion < 9) {
+    createCommandIdempotencyTable(db);
+    nextVersion = 9;
+    setSchemaVersion(db, nextVersion);
+  }
+}
+
+function createCommandIdempotencyTable(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS command_idempotency (
+      subject TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      state TEXT NOT NULL,
+      result_json TEXT,
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      PRIMARY KEY(subject, request_id)
+    );
+    CREATE INDEX IF NOT EXISTS command_idempotency_expires_at_idx
+      ON command_idempotency(expires_at);
+  `);
 }
 
 function reconcileCriticalSchema(db: Database.Database): void {
@@ -313,6 +349,7 @@ function reconcileCriticalSchema(db: Database.Database): void {
       created_at INTEGER NOT NULL
     );
   `);
+  createCommandIdempotencyTable(db);
   db.prepare("UPDATE devices SET device_type = type WHERE device_type IS NULL").run();
 }
 

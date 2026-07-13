@@ -2,20 +2,13 @@ import { describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app";
 import { createTestSecurityConfig } from "../helpers/build-test-app";
 
-const legacyCommandHmacKey = "legacy-test-key".padEnd(32, "x");
-
 describe("buildApp security dependencies", () => {
-  it("rejects an omitted legacy command HMAC key", () => {
-    expect(() => buildApp(undefined, {} as never)).toThrow(/legacyCommandHmacKey/);
-  });
-
   it("rejects an omitted validated security config", () => {
-    expect(() => buildApp(undefined, { legacyCommandHmacKey } as never)).toThrow(/securityConfig/);
+    expect(() => buildApp(undefined, {} as never)).toThrow(/securityConfig/);
   });
 
   it("uses configured proxy, CORS, and production route mode", async () => {
     const app = buildApp(undefined, {
-      legacyCommandHmacKey,
       securityConfig: createTestSecurityConfig({
         mode: "production",
         trustProxy: ["127.0.0.1"],

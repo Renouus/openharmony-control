@@ -18,6 +18,8 @@ import { signCommand } from "../security/envelope";
 import type { DeviceCommand } from "@smart-home/device-contract";
 import { demoEnvironmentSchema, demoMotionSchema, demoOfflineFaultSchema, demoSecurityFaultSchema, deviceCommandSchema } from "@smart-home/device-contract/schemas";
 import { parseRequest } from "./parse-request";
+import { signedCommandEnvelopeSchema } from "@smart-home/device-contract/schemas";
+import type { DeviceCommandService } from "../services/device-command-service";
 
 type OfflineFaultRequest = {
   deviceId?: string;
@@ -44,11 +46,18 @@ export async function registerDemoRoutes(
   deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
   sensorEventTriggerAdapter?: SensorEventTriggerAdapter,
   commandSigningKey?: string,
+  deviceCommandService?: DeviceCommandService,
 ): Promise<void> {
   if (commandSigningKey) {
     app.post("/api/demo/sign-command", async (request, reply) => {
       const parsed = parseRequest(deviceCommandSchema, request.body, reply); if (!parsed.ok) return;
       return signCommand(parsed.value, commandSigningKey);
+    });
+    app.post("/api/demo/commands", async (request, reply) => {
+      const parsed = parseRequest(signedCommandEnvelopeSchema, request.body, reply); if (!parsed.ok) return;
+      if (!deviceCommandService) return reply.code(503).send({ code: "COMMAND_SERVICE_UNAVAILABLE" });
+      const result = await deviceCommandService.executeSignedCommand(parsed.value);
+      return reply.code(result.statusCode).send(result.body);
     });
   }
   /** 故障注入：切换设备在线/离线 */

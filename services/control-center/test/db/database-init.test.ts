@@ -114,7 +114,12 @@ describe('database init migrations', () => {
       expect(providerSourceColumns.some((column) => column.name === 'source_capabilities_json')).toBe(true);
       const automationColumns = db.prepare('PRAGMA table_info(automations)').all() as Array<{ name: string }>;
       expect(automationColumns.some((column) => column.name === 'cooldown_ms')).toBe(true);
-      expect(schemaVersion.value).toBe('8');
+      expect(schemaVersion.value).toBe('9');
+      const idempotencyColumns = db.prepare("PRAGMA table_info(command_idempotency)").all() as Array<{ name: string; pk: number }>;
+      expect(idempotencyColumns.map((column) => column.name)).toEqual([
+        "subject", "request_id", "content_hash", "state", "result_json", "created_at", "completed_at", "expires_at",
+      ]);
+      expect(idempotencyColumns.filter((column) => column.pk > 0).map((column) => column.name)).toEqual(["subject", "request_id"]);
     } finally {
       if (!legacyClosed) {
         legacyDb.close();

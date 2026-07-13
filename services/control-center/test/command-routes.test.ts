@@ -23,7 +23,7 @@ async function sign(
   });
 
   expect(signed.statusCode).toBe(200);
-  return signed.json();
+  return signed.json().command;
 }
 
 function fakeVendorProvider(): VendorDeviceProvider {
@@ -122,6 +122,74 @@ describe("secure device commands", () => {
         status: "SUCCESS",
       },
     });
+  });
+
+  it("replays a completed raw command without executing it twice and rejects conflicting reuse", async () => {
+    const app = buildApp();
+    const raw = {
+      requestId: "idempotent-command",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    };
+    const first = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    const replay = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    const conflict = await apiInject(app, {
+      method: "POST", url: "/api/commands", payload: { ...raw, payload: { on: false } },
+    });
+    expect(first.statusCode).toBe(200);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json()).toEqual({ code: "REQUEST_ID_CONFLICT" });
+    expect(getDb().prepare("SELECT COUNT(*) AS count FROM history WHERE request_id = ?").get(raw.requestId)).toEqual({ count: 1 });
+  });
+
+  it("returns a stable pending response while one concurrent injection executes once", async () => {
+    let executionCount = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const provider = fakeVendorProvider();
+    provider.ownsDevice = () => true;
+    provider.executeCommand = async () => {
+      executionCount += 1;
+      await gate;
+      return { ok: false, code: "COMMAND_INVALID", status: CommandStatus.CommandInvalid, message: "terminal" };
+    };
+    const app = buildApp(undefined, { vendorProvider: provider });
+    const raw = {
+      requestId: "concurrent-command",
+      timestamp: Date.now(),
+      deviceId: "tuya-device",
+      name: "switch",
+      payload: { on: true },
+    };
+    const firstPromise = apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    await vi.waitFor(() => expect(executionCount).toBe(1));
+    const pending = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    expect(pending.statusCode).toBe(202);
+    expect(pending.json()).toEqual({ code: "COMMAND_IN_PROGRESS" });
+    release();
+    expect((await firstPromise).statusCode).toBe(400);
+    expect(executionCount).toBe(1);
+  });
+
+  it("rejects signed envelopes on production commands and executes them on the demo-only route", async () => {
+    const app = buildApp();
+    const raw = {
+      requestId: "trust-model-command",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    };
+    const signed = await demoInject(app, { method: "POST", url: "/api/demo/sign-command", payload: raw });
+    expect(signed.statusCode).toBe(200);
+    const production = await apiInject(app, { method: "POST", url: "/api/commands", payload: signed.json() });
+    expect(production.statusCode).toBe(400);
+    const demo = await demoInject(app, { method: "POST", url: "/api/demo/commands", payload: signed.json() });
+    expect(demo.statusCode).toBe(200);
   });
 
   it("keeps POST /api/commands behavior stable through the extracted service boundary", async () => {
@@ -235,7 +303,7 @@ describe("secure device commands", () => {
     });
   });
 
-  it("rejects unsigned commands", async () => {
+  it("accepts raw commands from the API-authenticated principal", async () => {
     const app = buildApp();
     const response = await apiInject(app, {
       method: "POST",
@@ -249,14 +317,11 @@ describe("secure device commands", () => {
       },
     });
 
-    expect(response.statusCode).toBe(401);
-    expect(response.json()).toMatchObject({
-      code: "COMMAND_UNAUTHORIZED",
-      status: "COMMAND_UNAUTHORIZED",
-    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: "SUCCESS" });
   });
 
-  it("rejects replayed command envelopes", async () => {
+  it("replays repeated raw commands", async () => {
     const app = buildApp();
     const envelope = await sign(app, {
       requestId: "cmd-replay",
@@ -278,8 +343,8 @@ describe("secure device commands", () => {
     });
 
     expect(first.statusCode).toBe(200);
-    expect(second.statusCode).toBe(401);
-    expect(second.json()).toMatchObject({ code: "COMMAND_UNAUTHORIZED" });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual(first.json());
   });
 
   it("records command history newest first", async () => {
@@ -486,7 +551,7 @@ describe("secure device commands", () => {
   });
 
   it("rejects commands for read-only Tuya sensor devices", async () => {
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const envelope = await sign(app, {
       requestId: "cmd-sensor",
       timestamp: Date.now(),

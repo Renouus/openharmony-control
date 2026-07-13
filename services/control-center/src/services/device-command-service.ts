@@ -166,6 +166,14 @@ export class DeviceCommandService {
     return this.executeVerifiedCommand(envelope);
   }
 
+  async executeUserCommand(command: DeviceCommand): Promise<DeviceCommandExecutionResult> {
+    return this.executeCommand(command, "user", {
+      executionId: command.requestId,
+      chainDepth: 0,
+      routeOrigin: "commands",
+    });
+  }
+
   async executeAutomationCommand(
     command: DeviceCommand,
     automationId: string,

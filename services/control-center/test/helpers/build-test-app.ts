@@ -1,11 +1,8 @@
-import { randomBytes } from "node:crypto";
 import { buildApp as buildProductionApp, type AppBuildOptions } from "../../src/app";
 import type { SecurityConfig } from "../../src/config/security-config";
 import type { DeviceRegistry } from "../../src/registry/device-registry";
 import type { InjectOptions } from "light-my-request";
 import type { FastifyInstance } from "fastify";
-
-const generatedTestHmacKey = randomBytes(32).toString("base64");
 
 export const API_AUTHORIZATION_HEADER = {
   authorization: `Bearer ${"test-api-token".padEnd(32, "a")}`,
@@ -40,7 +37,7 @@ export function demoInject(app: FastifyInstance, options: InjectOptions) {
   return app.inject(withDemoAuth(options));
 }
 
-type TestAppBuildOptions = Omit<AppBuildOptions, "legacyCommandHmacKey" | "securityConfig"> & {
+type TestAppBuildOptions = Omit<AppBuildOptions, "securityConfig"> & {
   securityConfig?: SecurityConfig;
 };
 
@@ -64,12 +61,10 @@ export function createTestSecurityConfig(
 
 export function buildApp(
   registry?: DeviceRegistry,
-  legacyCommandHmacKey = generatedTestHmacKey,
   options: TestAppBuildOptions = {},
 ) {
   return buildProductionApp(registry, {
     ...options,
-    legacyCommandHmacKey,
     securityConfig: options.securityConfig ?? createTestSecurityConfig(),
   });
 }

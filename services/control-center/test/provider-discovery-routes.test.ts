@@ -55,7 +55,7 @@ describe("provider discovery routes", () => {
   afterEach(() => closeDatabase());
 
   it("discovers provider devices and upserts them as pending", async () => {
-    const app = buildApp(undefined, undefined, {
+    const app = buildApp(undefined, {
       vendorProvider: createDiscoveryProvider(),
     });
 
@@ -93,7 +93,7 @@ describe("provider discovery routes", () => {
   });
 
   it("returns PROVIDER_NOT_FOUND when the requested provider is not registered", async () => {
-    const app = buildApp(undefined, undefined, {
+    const app = buildApp(undefined, {
       vendorProvider: createDiscoveryProvider(),
     });
 

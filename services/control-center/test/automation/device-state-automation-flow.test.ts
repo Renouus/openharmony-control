@@ -32,7 +32,7 @@ async function signAndRun(
   const executeResponse = await apiInject(app, {
     method: "POST",
     url: "/api/commands",
-    payload: signResponse.json(),
+    payload: signResponse.json().command,
   });
   expect(executeResponse.statusCode).toBe(200);
 }

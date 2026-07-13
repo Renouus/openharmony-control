@@ -7,11 +7,8 @@ import {
   createTestSecurityConfig,
 } from "../helpers/build-test-app";
 
-const LEGACY_HMAC_KEY = "authentication-test-hmac-key".padEnd(32, "h");
-
 function createApp(mode: "production" | "demo" = "demo", corsOrigins: string[] = []) {
   return buildApp(undefined, {
-    legacyCommandHmacKey: LEGACY_HMAC_KEY,
     securityConfig: createTestSecurityConfig({
       mode,
       demoToken: mode === "demo" ? "test-demo-token".padEnd(32, "d") : undefined,

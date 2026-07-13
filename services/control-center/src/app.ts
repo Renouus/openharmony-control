@@ -67,7 +67,6 @@ function createNoopAutomationRuntime(): AutomationRuntime {
 }
 
 export type AppBuildOptions = {
-  legacyCommandHmacKey: string;
   vendorProvider?: VendorDeviceProvider;
   securityConfig: SecurityConfig;
   rateLimiter?: RateLimiter;
@@ -85,15 +84,11 @@ export function buildApp(
   registry: DeviceRegistry | undefined,
   options: AppBuildOptions,
 ): FastifyInstance {
-  if (!options?.legacyCommandHmacKey || options.legacyCommandHmacKey.length < 32) {
-    throw new Error("legacyCommandHmacKey must be explicitly provided with at least 32 characters");
-  }
-  if (!options.securityConfig) {
+  if (!options?.securityConfig) {
     throw new Error("securityConfig must be explicitly provided and validated");
   }
   registry ??= new DeviceRegistry();
   const securityConfig = options.securityConfig;
-  const effectiveHmacKey = options.legacyCommandHmacKey;
   const rateLimiter = options.rateLimiter ?? new InMemoryRateLimiter();
   const rateLimitPolicies = options.rateLimitPolicies ?? RATE_LIMIT_POLICIES;
   const app = Fastify({
@@ -147,7 +142,7 @@ export function buildApp(
     simulators,
     history,
     replayGuard,
-    effectiveHmacKey,
+    securityConfig.demoHmacKey ?? "demo-command-signing-disabled",
     app.log,
     deviceStateTriggerAdapter,
     vendorProvider,
@@ -196,10 +191,10 @@ export function buildApp(
     await registerClimateRoutes(scope, registry);
     await registerCommandRoutes(scope, {
       registry,
-      secret: effectiveHmacKey,
       simulators,
       history,
       faultState,
+      deviceCommandService,
       deviceStateTriggerAdapter,
       vendorProvider,
     });
@@ -228,7 +223,8 @@ export function buildApp(
         faultState,
         deviceStateTriggerAdapter,
         sensorEventTriggerAdapter,
-        effectiveHmacKey,
+        securityConfig.demoHmacKey,
+        deviceCommandService,
       );
     });
   }

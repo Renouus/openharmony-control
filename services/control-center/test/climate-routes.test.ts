@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, initDatabase } from "../src/db/database";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
@@ -12,10 +13,12 @@ async function sign(
   });
 
   expect(signed.statusCode).toBe(200);
-  return signed.json();
+  return signed.json().command;
 }
 
 describe("climate prototype routes", () => {
+  beforeEach(() => initDatabase(":memory:"));
+  afterEach(() => closeDatabase());
   it("returns living room climate overview", async () => {
     const app = buildApp();
     const response = await apiInject(app, { method: "GET", url: "/api/climate" });

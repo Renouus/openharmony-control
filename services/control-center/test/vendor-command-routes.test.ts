@@ -49,7 +49,7 @@ describe("vendor command routes", () => {
   afterEach(() => closeDatabase());
 
   it("rejects commands for read-only Tuya sensor devices", async () => {
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const signResponse = await demoInject(app, {
       method: "POST",
       url: "/api/demo/sign-command",
@@ -67,7 +67,7 @@ describe("vendor command routes", () => {
     const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
-      payload: signResponse.json(),
+      payload: signResponse.json().command,
     });
 
     expect(response.statusCode).toBe(400);

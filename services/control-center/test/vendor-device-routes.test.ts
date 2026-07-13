@@ -157,7 +157,7 @@ describe("vendor device routes", () => {
 
   it("includes multiple vendor device kinds in the device list", async () => {
     seedManagedVendorDevices();
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const response = await apiInject(app, { method: "GET", url: "/api/devices" });
 
     expect(response.statusCode).toBe(200);
@@ -173,7 +173,7 @@ describe("vendor device routes", () => {
 
   it("returns vendor device detail responses for non-light kinds", async () => {
     seedManagedVendorDevices();
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const response = await apiInject(app, {
       method: "GET",
       url: "/api/devices/tuya-ac-1",
