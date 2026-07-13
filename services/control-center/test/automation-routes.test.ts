@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from './helpers/build-test-app';
 import { ProviderDeviceStore } from '../src/devices/provider-device-store';
 import { closeDatabase, getDb, initDatabase } from './helpers/test-database';
@@ -266,5 +266,63 @@ describe('automation routes', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
+  });
+
+  it('rejects invalid actions before writing even when the rule is disabled', async () => {
+    const app = buildApp();
+    const before = (getDb().prepare("SELECT COUNT(*) AS total FROM automations").get() as { total: number }).total;
+    const response = await apiInject(app, {
+      method: 'POST', url: '/api/automations',
+      payload: { name: 'Invalid disabled', triggerType: 'time', triggerJson: '[{"type":"time","time":"22:00"}]', actionJson: '[{"type":"device"}]', enabled: false },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_PAYLOAD_INVALID' });
+    expect((getDb().prepare("SELECT COUNT(*) AS total FROM automations").get() as { total: number }).total).toBe(before);
+  });
+
+  it('returns a safe 500 when listing a corrupted encrypted automation', async () => {
+    const app = buildApp();
+    await app.ready();
+    getDb().prepare("UPDATE automations SET action_json='ENC1:corrupt' WHERE id='night-routine'").run();
+    const response = await apiInject(app, { method: 'GET', url: '/api/automations' });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: 'INTERNAL_SERVER_ERROR' });
+    expect(response.body).not.toContain('night-routine');
+  });
+
+  it('compensates the inserted row when runtime reload fails', async () => {
+    const runtime = {
+      dispatch: async () => {}, hasRule: () => false, loadEnabledAutomations: async () => {},
+      reload: async () => { throw new Error('runtime reload secret'); }, unload: () => {},
+    };
+    const app = buildApp(undefined, { automationRuntime: runtime as never });
+    const versionBefore = (getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
+    const response = await apiInject(app, {
+      method: 'POST', url: '/api/automations',
+      payload: { name: 'Rollback rule', triggerType: 'time', triggerJson: '[{"type":"time","time":"22:00"}]', actionJson: '[{"type":"scene_run","sceneId":"away"}]', enabled: true },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+    expect((getDb().prepare("SELECT COUNT(*) AS total FROM automations WHERE name='Rollback rule'").get() as { total: number }).total).toBe(0);
+    expect((getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value).toBe(versionBefore);
+  });
+
+  it('restores the prior row when an update runtime reload fails', async () => {
+    const unload = vi.fn();
+    const runtime = {
+      dispatch: async () => {}, hasRule: () => true, loadEnabledAutomations: async () => {},
+      reload: async () => { throw new Error('runtime reload secret'); }, unload,
+    };
+    const app = buildApp(undefined, { automationRuntime: runtime as never });
+    const before = getDb().prepare("SELECT * FROM automations WHERE id='night-routine'").get();
+    const versionBefore = (getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
+    const response = await apiInject(app, {
+      method: 'PUT', url: '/api/automations/night-routine', payload: { name: 'Changed name' },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+    expect(getDb().prepare("SELECT * FROM automations WHERE id='night-routine'").get()).toEqual(before);
+    expect((getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value).toBe(versionBefore);
+    expect(unload).toHaveBeenCalledWith('night-routine');
   });
 });

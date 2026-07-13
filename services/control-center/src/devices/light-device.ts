@@ -86,4 +86,8 @@ export class LightDevice implements DeviceSimulator {
 
     throw new Error("COMMAND_INVALID");
   }
+
+  restoreState(state: DeviceState): void {
+    this.current = { ...state };
+  }
 }

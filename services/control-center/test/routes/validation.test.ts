@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiInject, buildApp } from "../helpers/build-test-app";
+import { apiInject, buildAppWithStubAutomation as buildApp } from "../helpers/build-test-app";
 
 const expectValidationError = (response: { statusCode: number; json(): unknown }) => {
   expect(response.statusCode).toBe(400);

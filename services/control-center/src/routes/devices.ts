@@ -328,38 +328,30 @@ function findLoadedDevice(
 }
 
 function loadDevicesFromDb(encryptedRepositories: EncryptedRepositories): EnhancedDeviceDescriptor[] {
-  try {
-    const db = getDb();
-    const rows = db
+  const db = getDb();
+  const rows = db
       .prepare(`
         SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE is_deleted = 0 AND lifecycle_state = 'active'
         ORDER BY room_id ASC, id ASC
       `)
-      .all() as DeviceRow[];
+    .all() as DeviceRow[];
 
-    return rows.map((row) => mapDeviceRow(row, encryptedRepositories));
-  } catch {
-    return [];
-  }
+  return rows.map((row) => mapDeviceRow(row, encryptedRepositories));
 }
 
 function loadSyncDeviceRow(deviceId: string, encryptedRepositories: EncryptedRepositories) {
-  try {
-    const db = getDb();
-    const row = db
+  const db = getDb();
+  const row = db
       .prepare(`
         SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE id = ?
       `)
-      .get(deviceId) as DeviceRow | undefined;
+    .get(deviceId) as DeviceRow | undefined;
 
-    return row ? mapDeviceRowToSyncDto(row, encryptedRepositories.devices) : undefined;
-  } catch {
-    return undefined;
-  }
+  return row ? mapDeviceRowToSyncDto(row, encryptedRepositories.devices) : undefined;
 }
 
 function ensureRegistryDevicesPersisted(registry: DeviceRegistry, encryptedRepositories: EncryptedRepositories): void {
@@ -529,16 +521,12 @@ function applyStoredCustomName(
 }
 
 function lookupStoredCustomName(deviceId: string): string | undefined {
-  try {
-    const row = getDb().prepare(`
+  const row = getDb().prepare(`
       SELECT custom_name
       FROM devices
       WHERE id = ? AND is_deleted = 0
-    `).get(deviceId) as { custom_name?: string | null } | undefined;
-    return row?.custom_name ?? undefined;
-  } catch {
-    return undefined;
-  }
+  `).get(deviceId) as { custom_name?: string | null } | undefined;
+  return row?.custom_name ?? undefined;
 }
 
 function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor, encryptedRepositories: EncryptedRepositories): void {

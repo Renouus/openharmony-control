@@ -1,11 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app";
 import {
   API_AUTHORIZATION_HEADER,
   DEMO_AUTHORIZATION_HEADER,
-  buildApp as buildTestApp,
+  buildAppWithStubAutomation as buildTestApp,
+  createStubAutomationRuntime,
   createTestSecurityConfig,
 } from "../helpers/build-test-app";
+import { closeDatabase, initDatabase } from "../helpers/test-database";
+
+beforeEach(() => initDatabase(":memory:"));
+afterEach(() => closeDatabase());
 
 function createApp(mode: "production" | "demo" = "demo", corsOrigins: string[] = []) {
   return buildApp(undefined, {
@@ -15,6 +20,7 @@ function createApp(mode: "production" | "demo" = "demo", corsOrigins: string[] =
       demoHmacKey: mode === "demo" ? "test-demo-hmac".padEnd(32, "h") : undefined,
       corsOrigins,
     }),
+    automationRuntime: createStubAutomationRuntime(),
   });
 }
 

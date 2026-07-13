@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { apiInject, buildAppWithStubAutomation as buildApp, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, initDatabase } from "./helpers/test-database";
+
+beforeEach(() => initDatabase(":memory:"));
+afterEach(() => closeDatabase());
 
 describe("environment and AC demo devices", () => {
   it("returns temperature and humidity for the sensor", async () => {

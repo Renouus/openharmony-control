@@ -13,6 +13,7 @@ import {
 import { automationIdParamsSchema, automationMutationSchema, automationUpdateSchema } from '@smart-home/device-contract/schemas';
 import { parseRequest } from './parse-request';
 import type { EncryptedRepositories } from '../db/encrypted-repositories';
+import { EncryptedDataInvalidError } from '../security/encrypted-field-codec';
 
 type AutomationRow = {
   id: string;
@@ -38,7 +39,7 @@ type AutomationDescriptor = {
 };
 
 export async function registerAutomationRoutes(app: FastifyInstance, encryptedRepositories: EncryptedRepositories): Promise<void> {
-  const runtime = (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
+  const runtime = (): AutomationRuntime => (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
 
   app.get('/api/automations', async () => {
     return {
@@ -76,16 +77,35 @@ export async function registerAutomationRoutes(app: FastifyInstance, encryptedRe
       throw error;
     }
 
-    const automation = createAutomation({
-      icon: body.icon,
-      name: body.name,
-      triggerType: normalized.triggerType,
-      triggerJson: normalized.triggerJson,
-      actionJson: normalized.actionJson,
-      enabled: body.enabled ?? true,
-    }, encryptedRepositories);
+    let automation: AutomationDescriptor;
+    const db = getDb();
+    const previousGlobalVersion = (db.prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
+    try {
+      automation = createAutomation({
+        icon: body.icon,
+        name: body.name,
+        triggerType: normalized.triggerType,
+        triggerJson: normalized.triggerJson,
+        actionJson: normalized.actionJson,
+        enabled: body.enabled ?? true,
+      }, encryptedRepositories);
+    } catch (error) {
+      if (error instanceof EncryptedDataInvalidError) return reply.code(400).send({ code: 'AUTOMATION_PAYLOAD_INVALID' });
+      throw error;
+    }
     if (automation.enabled) {
-      await runtime.reload(automation.id);
+      const createdVersion = (db.prepare('SELECT version FROM automations WHERE id = ?').get(automation.id) as { version: number }).version;
+      try {
+        await runtime().reload(automation.id);
+      } catch {
+        db.transaction(() => {
+          db.prepare('DELETE FROM automations WHERE id = ?').run(automation.id);
+          db.prepare("UPDATE metadata SET value=? WHERE key='global_version' AND value=?")
+            .run(previousGlobalVersion, String(createdVersion));
+        })();
+        runtime().unload(automation.id);
+        return reply.code(500).send({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+      }
     }
     return reply.code(201).send({ automation });
   });
@@ -100,6 +120,9 @@ export async function registerAutomationRoutes(app: FastifyInstance, encryptedRe
     if (body.triggerJson && !isValidAutomationConditionGroup(body.triggerJson)) {
       return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
     }
+    const db = getDb();
+    const previousRow = db.prepare('SELECT * FROM automations WHERE id = ?').get(automationId) as AutomationRow | undefined;
+    const previousGlobalVersion = (db.prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
     let automation: AutomationDescriptor | undefined;
     try {
       automation = updateAutomation(automationId, body, encryptedRepositories);
@@ -110,12 +133,33 @@ export async function registerAutomationRoutes(app: FastifyInstance, encryptedRe
           deviceId: error.deviceId,
         });
       }
+      if (error instanceof EncryptedDataInvalidError) {
+        return reply.code(400).send({ code: 'AUTOMATION_PAYLOAD_INVALID' });
+      }
       throw error;
     }
     if (!automation) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });
     }
-    await runtime.reload(automation.id);
+    const failedVersion = (db.prepare('SELECT version FROM automations WHERE id = ?').get(automation.id) as { version: number }).version;
+    try {
+      await runtime().reload(automation.id);
+    } catch {
+      if (previousRow) {
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE automations SET icon=?, name=?, trigger_type=?, trigger_json=?, action_json=?, enabled=?, updated_at=?, version=?, is_deleted=?
+            WHERE id=?
+          `).run(previousRow.icon, previousRow.name, previousRow.trigger_type, previousRow.trigger_json,
+            previousRow.action_json, previousRow.enabled, previousRow.updated_at, previousRow.version,
+            previousRow.is_deleted, previousRow.id);
+          db.prepare("UPDATE metadata SET value=? WHERE key='global_version' AND value=?")
+            .run(previousGlobalVersion, String(failedVersion));
+        })();
+        try { await runtime().reload(automation.id); } catch { runtime().unload(automation.id); }
+      }
+      return reply.code(500).send({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+    }
     return { automation };
   });
 
@@ -127,7 +171,7 @@ export async function registerAutomationRoutes(app: FastifyInstance, encryptedRe
     if (!success) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });
     }
-    runtime.unload(automationId);
+    runtime().unload(automationId);
     return reply.code(204).send();
   });
 }
@@ -148,24 +192,28 @@ function createAutomation(payload: Omit<AutomationDescriptor, 'id'>, encryptedRe
   seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const now = Date.now();
-  const version = incrementAndGetVersion(db);
   const id = `automation-${now}`;
-  db.prepare(`
+  const encryptedTrigger = encryptedRepositories.automations.encodeTriggerJson(id, payload.triggerType, payload.triggerJson);
+  const encryptedActions = encryptedRepositories.automations.encodeActionJson(id, payload.actionJson);
+  db.transaction(() => {
+    const version = incrementAndGetVersion(db);
+    db.prepare(`
     INSERT INTO automations (
       id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-  `).run(
+    `).run(
     id,
     payload.icon ?? null,
     payload.name,
     payload.triggerType,
-    encryptedRepositories.automations.encodeTriggerJson(id, payload.triggerJson),
-    encryptedRepositories.automations.encodeActionJson(id, payload.actionJson),
+    encryptedTrigger,
+    encryptedActions,
     payload.enabled ? 1 : 0,
     now,
     version,
-  );
+    );
+  })();
   return {
     id,
     ...payload,
@@ -205,23 +253,27 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
       actionJson: next.actionJson,
     }),
   );
+  const encryptedTrigger = encryptedRepositories.automations.encodeTriggerJson(automationId, next.triggerType, next.triggerJson);
+  const encryptedActions = encryptedRepositories.automations.encodeActionJson(automationId, next.actionJson);
   const now = Date.now();
-  const version = incrementAndGetVersion(db);
-  db.prepare(`
+  db.transaction(() => {
+    const version = incrementAndGetVersion(db);
+    db.prepare(`
     UPDATE automations
     SET icon = ?, name = ?, trigger_type = ?, trigger_json = ?, action_json = ?, enabled = ?, updated_at = ?, version = ?
     WHERE id = ? AND is_deleted = 0
-  `).run(
+    `).run(
     next.icon ?? null,
     next.name,
     next.triggerType,
-    encryptedRepositories.automations.encodeTriggerJson(automationId, next.triggerJson),
-    encryptedRepositories.automations.encodeActionJson(automationId, next.actionJson),
+    encryptedTrigger,
+    encryptedActions,
     next.enabled ? 1 : 0,
     now,
     version,
     automationId,
-  );
+    );
+  })();
   return next;
 }
 
@@ -271,7 +323,7 @@ function seedBuiltInAutomations(encryptedRepositories: EncryptedRepositories): v
     'auto_awesome',
     'Night Routine',
     'time',
-    encryptedRepositories.automations.encodeTriggerJson('night-routine', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
+    encryptedRepositories.automations.encodeTriggerJson('night-routine', 'time', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
     encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device_command', deviceId: 'door-front', command: 'lock:true' }])),
     1,
     now,

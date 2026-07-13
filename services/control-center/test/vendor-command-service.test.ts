@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandStatus } from "@smart-home/device-contract";
 import { CommandHistory } from "../src/history/command-history";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
@@ -6,8 +6,42 @@ import { DeviceRegistry } from "../src/registry/device-registry";
 import { ReplayGuard, signCommand } from "../src/security/envelope";
 import { DeviceCommandService } from "../src/services/device-command-service";
 import { createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
+import { LightDevice } from "../src/devices/light-device";
+
+afterEach(() => closeDatabase());
 
 describe("vendor command service", () => {
+  it("rolls back local state and never reports success when protected persistence fails", async () => {
+    initDatabase(":memory:");
+    const repositories = createTestEncryptedRepositories();
+    const registry = new DeviceRegistry();
+    const simulator = new LightDevice();
+    const before = registry.find("light-living-room")!;
+    getDb().prepare(`
+      INSERT INTO devices (id,name,type,room_id,state_json,updated_at,version,is_deleted,lifecycle_state)
+      VALUES (?,?,?,?,?,?,?,0,'active')
+    `).run(before.id, before.name, before.kind, before.room,
+      repositories.devices.encodeState(before.id, before.state as never), before.state.updatedAt, 1);
+    vi.spyOn(repositories.devices, "encodeState").mockImplementation(() => { throw new Error("sensitive sqlite detail"); });
+    const history = new CommandHistory();
+    const service = new DeviceCommandService(
+      registry, new Map([[simulator.deviceId, simulator]]), history, new ReplayGuard(),
+      "demo-shared-key", repositories,
+    );
+
+    const result = await service.executeUserCommand({
+      requestId: "persist-failure", timestamp: Date.now(), deviceId: "light-living-room",
+      name: "switch", payload: { on: false },
+    });
+
+    expect(result).toMatchObject({ ok: false, statusCode: 500, body: { code: "PERSISTENCE_FAILED" } });
+    expect(registry.find("light-living-room")?.state.power).toBe(true);
+    expect(simulator.execute({ requestId: "after-rollback", timestamp: Date.now(), deviceId: "light-living-room", name: "set-brightness", payload: { brightness: 40 } }).state.power).toBe(true);
+    expect(history.list(1)[0]?.status).not.toBe(CommandStatus.Success);
+    expect(JSON.stringify(result)).not.toContain("sensitive sqlite detail");
+  });
+
   it("routes signed vendor commands through the provider", async () => {
     const executeCommand = vi.fn(async () => ({
       ok: true as const,

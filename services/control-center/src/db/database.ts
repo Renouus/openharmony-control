@@ -126,6 +126,13 @@ export function initDatabase(dbPath: string, encryptedRepositories: EncryptedRep
       expires_at INTEGER NOT NULL,
       PRIMARY KEY(subject, request_id)
     );
+
+    CREATE TABLE IF NOT EXISTS command_reconciliation (
+      request_id TEXT PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   const currentVersion = ensureSchemaVersion(dbInstance);
@@ -425,7 +432,7 @@ function seedDefaultAutomations(db: Database.Database, encryptedRepositories: En
     'auto_awesome',
     'Night Routine',
     'time',
-    encryptedRepositories.automations.encodeTriggerJson('night-routine', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
+    encryptedRepositories.automations.encodeTriggerJson('night-routine', 'time', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
     encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }])),
     1,
     Date.now(),

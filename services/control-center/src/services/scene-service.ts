@@ -1,6 +1,7 @@
 import {
   CommandStatus,
   type CommandHistoryEntry,
+  type DeviceState,
   type SceneDescriptor,
   type SceneIdName,
 } from "@smart-home/device-contract";
@@ -11,7 +12,7 @@ import type { DeviceSimulator } from "../devices/device-simulator";
 import type { CommandHistory } from "../history/command-history";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { SceneRegistry } from "../scenes/scene-registry";
-import { persistDeviceStateUpdate, type ServiceLogger } from "./device-command-service";
+import { PersistenceFailedError, persistDeviceStateUpdate, type ServiceLogger } from "./device-command-service";
 import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
 import type { EncryptedRepositories } from "../db/encrypted-repositories";
 import type { JsonValue } from "../security/encrypted-field-codec";
@@ -268,8 +269,8 @@ export class SceneService {
         continue;
       }
 
+      const beforeState = { ...device.state } as DeviceState;
       try {
-        const beforeState = { ...device.state } as Record<string, unknown>;
         const result = simulator.execute({
           requestId,
           timestamp: Date.now(),
@@ -283,6 +284,7 @@ export class SceneService {
           failurePrefix: "Failed to persist scene device update:",
           mode: "upsert",
           encryptedRepositories: this.encryptedRepositories,
+          registry: this.registry,
         });
 
         if (syncedDevice) {
@@ -315,13 +317,19 @@ export class SceneService {
           status: CommandStatus.Success,
           message: `Scene ${scene.name} action completed`,
         }));
-      } catch {
+      } catch (error) {
+        if (error instanceof PersistenceFailedError) {
+          this.registry.restoreState(command.deviceId, beforeState);
+          simulator.restoreState?.(beforeState);
+        }
         results.push(this.history.add({
           requestId,
           deviceId: command.deviceId,
           commandName: command.name,
           status: CommandStatus.CommandInvalid,
-          message: "Scene action payload is invalid",
+          message: error instanceof PersistenceFailedError
+            ? "Scene action persistence failed"
+            : "Scene action payload is invalid",
         }));
       }
     }

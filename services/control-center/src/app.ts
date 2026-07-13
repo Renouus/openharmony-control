@@ -57,7 +57,7 @@ import { createRateLimitHook, createSelectedRateLimitHook } from "./security/rat
 import { InMemoryRateLimiter, RATE_LIMIT_POLICIES, type RateLimiter, type RateLimitPolicies } from "./security/rate-limiter";
 import { WebSocketTicketStore } from "./security/websocket-ticket-store";
 import { z } from "zod";
-import { EncryptedFieldCodec } from "./security/encrypted-field-codec";
+import { EncryptedDataInvalidError, EncryptedFieldCodec } from "./security/encrypted-field-codec";
 import { EncryptedRepositories } from "./db/encrypted-repositories";
 
 function createNoopAutomationRuntime(): AutomationRuntime {
@@ -77,6 +77,7 @@ export type AppBuildOptions = {
   rateLimitPolicies?: RateLimitPolicies;
   websocketTicketStore?: WebSocketTicketStore;
   maxWebSocketConnectionsPerSubject?: number;
+  automationRuntime?: AutomationRuntime;
 };
 
 export function createVendorProviderFromEnv(
@@ -110,6 +111,13 @@ export function buildApp(
     trustProxy: securityConfig.trustProxy,
     https: securityConfig.tls,
   } as never) as unknown as FastifyInstance;
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof EncryptedDataInvalidError) {
+      return reply.code(500).send({ code: "INTERNAL_SERVER_ERROR" });
+    }
+    app.log.error("Request failed");
+    return reply.code(500).send({ code: "INTERNAL_SERVER_ERROR" });
+  });
   const history = new CommandHistory();
   const sceneRegistry = new SceneRegistry();
   const faultState = createDemoFaultState();
@@ -136,7 +144,7 @@ export function buildApp(
   );
 
   const replayGuard = new ReplayGuard();
-  let automationRuntime = createNoopAutomationRuntime();
+  let automationRuntime = options.automationRuntime ?? createNoopAutomationRuntime();
   const deviceStateTriggerAdapter = new DeviceStateTriggerAdapter((event) =>
     automationRuntime.dispatch(event),
   );
@@ -163,25 +171,22 @@ export function buildApp(
     deviceStateTriggerAdapter,
     vendorProvider,
   );
-  try {
-    const db = getDb();
-    const realExecutionLogService = new ExecutionLogService(db);
-    const realActionExecutor = new ActionExecutor(deviceCommandService, sceneService, realExecutionLogService);
-    automationRuntime = new AutomationRuntime(
-      new AutomationRepository(db, encryptedRepositories),
-      new RuleEvaluator(),
-      realActionExecutor,
-      realExecutionLogService,
-      new RegistryDeviceStateReader(registry),
-    );
-    void automationRuntime.loadEnabledAutomations().catch((loadError) => {
-      app.log.error({ err: loadError }, "[automation] failed to load enabled automations at startup");
-    });
-  } catch (e) {
-    app.log.error({ err: e }, "[automation] FATAL: runtime init failed, falling back to noop runtime");
-    automationRuntime = createNoopAutomationRuntime();
-  }
   app.decorate("automationRuntime", automationRuntime);
+  app.addHook("onReady", async () => {
+    if (!options.automationRuntime) {
+      const db = getDb();
+      const executionLogService = new ExecutionLogService(db);
+      automationRuntime = new AutomationRuntime(
+        new AutomationRepository(db, encryptedRepositories),
+        new RuleEvaluator(),
+        new ActionExecutor(deviceCommandService, sceneService, executionLogService),
+        executionLogService,
+        new RegistryDeviceStateReader(registry),
+      );
+      (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime = automationRuntime;
+    }
+    await automationRuntime.loadEnabledAutomations();
+  });
 
   // 允许跨域（OpenHarmony 模拟器通过 10.0.2.2 访问?
   void app.register(cors, { origin: [...securityConfig.corsOrigins] });

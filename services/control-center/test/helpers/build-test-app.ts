@@ -5,6 +5,7 @@ import type { InjectOptions } from "light-my-request";
 import type { FastifyInstance } from "fastify";
 import { EncryptedRepositories } from "../../src/db/encrypted-repositories";
 import { EncryptedFieldCodec } from "../../src/security/encrypted-field-codec";
+import type { AutomationRuntime } from "../../src/automation/automation-runtime";
 
 export const API_AUTHORIZATION_HEADER = {
   authorization: `Bearer ${"test-api-token".padEnd(32, "a")}`,
@@ -78,5 +79,25 @@ export function buildApp(
   return buildProductionApp(registry, {
     ...options,
     securityConfig: options.securityConfig ?? createTestSecurityConfig(),
+  });
+}
+
+export function createStubAutomationRuntime(): AutomationRuntime {
+  return {
+    loadEnabledAutomations: async () => {},
+    reload: async () => {},
+    unload: () => {},
+    hasRule: () => false,
+    dispatch: async () => {},
+  } as unknown as AutomationRuntime;
+}
+
+export function buildAppWithStubAutomation(
+  registry?: DeviceRegistry,
+  options: TestAppBuildOptions = {},
+) {
+  return buildApp(registry, {
+    ...options,
+    automationRuntime: options.automationRuntime ?? createStubAutomationRuntime(),
   });
 }

@@ -307,6 +307,13 @@ export class DeviceRegistry {
     return this.enhance(device);
   }
 
+  restoreState(deviceId: string, state: DeviceState): EnhancedDeviceDescriptor | undefined {
+    const device = this.devices.get(deviceId);
+    if (!device) return undefined;
+    device.state = { ...state };
+    return this.enhance(device);
+  }
+
   /** 将基础描述符增强为包含 room / displayOrder / health 的完整结构 */
   private enhance(device: DeviceDescriptor): EnhancedDeviceDescriptor {
     const metadata = this.metadata.get(device.id) ?? {

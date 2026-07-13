@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryRateLimiter, RATE_LIMIT_POLICIES, type RateLimitPolicies } from "../../src/security/rate-limiter";
-import { apiInject, buildApp, createTestSecurityConfig, demoInject } from "../helpers/build-test-app";
+import { apiInject, buildAppWithStubAutomation as buildApp, createTestSecurityConfig, demoInject } from "../helpers/build-test-app";
 
 describe("InMemoryRateLimiter", () => {
   it("allows up to the limit, rejects the next request, and resets after the window", () => {

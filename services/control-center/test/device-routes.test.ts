@@ -221,6 +221,23 @@ describe("device snapshot routes", () => {
     expect(response.json().devices).toHaveLength(1);
   });
 
+  it("returns a safe 500 instead of falling back when encrypted device state is corrupt", async () => {
+    getDb().prepare(`
+      INSERT INTO devices (id,name,type,room_id,state_json,updated_at,version,is_deleted,lifecycle_state)
+      VALUES ('light-living-room','Living Light','light','living-room','ENC1:corrupt',1,1,0,'active')
+    `).run();
+    const app = buildApp();
+
+    const list = await apiInject(app, { method: "GET", url: "/api/devices" });
+    const detail = await apiInject(app, { method: "GET", url: "/api/devices/light-living-room" });
+
+    expect(list.statusCode).toBe(500);
+    expect(detail.statusCode).toBe(500);
+    expect(list.json()).toEqual({ code: "INTERNAL_SERVER_ERROR" });
+    expect(detail.json()).toEqual({ code: "INTERNAL_SERVER_ERROR" });
+    expect(JSON.stringify(list.json())).not.toContain("light-living-room");
+  });
+
   it("accepts both roomId and room when updating a device room assignment", async () => {
     const db = getDb();
     db.prepare(`

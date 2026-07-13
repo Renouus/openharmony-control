@@ -47,11 +47,12 @@ export class AutomationRepository {
   }
 
   private toRule(row: AutomationRow): AutomationRule {
+    const triggerJson = this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json);
     return {
       id: row.id,
       enabled: row.enabled === 1 && row.is_deleted === 0,
-      trigger: toRuntimeTrigger(row.trigger_type, this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json)),
-      conditionGroup: toRuntimeConditionGroup(row.trigger_type, this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json)),
+      trigger: toRuntimeTrigger(row.trigger_type, triggerJson),
+      conditionGroup: toRuntimeConditionGroup(row.trigger_type, triggerJson),
       actions: toRuntimeActions(this.encryptedRepositories.automations.decodeActionJson(row.id, row.action_json)),
       cooldownMs: typeof row.cooldown_ms === "number" && Number.isFinite(row.cooldown_ms) ? row.cooldown_ms : 0,
     };

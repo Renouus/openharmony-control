@@ -77,8 +77,8 @@ export async function loadManagedVendorDevice(
 
 export async function listManagedVendorSyncDevices(
   db: Database.Database,
+  encrypted: DeviceEncryptedFields,
   vendorProvider?: VendorDeviceProvider,
-  encrypted?: DeviceEncryptedFields,
 ): Promise<DeviceSyncDto[]> {
   if (!vendorProvider) {
     return [];
@@ -95,7 +95,7 @@ export async function listManagedVendorSyncDevices(
   return rows.map((row) => {
     const liveDevice = liveById.get(row.id);
     if (!liveDevice) {
-      return mapDeviceRowToSyncDto(row, encrypted!);
+      return mapDeviceRowToSyncDto(row, encrypted);
     }
 
     const customName = row.custom_name ?? liveDevice.customName;

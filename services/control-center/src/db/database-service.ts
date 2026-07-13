@@ -219,7 +219,7 @@ export class DatabaseService {
   }
 
   private async loadAllVendorSyncDevices(): Promise<DeviceSyncDto[]> {
-    return await listManagedVendorSyncDevices(this.db, this.vendorProvider, this.encryptedRepositories.devices);
+    return await listManagedVendorSyncDevices(this.db, this.encryptedRepositories.devices, this.vendorProvider);
   }
 
   private ensureBuiltInScenesPersisted(): void {

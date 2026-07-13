@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { EncryptedFieldCodec, EncryptedDataInvalidError } from "../../src/security/encrypted-field-codec";
 import { EncryptedRepositories } from "../../src/db/encrypted-repositories";
-import { readFileSync, readdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
-import ts from "typescript";
 import { apiInject, buildApp, createTestEncryptedRepositories, demoInject } from "../helpers/build-test-app";
 import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 import type { VendorDeviceProvider } from "../../src/integrations/vendor-provider";
+import { auditProtectedPersistenceTree } from "../helpers/protected-persistence-audit";
 
 function repositories(): EncryptedRepositories {
   return new EncryptedRepositories(new EncryptedFieldCodec(new Map([["test", Buffer.alloc(32, 7)]]), "test"));
@@ -121,11 +121,37 @@ describe("EncryptedRepositories", () => {
     expect(() => repository.providerSources.decodeRaw("provider-empty", oversizedRaw)).toThrow(EncryptedDataInvalidError);
   });
 
+  it("applies protected domain validation before encryption", () => {
+    const repository = repositories();
+    expect(() => repository.providerSources.encodeStatus("provider", [{}])).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.providerSources.encodeFunctions("provider", [{ code: "" }])).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.providerSources.encodeRaw("provider", { blob: "x".repeat(1_000_001) })).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.automations.encodeTriggerJson("auto", "time", '[{"garbage":1}]')).toThrow(EncryptedDataInvalidError);
+    expect(() => repository.automations.encodeActionJson("auto", '[{"type":"device"}]')).toThrow(EncryptedDataInvalidError);
+  });
+
+  it("rejects app readiness when an encrypted automation cannot be decrypted", async () => {
+    initDatabase(":memory:");
+    getDb().prepare("UPDATE automations SET trigger_json = 'ENC1:corrupt' WHERE id = 'night-routine'").run();
+    const app = buildApp();
+    let startupError: unknown;
+    try { await app.ready(); } catch (error) { startupError = error; }
+    expect(startupError).toBeInstanceOf(EncryptedDataInvalidError);
+    await app.close();
+  });
+
+  it("completes app readiness when persisted automations are valid", async () => {
+    initDatabase(":memory:");
+    const app = buildApp();
+    await app.ready();
+    await app.close();
+  });
+
   it("encrypts provider, scene, automation, and idempotency fields independently", () => {
     const repository = repositories();
     expect(repository.providerSources.encodeStatus("tuya:1", []).startsWith("ENC1:")).toBe(true);
     expect(repository.scenes.decodeCommands("scene-1", repository.scenes.encodeCommands("scene-1", []))).toEqual([]);
-    expect(repository.automations.decodeTriggerJson("auto-1", "time", repository.automations.encodeTriggerJson("auto-1", "[{\"type\":\"time\",\"time\":\"22:00\"}]")))
+    expect(repository.automations.decodeTriggerJson("auto-1", "time", repository.automations.encodeTriggerJson("auto-1", "time", "[{\"type\":\"time\",\"time\":\"22:00\"}]")))
       .toBe('[{"type":"time","time":"22:00"}]');
     const result = { statusCode: 200, body: { ok: true } };
     const codec = repository.commandResults.forRequest("app", "request-1");
@@ -207,7 +233,10 @@ describe("EncryptedRepositories", () => {
       expect(() => repositories.scenes.decodeCommands("relocated", scene.commands_json)).toThrow(EncryptedDataInvalidError);
       expect(() => repositories.codec.decode(scene.commands_json, { table: "scenes", recordId: sceneId, field: "trigger_json" })).toThrow(EncryptedDataInvalidError);
       db.prepare("UPDATE devices SET state_json='ENC1:corrupt' WHERE id='light-living-room'").run();
-      expect((await apiInject(app, { method: "GET", url: "/api/sync?lastVersion=0" })).statusCode).toBe(500);
+      const corruptedSync = await apiInject(app, { method: "GET", url: "/api/sync?lastVersion=0" });
+      expect(corruptedSync.statusCode).toBe(500);
+      expect(corruptedSync.json()).toEqual({ code: "INTERNAL_SERVER_ERROR" });
+      expect(corruptedSync.body).not.toContain("light-living-room");
       await app.close();
     } finally {
       closeDatabase();
@@ -217,44 +246,6 @@ describe("EncryptedRepositories", () => {
 
   it("audits live protected-column code for direct JSON serialization", () => {
     const root = resolve(import.meta.dirname, "../../src");
-    const protectedNames = /(?:state_json|source_status_json|source_functions_json|raw_json|trigger_json|commands_json|action_json|result_json)/;
-    const files = walkTypescript(root);
-    expect(files.length).toBeGreaterThan(20);
-    for (const path of files) {
-      const source = readFileSync(path, "utf8");
-      expect(source, `${path} exports a production plaintext codec`).not.toContain("PlaintextResultCodec");
-      if (path.endsWith("encrypted-repositories.ts")) continue;
-      const ast = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
-      const violations: string[] = [];
-      const visit = (node: ts.Node): void => {
-        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-            node.expression.expression.getText(ast) === "JSON" && ["parse", "stringify"].includes(node.expression.name.text)) {
-          let statement: ts.Node = node;
-          while (statement.parent && !ts.isStatement(statement)) statement = statement.parent;
-          const context = statement.getText(ast);
-          const approvedEncryptedArgument = ancestors(node).some((ancestor) => ts.isCallExpression(ancestor) &&
-            /\.encode(?:State|TriggerJson|ActionJson|Trigger|Commands|Status|Functions|Raw)$/.test(ancestor.expression.getText(ast)));
-          const approvedCapabilityTaxonomy = path.endsWith("provider-device-store.ts") && node.arguments[0]?.getText(ast) === "device.capabilities";
-          const approvedScenePresentation = (path.endsWith("scene-service.ts") || path.endsWith("database-service.ts")) && /(?:\.repeat|\.actionsLabel)(?:\s*\?\?\s*\[\])?$/.test(node.arguments[0]?.getText(ast) ?? "");
-          if (protectedNames.test(context) && !approvedEncryptedArgument && !approvedCapabilityTaxonomy && !approvedScenePresentation) violations.push(`${node.expression.name.text}@${ast.getLineAndCharacterOfPosition(node.pos).line + 1}`);
-        }
-        ts.forEachChild(node, visit);
-      };
-      visit(ast);
-      expect(violations, `${path} directly serializes a protected column`).toEqual([]);
-    }
+    expect(auditProtectedPersistenceTree(root)).toEqual([]);
   });
 });
-
-function walkTypescript(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = resolve(directory, entry.name);
-    return entry.isDirectory() ? walkTypescript(path) : entry.name.endsWith(".ts") ? [path] : [];
-  });
-}
-
-function ancestors(node: ts.Node): ts.Node[] {
-  const result: ts.Node[] = [];
-  for (let current = node.parent; current; current = current.parent) result.push(current);
-  return result;
-}

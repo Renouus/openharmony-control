@@ -11,7 +11,7 @@ import { DeviceCommandService } from "../src/services/device-command-service";
 import { LightDevice } from "../src/devices/light-device";
 import { CommandStatus, DeviceCapability, DeviceHealth, DeviceKind } from "@smart-home/device-contract";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
-import { canonicalCommandHash } from "../src/db/command-idempotency-store";
+import { canonicalCommandHash, CommandIdempotencyStore } from "../src/db/command-idempotency-store";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
@@ -86,6 +86,7 @@ describe("secure device commands", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     closeDatabase();
   });
 
@@ -558,7 +559,7 @@ describe("secure device commands", () => {
     });
   });
 
-  it("logs side-effect failures without changing successful command execution", async () => {
+  it("reports persistence failure and rolls back when database persistence fails", async () => {
     const logger = { error: vi.fn() };
     const registry = new DeviceRegistry();
     const history = new CommandHistory();
@@ -578,26 +579,79 @@ describe("secure device commands", () => {
       timestamp: Date.now(),
       deviceId: "light-living-room",
       name: "switch",
-      payload: { on: true },
+      payload: { on: false },
     }, "demo-shared-key");
 
     const result = await service.executeSignedCommand(envelope);
 
-    expect(result.ok).toBe(true);
-    expect(result.body).toMatchObject({
-      status: "SUCCESS",
-      deviceId: "light-living-room",
-      state: expect.objectContaining({ power: true }),
-      historyEntry: expect.objectContaining({
-        requestId: "cmd-side-effect-log",
-        status: "SUCCESS",
-      }),
-    });
-    expect(result.ok && result.body.syncedDevice).toBeUndefined();
+    expect(result).toMatchObject({ ok: false, statusCode: 500, body: { code: "PERSISTENCE_FAILED" } });
+    expect(registry.find("light-living-room")?.state.power).toBe(true);
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to update database or broadcast after command:"),
     );
+  });
+
+  it("does not return success when encrypted idempotency result persistence fails", async () => {
+    const app = buildApp();
+    getDb().exec(`
+      CREATE TRIGGER fail_command_result_persistence
+      BEFORE UPDATE OF result_json ON command_idempotency
+      BEGIN SELECT RAISE(ABORT, 'sensitive sqlite detail'); END;
+    `);
+    const envelope = await sign(app, {
+      requestId: "cmd-result-persist-fail", timestamp: Date.now(), deviceId: "light-living-room",
+      name: "switch", payload: { on: false },
+    });
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: envelope });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "PERSISTENCE_FAILED" });
+    expect(JSON.stringify(response.json())).not.toContain("sqlite");
+  });
+
+  it("marks external commands for reconciliation when result persistence fails", async () => {
+    const provider: VendorDeviceProvider = {
+      ...fakeVendorProvider(),
+      executeCommand: async () => ({
+        ok: true, status: CommandStatus.Success, deviceId: "tuya-light-1",
+        state: { power: true, online: true, updatedAt: 10 },
+      }),
+    };
+    const app = buildApp(undefined, { vendorProvider: provider });
+    getDb().exec(`
+      CREATE TRIGGER fail_vendor_result_persistence
+      BEFORE UPDATE OF result_json ON command_idempotency
+      BEGIN SELECT RAISE(ABORT, 'sensitive vendor detail'); END;
+    `);
+    const envelope = await sign(app, {
+      requestId: "cmd-vendor-reconcile", timestamp: Date.now(), deviceId: "tuya-light-1",
+      name: "switch", payload: { on: true },
+    });
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: envelope });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "PERSISTENCE_FAILED" });
+    expect(getDb().prepare("SELECT device_id, reason FROM command_reconciliation WHERE request_id=?").get("cmd-vendor-reconcile"))
+      .toEqual({ device_id: "tuya-light-1", reason: "RESULT_PERSISTENCE_FAILED" });
+  });
+
+  it("marks external commands for reconciliation when result completion loses ownership", async () => {
+    const provider: VendorDeviceProvider = {
+      ...fakeVendorProvider(),
+      executeCommand: async () => ({
+        ok: true, status: CommandStatus.Success, deviceId: "tuya-light-1",
+        state: { power: true, online: true, updatedAt: 10 },
+      }),
+    };
+    vi.spyOn(CommandIdempotencyStore.prototype, "complete").mockReturnValue(false);
+    const app = buildApp(undefined, { vendorProvider: provider });
+    const envelope = await sign(app, {
+      requestId: "cmd-vendor-incomplete", timestamp: Date.now(), deviceId: "tuya-light-1",
+      name: "switch", payload: { on: true },
+    });
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: envelope });
+    expect(response.statusCode).toBe(202);
+    expect(getDb().prepare("SELECT device_id, reason FROM command_reconciliation WHERE request_id=?").get("cmd-vendor-incomplete"))
+      .toEqual({ device_id: "tuya-light-1", reason: "RESULT_PERSISTENCE_INCOMPLETE" });
   });
 
   it("rejects commands for read-only Tuya sensor devices", async () => {

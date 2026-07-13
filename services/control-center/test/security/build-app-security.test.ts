@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app";
-import { createTestSecurityConfig } from "../helpers/build-test-app";
+import { createStubAutomationRuntime, createTestSecurityConfig } from "../helpers/build-test-app";
 
 describe("buildApp security dependencies", () => {
   it("rejects an omitted validated security config", () => {
@@ -14,6 +14,7 @@ describe("buildApp security dependencies", () => {
         trustProxy: ["127.0.0.1"],
         corsOrigins: ["https://allowed.example"],
       }),
+      automationRuntime: createStubAutomationRuntime(),
     });
 
     app.get("/__test/request-ip", (request) => ({ ip: request.ip }));

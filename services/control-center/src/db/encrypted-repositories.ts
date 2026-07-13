@@ -45,11 +45,11 @@ export class DeviceEncryptedFields extends BoundFields {
 
 export class ProviderSourceEncryptedFields extends BoundFields {
   constructor(codec: EncryptedFieldCodec, allow = false) { super(codec, "device_provider_sources", allow); }
-  encodeStatus(id: string, value: JsonValue): string { return this.encode(id, "source_status_json", normalizeJson(value)); }
+  encodeStatus(id: string, value: JsonValue): string { return this.encode(id, "source_status_json", parseWith(providerStatusRecordsSchema, normalizeJson(value)) as JsonValue); }
   decodeStatus(id: string, value: string): JsonValue[] { return parseWith(providerStatusRecordsSchema, this.decode(id, "source_status_json", value)) as JsonValue[]; }
-  encodeFunctions(id: string, value: JsonValue): string { return this.encode(id, "source_functions_json", normalizeJson(value)); }
+  encodeFunctions(id: string, value: JsonValue): string { return this.encode(id, "source_functions_json", parseWith(providerFunctionRecordsSchema, normalizeJson(value)) as JsonValue); }
   decodeFunctions(id: string, value: string): JsonValue[] { return parseWith(providerFunctionRecordsSchema, this.decode(id, "source_functions_json", value)) as JsonValue[]; }
-  encodeRaw(id: string, value: JsonValue): string { return this.encode(id, "raw_json", normalizeJson(value)); }
+  encodeRaw(id: string, value: JsonValue): string { return this.encode(id, "raw_json", parseWith(jsonRecordSchema, normalizeJson(value)) as JsonValue); }
   decodeRaw(id: string, value: string): JsonValue { return parseWith(jsonRecordSchema, this.decode(id, "raw_json", value)) as JsonValue; }
 }
 
@@ -63,11 +63,17 @@ export class SceneEncryptedFields extends BoundFields {
 
 export class AutomationEncryptedFields extends BoundFields {
   constructor(codec: EncryptedFieldCodec, allow = false) { super(codec, "automations", allow); }
-  encodeTriggerJson(id: string, json: string): string { return this.encode(id, "trigger_json", parseJson(json)); }
+  encodeTriggerJson(id: string, triggerType: string, json: string): string {
+    const parsed = parseJson(stringifyValidatedAutomationTrigger(parseJson(json), triggerType));
+    return this.encode(id, "trigger_json", parsed);
+  }
   decodeTriggerJson(id: string, triggerType: string, value: string): string {
     return stringifyValidatedAutomationTrigger(this.decode(id, "trigger_json", value), triggerType);
   }
-  encodeActionJson(id: string, json: string): string { return this.encode(id, "action_json", parseJson(json)); }
+  encodeActionJson(id: string, json: string): string {
+    const parsed = parseJson(stringifyValidatedAutomationActions(parseJson(json)));
+    return this.encode(id, "action_json", parsed);
+  }
   decodeActionJson(id: string, value: string): string {
     return stringifyValidatedAutomationActions(this.decode(id, "action_json", value));
   }

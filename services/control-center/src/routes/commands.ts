@@ -87,11 +87,24 @@ export async function registerCommandRoutes(
     } finally {
       clearInterval(heartbeat);
     }
-    const completed = idempotencyStore.complete(subject, command.requestId, contentHash, token, {
-      statusCode: result.statusCode,
-      body: result.body,
-    });
-    if (!completed) return reply.code(202).send({ code: "COMMAND_IN_PROGRESS" });
+    let completed: boolean;
+    try {
+      completed = idempotencyStore.complete(subject, command.requestId, contentHash, token, {
+        statusCode: result.statusCode,
+        body: result.body,
+      });
+    } catch {
+      if (result.ok && options.vendorProvider?.ownsDevice(command.deviceId)) {
+        markVendorCommandForReconciliation(command.requestId, command.deviceId, "RESULT_PERSISTENCE_FAILED");
+      }
+      return reply.code(500).send({ code: "PERSISTENCE_FAILED" });
+    }
+    if (!completed) {
+      if (result.ok && options.vendorProvider?.ownsDevice(command.deviceId)) {
+        markVendorCommandForReconciliation(command.requestId, command.deviceId, "RESULT_PERSISTENCE_INCOMPLETE");
+      }
+      return reply.code(202).send({ code: "COMMAND_IN_PROGRESS" });
+    }
     if (!result.ok) {
       return reply.code(result.statusCode).send(result.body);
     }
@@ -107,4 +120,11 @@ export async function registerCommandRoutes(
       entries: options.history.list(Number.isFinite(limit) ? limit : 20),
     };
   });
+}
+
+function markVendorCommandForReconciliation(requestId: string, deviceId: string, reason: string): void {
+  getDb().prepare(`
+    INSERT OR REPLACE INTO command_reconciliation (request_id, device_id, reason, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(requestId, deviceId, reason, Date.now());
 }

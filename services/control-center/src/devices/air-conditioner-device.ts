@@ -42,4 +42,8 @@ export class AirConditionerDevice implements DeviceSimulator {
       state: this.current,
     };
   }
+
+  restoreState(state: DeviceState): void {
+    this.current = { ...state };
+  }
 }

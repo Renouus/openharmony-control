@@ -543,10 +543,11 @@ describe("scene routes", () => {
     });
   });
 
-  it("logs scene side-effect failures without changing successful scene execution", async () => {
+  it("fails closed and rolls back scene actions when encrypted persistence fails", async () => {
     const logger = { error: vi.fn() };
+    const registry = new DeviceRegistry();
     const service = new SceneService(
-      new DeviceRegistry(),
+      registry,
       new SceneRegistry(),
       new CommandHistory(),
       new Map<string, DoorLockDevice | LightDevice | AirConditionerDevice>([
@@ -560,15 +561,20 @@ describe("scene routes", () => {
     );
 
     getDb().prepare("DROP TABLE metadata").run();
+    const beforeStates = registry.list().map((device) => ({ id: device.id, state: { ...device.state } }));
 
     const result = await service.runScene("away");
 
     expect(result.ok).toBe(true);
     expect(result.body).toMatchObject({
       sceneId: "away",
-      status: "SUCCESS",
+      status: "PARTIAL_FAILURE",
       results: expect.arrayContaining([
-        expect.objectContaining({ deviceId: "door-front", status: "SUCCESS" }),
+        expect.objectContaining({
+          deviceId: "door-front",
+          status: "COMMAND_INVALID",
+          message: "Scene action persistence failed",
+        }),
       ]),
     });
     expect(result.ok && result.body.syncedDevices).toEqual([]);
@@ -576,6 +582,7 @@ describe("scene routes", () => {
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to persist scene device update:"),
     );
+    expect(registry.list().map((device) => ({ id: device.id, state: device.state }))).toEqual(beforeStates);
   });
 
   it("rejects pending devices when creating scenes", async () => {
