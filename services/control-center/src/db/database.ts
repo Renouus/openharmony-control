@@ -14,9 +14,9 @@ export function initDatabase(
   encryptedRepositories: EncryptedRepositories,
   options: { mode?: ControlCenterMode } = {},
 ): Database.Database {
-  dbInstance = new Database(dbPath);
-
-  dbInstance.exec(`
+  const db = new Database(dbPath);
+  try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -143,16 +143,15 @@ export function initDatabase(
     );
   `);
 
-  const currentVersion = ensureSchemaVersion(dbInstance);
-  applyMigrations(dbInstance, currentVersion);
-  reconcileCriticalSchema(dbInstance);
-  try {
-    establishEmptyEncryptedDatabase(dbInstance, encryptedRepositories);
-    assertEncryptedDatabaseReady(dbInstance, encryptedRepositories);
-    return dbInstance;
+    const currentVersion = ensureSchemaVersion(db);
+    applyMigrations(db, currentVersion);
+    reconcileCriticalSchema(db);
+    establishEmptyEncryptedDatabase(db, encryptedRepositories);
+    assertEncryptedDatabaseReady(db, encryptedRepositories);
+    dbInstance = db;
+    return db;
   } catch (error) {
-    dbInstance.close();
-    dbInstance = null;
+    db.close();
     throw error;
   }
 }
@@ -162,14 +161,12 @@ export function seedDemoData(
   registry: DeviceRegistry,
   encryptedRepositories: EncryptedRepositories,
 ): number {
-  const populated = [
-    "devices", "device_provider_sources", "rooms", "scenes", "automations", "history",
-    "automation_execution_logs", "command_idempotency", "command_reconciliation",
-  ]
-    .some((table) => Number(db.prepare(`SELECT count(*) FROM ${table}`).pluck().get()) > 0);
-  if (populated) return 0;
-
-  return db.transaction(() => {
+  const seed = db.transaction(() => {
+    const populated = [
+      "devices", "device_provider_sources", "rooms", "scenes", "automations", "history",
+      "automation_execution_logs", "command_idempotency", "command_reconciliation",
+    ].some((table) => Number(db.prepare(`SELECT count(*) FROM ${table}`).pluck().get()) > 0);
+    if (populated) return 0;
     let version = Number(db.prepare("SELECT value FROM metadata WHERE key='global_version'").pluck().get() ?? 0);
     const insertDevice = db.prepare(`
       INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
@@ -198,7 +195,8 @@ export function seedDemoData(
     );
     db.prepare("UPDATE metadata SET value=? WHERE key='global_version'").run(String(version));
     return devices.length + 1;
-  })();
+  });
+  return seed.immediate();
 }
 
 export function getDb(): Database.Database {

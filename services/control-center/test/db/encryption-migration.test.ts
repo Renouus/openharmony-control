@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { EncryptedRepositories } from "../../src/db/encrypted-repositories";
-import { migrateEncryptedFields } from "../../src/db/encryption-migration";
+import { EncryptionMigrationAfterBackupError, migrateEncryptedFields } from "../../src/db/encryption-migration";
 import { EncryptedFieldCodec } from "../../src/security/encrypted-field-codec";
 
 const directories: string[] = [];
@@ -61,6 +61,9 @@ describe("encrypted field migration", () => {
     const report = migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() });
     expect(readFileSync(backupPath)).toEqual(before);
     expect(report.migratedValues).toBe(9);
+    expect(report.plaintextValues).toBe(0);
+    expect(report.encryptedValues).toBe(9);
+    expect(report.referencedKeyIds).toEqual(["active"]);
     const db = new Database(dbPath, { readonly: true });
     const values = [
       ...(db.prepare("SELECT state_json value FROM devices").all() as Array<{ value: string }>),
@@ -108,6 +111,20 @@ describe("encrypted field migration", () => {
     expect(() => migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() })).toThrow(/backup/i);
   });
 
+  it("reports old and active key references after migrating a mixed-key database", () => {
+    const { dbPath, backupPath } = fixture();
+    const oldRepositories = repositories(keys, "old");
+    const db = new Database(dbPath);
+    db.prepare("UPDATE devices SET state_json=? WHERE id='light-1'").run(
+      oldRepositories.devices.encodeState("light-1", { updatedAt: 1, online: true, power: false }),
+    );
+    db.close();
+    const result = migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() });
+    expect(result.migratedValues).toBe(8);
+    expect(result.encryptedValues).toBe(9);
+    expect(result.referencedKeyIds).toEqual(["active", "old"]);
+  });
+
   it("preflights all values and leaves the database unchanged on malformed JSON", () => {
     const { dbPath, backupPath } = fixture();
     const db = new Database(dbPath);
@@ -122,6 +139,52 @@ describe("encrypted field migration", () => {
     expect((failure as Error).message).not.toContain("secret-not-json");
     expect(readFileSync(dbPath)).toEqual(before);
     expect(existsSync(backupPath)).toBe(false);
+  });
+
+  it("cleans an owned partial backup when copying fails", () => {
+    const { dbPath, backupPath } = fixture();
+    expect(() => migrateEncryptedFields({
+      dbPath, backupPath, write: true, encryptedRepositories: repositories(),
+      backupFileSystem: { writeSync: () => { throw new Error("copy failed"); } },
+    })).toThrow(/copy failed/i);
+    expect(existsSync(backupPath)).toBe(false);
+    expect(existsSync(`${backupPath}.partial`)).toBe(false);
+  });
+
+  it("retains a completed plaintext backup and reports its path when later migration work fails", () => {
+    const { dbPath, backupPath } = fixture();
+    const repository = repositories();
+    repository.codec.encode = () => { throw new Error("secret internal failure"); };
+    let failure: unknown;
+    try { migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repository }); } catch (error) { failure = error; }
+    expect(failure).toBeInstanceOf(EncryptionMigrationAfterBackupError);
+    expect((failure as Error).message).toContain(backupPath);
+    expect((failure as Error).message).toMatch(/plaintext backup/i);
+    expect((failure as Error).message).not.toContain("secret internal failure");
+    expect(existsSync(backupPath)).toBe(true);
+    const db = new Database(dbPath, { readonly: true });
+    expect(db.prepare("SELECT state_json FROM devices WHERE id='light-1'").pluck().get()).not.toMatch(/^ENC1:/);
+    db.close();
+  });
+
+  it("streams beyond a scan batch and rejects oversized plaintext with a controlled identifier", () => {
+    const { dbPath, backupPath } = fixture();
+    const db = new Database(dbPath);
+    const insert = db.prepare("INSERT INTO devices VALUES (?, ?)");
+    const addRows = db.transaction(() => {
+      for (let index = 0; index < 300; index += 1) {
+        insert.run(`batch-${index}`, JSON.stringify({ updatedAt: index + 2, online: true }));
+      }
+    });
+    addRows();
+    db.close();
+    expect(migrateEncryptedFields({ dbPath, backupPath, write: false, encryptedRepositories: repositories() }).plaintextValues).toBe(309);
+
+    const oversized = new Database(dbPath);
+    oversized.prepare("UPDATE devices SET state_json=? WHERE id='batch-299'").run(`{"secret":"${"x".repeat(1024 * 1024)}"}`);
+    oversized.close();
+    expect(() => migrateEncryptedFields({ dbPath, backupPath, write: false, encryptedRepositories: repositories() }))
+      .toThrow(/batch-299/);
   });
 
   it("rejects corrupt envelopes and missing referenced keys without changing data", () => {
