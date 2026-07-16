@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import type { AutomationRule } from "./types";
 import { toRuntimeActions, toRuntimeConditionGroup, toRuntimeTrigger } from "./automation-normalization";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
 
 type AutomationRow = {
   id: string;
@@ -13,7 +14,7 @@ type AutomationRow = {
 };
 
 export class AutomationRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: Database.Database, private readonly encryptedRepositories: EncryptedRepositories) {}
 
   listEnabledRules(): AutomationRule[] {
     const rows = this.db.prepare(`
@@ -46,12 +47,13 @@ export class AutomationRepository {
   }
 
   private toRule(row: AutomationRow): AutomationRule {
+    const triggerJson = this.encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json);
     return {
       id: row.id,
       enabled: row.enabled === 1 && row.is_deleted === 0,
-      trigger: toRuntimeTrigger(row.trigger_type, row.trigger_json),
-      conditionGroup: toRuntimeConditionGroup(row.trigger_type, row.trigger_json),
-      actions: toRuntimeActions(row.action_json),
+      trigger: toRuntimeTrigger(row.trigger_type, triggerJson),
+      conditionGroup: toRuntimeConditionGroup(row.trigger_type, triggerJson),
+      actions: toRuntimeActions(this.encryptedRepositories.automations.decodeActionJson(row.id, row.action_json)),
       cooldownMs: typeof row.cooldown_ms === "number" && Number.isFinite(row.cooldown_ms) ? row.cooldown_ms : 0,
     };
   }

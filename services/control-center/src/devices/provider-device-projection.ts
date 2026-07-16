@@ -7,6 +7,8 @@ import {
 } from "../db/device-sync-mapper";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { ProviderDeviceStore } from "./provider-device-store";
+import type { DeviceEncryptedFields } from "../db/encrypted-repositories";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
 
 type ActiveVendorRow = DeviceSyncRow & {
   note: string | null;
@@ -16,6 +18,7 @@ type ActiveVendorRow = DeviceSyncRow & {
 
 export async function listManagedVendorDevices(
   db: Database.Database,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor[]> {
   if (!vendorProvider) {
@@ -30,7 +33,7 @@ export async function listManagedVendorDevices(
   const liveDevices = await vendorProvider.listDevices();
   const liveById = new Map(liveDevices.map((device) => [device.id, device]));
   const fallbackById = new Map(
-    new ProviderDeviceStore(db)
+    new ProviderDeviceStore(db, encryptedRepositories)
       .listActiveDevices()
       .filter((device) => vendorProvider.ownsDevice(device.id))
       .map((device) => [device.id, device]),
@@ -50,6 +53,7 @@ export async function listManagedVendorDevices(
 export async function loadManagedVendorDevice(
   db: Database.Database,
   deviceId: string,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (!vendorProvider || !vendorProvider.ownsDevice(deviceId)) {
@@ -66,13 +70,14 @@ export async function loadManagedVendorDevice(
     return applyVendorOverlay(liveDevice, row);
   }
 
-  return new ProviderDeviceStore(db)
+  return new ProviderDeviceStore(db, encryptedRepositories)
     .listActiveDevices()
     .find((device) => device.id === deviceId);
 }
 
 export async function listManagedVendorSyncDevices(
   db: Database.Database,
+  encrypted: DeviceEncryptedFields,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<DeviceSyncDto[]> {
   if (!vendorProvider) {
@@ -90,7 +95,7 @@ export async function listManagedVendorSyncDevices(
   return rows.map((row) => {
     const liveDevice = liveById.get(row.id);
     if (!liveDevice) {
-      return mapDeviceRowToSyncDto(row);
+      return mapDeviceRowToSyncDto(row, encrypted);
     }
 
     const customName = row.custom_name ?? liveDevice.customName;

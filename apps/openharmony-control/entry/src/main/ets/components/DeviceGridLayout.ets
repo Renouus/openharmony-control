@@ -18,6 +18,7 @@ export struct SmallDeviceCard {
   @Prop fillHeight: boolean = false;
   onTap: () => void = () => {};
   onEdit: () => void = () => {};
+  onDelete: () => void = () => {};
 
   private isOn(): boolean {
     if (this.device.kind === 'door-lock') {
@@ -37,6 +38,14 @@ export struct SmallDeviceCard {
   private EditMenu() {
     Menu() {
       MenuItem({ content: '编辑设备' }).onClick(() => this.onEdit())
+      MenuItem({ content: '删除设备' }).onClick(() => {
+        AlertDialog.show({
+          title: '确认删除设备',
+          message: `确定要删除「${this.device.name}」吗？此操作不可撤销。`,
+          primaryButton: { value: '取消', action: () => {} },
+          secondaryButton: { value: '确认删除', fontColor: '#D32F2F', action: () => this.onDelete() },
+        });
+      })
     }
   }
 
@@ -99,6 +108,7 @@ export struct LargeDeviceCard {
   @Prop device: HomeDeviceCardState;
   onTap: () => void = () => {};
   onEdit: () => void = () => {};
+  onDelete: () => void = () => {};
 
   private usesPrimaryShell(): boolean {
     return this.device.kind === 'door-lock' || (this.device.kind !== 'air-conditioner' && this.device.power);
@@ -115,6 +125,14 @@ export struct LargeDeviceCard {
   private EditMenu() {
     Menu() {
       MenuItem({ content: '编辑设备' }).onClick(() => this.onEdit())
+      MenuItem({ content: '删除设备' }).onClick(() => {
+        AlertDialog.show({
+          title: '确认删除设备',
+          message: `确定要删除「${this.device.name}」吗？此操作不可撤销。`,
+          primaryButton: { value: '取消', action: () => {} },
+          secondaryButton: { value: '确认删除', fontColor: '#D32F2F', action: () => this.onDelete() },
+        });
+      })
     }
   }
 
@@ -209,6 +227,7 @@ export struct DeviceGridLayout {
   @Prop devices: HomeDeviceCardState[];
   onDeviceTap: (deviceId: string, kind: string) => void = () => {};
   onDeviceEdit: (deviceId: string) => void = () => {};
+  onDeviceDelete: (deviceId: string) => void = () => {};
 
   private getChunks(): DeviceChunk[] {
     const chunks: DeviceChunk[] = [];
@@ -256,7 +275,8 @@ export struct DeviceGridLayout {
               LargeDeviceCard({
                 device: chunk.large,
                 onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind),
-                onEdit: () => this.onDeviceEdit(chunk.large!.id)
+                onEdit: () => this.onDeviceEdit(chunk.large!.id),
+                onDelete: () => this.onDeviceDelete(chunk.large!.id)
               })
               .layoutWeight(1)
             } else {
@@ -271,7 +291,8 @@ export struct DeviceGridLayout {
                     device: smallDev,
                     fillHeight: !!chunk.large && chunk.smalls.length === 2,
                     onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind),
-                    onEdit: () => this.onDeviceEdit(smallDev.id)
+                    onEdit: () => this.onDeviceEdit(smallDev.id),
+                    onDelete: () => this.onDeviceDelete(smallDev.id)
                   })
                   .layoutWeight(!!chunk.large && chunk.smalls.length === 2 ? 1 : 0)
                 }, (dev: HomeDeviceCardState) => dev.id)
@@ -291,7 +312,8 @@ export struct DeviceGridLayout {
                     device: smallDev,
                     fillHeight: !!chunk.large && chunk.smalls.length === 2,
                     onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind),
-                    onEdit: () => this.onDeviceEdit(smallDev.id)
+                    onEdit: () => this.onDeviceEdit(smallDev.id),
+                    onDelete: () => this.onDeviceDelete(smallDev.id)
                   })
                   .layoutWeight(!!chunk.large && chunk.smalls.length === 2 ? 1 : 0)
                 }, (dev: HomeDeviceCardState) => dev.id)
@@ -308,7 +330,8 @@ export struct DeviceGridLayout {
               LargeDeviceCard({
                 device: chunk.large,
                 onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind),
-                onEdit: () => this.onDeviceEdit(chunk.large!.id)
+                onEdit: () => this.onDeviceEdit(chunk.large!.id),
+                onDelete: () => this.onDeviceDelete(chunk.large!.id)
               })
               .layoutWeight(1)
             } else {

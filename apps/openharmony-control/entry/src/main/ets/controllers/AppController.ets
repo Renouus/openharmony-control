@@ -3,6 +3,7 @@
   AutomationViewStateData,
   CameraViewStateData,
   ClimateViewStateData,
+  DevicePanelState,
   FamilyViewStateData,
   FamilySettingsStateData,
   HomeViewStateData,
@@ -45,8 +46,7 @@ import { AutomationViewModel } from '../viewmodel/automation-view-model';
 import { NotificationsViewModel } from '../viewmodel/notifications-view-model';
 import { FamilyViewModel } from '../viewmodel/family-view-model';
 import { normalizeRepositoryError } from '../services/smart-home-repository';
-
-const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
+import { SERVICE_API_BASE_URL } from '../config/ServiceEndpointConfig';
 
 export interface DeviceCreationResult {
   success: boolean;
@@ -73,7 +73,7 @@ export class AppController {
   readonly familyViewModel: FamilyViewModel;
 
   constructor() {
-    const api = new DeviceApi(BACKEND_BASE_URL);
+    const api = new DeviceApi(SERVICE_API_BASE_URL);
     this.repository = new SmartHomeRepository(api);
     this.sceneStore = new SceneStore();
     this.automationStore = new AutomationStore();
@@ -345,7 +345,7 @@ export class AppController {
   }
 
   async handleDemoMotion(snapshot: AppStateSnapshot, deviceId: string, motionDetected: boolean): Promise<void> {
-    const api = new DeviceApi(BACKEND_BASE_URL);
+    const api = new DeviceApi(SERVICE_API_BASE_URL);
     try {
       await api.postDemoMotion(deviceId, motionDetected);
     } catch (e) {
@@ -394,9 +394,10 @@ export class AppController {
 
   // ====== Access handlers ======
 
-  async handleAccessToggleLock(snapshot: AppStateSnapshot, locked: boolean): Promise<void> {
+  async handleAccessToggleLock(snapshot: AppStateSnapshot, deviceId: string, locked: boolean): Promise<void> {
+    const effectiveDeviceId = deviceId.length > 0 ? deviceId : snapshot.access.primary.id;
     const feedback = await this.accessViewModel.togglePrimaryLock(
-      snapshot.access.primary.id, locked);
+      effectiveDeviceId, locked);
     return this.refreshPlannedTargets(snapshot, 'accessToggleLock', feedback);
   }
 
@@ -414,23 +415,37 @@ export class AppController {
 
   // ====== Climate handlers ======
 
-  async handleClimateMode(snapshot: AppStateSnapshot, mode: string): Promise<void> {
-    await this.homeViewModel.toggleDevicePower('ac-living-room', mode !== 'off');
+  async handleClimateMode(snapshot: AppStateSnapshot, deviceId: string, mode: string): Promise<void> {
+    const effectiveDeviceId = deviceId.length > 0 ? deviceId : 'ac-living-room';
+    await this.homeViewModel.toggleDevicePower(effectiveDeviceId, mode !== 'off');
     const feedback = await this.climateViewModel.updateMode(mode);
     return this.refreshPlannedTargets(snapshot, 'climateMode', feedback);
   }
 
-  async handleClimateTarget(snapshot: AppStateSnapshot, delta: number): Promise<void> {
-    const nextTarget = Math.max(16, Math.min(30,
-      snapshot.climate.targetTemperature + delta));
-    await this.homeViewModel.toggleDevicePower('ac-living-room', true);
-    const feedback = await this.climateViewModel.updateTargetTemperature(nextTarget);
+  async handleClimateTarget(snapshot: AppStateSnapshot, deviceId: string, delta: number): Promise<void> {
+    const effectiveDeviceId = deviceId.length > 0 ? deviceId : 'ac-living-room';
+    let currentTarget: number;
+    if (deviceId.length > 0) {
+      const device = snapshot.home.devices.find((d: DevicePanelState) => d.id === deviceId);
+      currentTarget = device !== undefined ? device.targetTemperature : 24;
+    } else {
+      currentTarget = snapshot.climate.targetTemperature;
+    }
+    const nextTarget = Math.max(16, Math.min(30, currentTarget + delta));
+    await this.homeViewModel.toggleDevicePower(effectiveDeviceId, true);
+    const feedback = await this.homeViewModel.setTargetTemperature(effectiveDeviceId, nextTarget);
     return this.refreshPlannedTargets(snapshot, 'climateTarget', feedback);
   }
 
-  async handleClimatePowerToggle(snapshot: AppStateSnapshot): Promise<void> {
-    const nextMode = snapshot.climate.isPowered ? 'off' : 'auto';
-    return this.handleClimateMode(snapshot, nextMode);
+  async handleClimatePowerToggle(snapshot: AppStateSnapshot, deviceId: string): Promise<void> {
+    let nextMode: string;
+    if (deviceId.length > 0) {
+      const device = snapshot.home.devices.find((d: DevicePanelState) => d.id === deviceId);
+      nextMode = (device !== undefined && device.power) ? 'off' : 'auto';
+    } else {
+      nextMode = snapshot.climate.isPowered ? 'off' : 'auto';
+    }
+    return this.handleClimateMode(snapshot, deviceId, nextMode);
   }
 
   // ====== Automation handlers ======
@@ -584,6 +599,15 @@ export class AppController {
       snapshot.assignHome(await this.fetchHome('房间已删除'));
     } catch {
       snapshot.assignHome(await this.fetchHome('删除房间失败'));
+    }
+  }
+
+  async handleDeleteDevice(snapshot: AppStateSnapshot, deviceId: string): Promise<void> {
+    try {
+      await this.repository.deleteDevice(deviceId);
+      snapshot.assignHome(await this.fetchHome('设备已删除'));
+    } catch {
+      snapshot.assignHome(await this.fetchHome('删除设备失败'));
     }
   }
 

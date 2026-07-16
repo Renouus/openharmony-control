@@ -285,6 +285,13 @@ export class DeviceRegistry {
     return device ? this.enhance(device) : undefined;
   }
 
+  /** 从注册表中删除设备，返回是否删除成功 */
+  delete(deviceId: string): boolean {
+    const removed = this.devices.delete(deviceId);
+    this.metadata.delete(deviceId);
+    return removed;
+  }
+
   /** 部分更新设备状态（patch），自动刷新 updatedAt */
   update(deviceId: string, state: Partial<DeviceState>): EnhancedDeviceDescriptor | undefined {
     const device = this.devices.get(deviceId);
@@ -297,6 +304,13 @@ export class DeviceRegistry {
       ...state,
       updatedAt: Date.now(),
     };
+    return this.enhance(device);
+  }
+
+  restoreState(deviceId: string, state: DeviceState): EnhancedDeviceDescriptor | undefined {
+    const device = this.devices.get(deviceId);
+    if (!device) return undefined;
+    device.state = { ...state };
     return this.enhance(device);
   }
 

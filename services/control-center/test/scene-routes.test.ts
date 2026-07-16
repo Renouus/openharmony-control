@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import { DoorLockDevice } from "../src/devices/door-lock-device";
 import { AirConditionerDevice } from "../src/devices/air-conditioner-device";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
@@ -24,7 +24,7 @@ describe("scene routes", () => {
 
   it("lists supported home scenes", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/scenes" });
+    const response = await apiInject(app, { method: "GET", url: "/api/scenes" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().scenes).toEqual(
@@ -51,11 +51,11 @@ describe("scene routes", () => {
 
   it("runs away scene commands against devices", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/away/run",
     });
-    const devices = await app.inject({ method: "GET", url: "/api/devices" });
+    const devices = await apiInject(app, { method: "GET", url: "/api/devices" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -82,7 +82,7 @@ describe("scene routes", () => {
 
   it("keeps POST /api/scenes/:sceneId/run behavior stable through the extracted service boundary", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/away/run",
     });
@@ -108,13 +108,13 @@ describe("scene routes", () => {
 
   it("persists scene-driven device state changes into sqlite sync data", async () => {
     const app = buildApp();
-    const runResponse = await app.inject({
+    const runResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/away/run",
     });
     expect(runResponse.statusCode).toBe(200);
 
-    const syncResponse = await app.inject({
+    const syncResponse = await apiInject(app, {
       method: "GET",
       url: "/api/sync?lastVersion=0",
     });
@@ -141,16 +141,16 @@ describe("scene routes", () => {
 
   it("reports missing scenes and partial failures", async () => {
     const app = buildApp();
-    const missing = await app.inject({
+    const missing = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/missing/run",
     });
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/offline",
       payload: { deviceId: "light-living-room", offline: true },
     });
-    const partial = await app.inject({
+    const partial = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/away/run",
     });
@@ -163,12 +163,12 @@ describe("scene routes", () => {
 
   it("updates scene enabled state without using automation routes", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/scenes/movie",
       payload: { enabled: false },
     });
-    const list = await app.inject({ method: "GET", url: "/api/scenes" });
+    const list = await apiInject(app, { method: "GET", url: "/api/scenes" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -181,10 +181,10 @@ describe("scene routes", () => {
 
   it("preserves omitted fields during scene PATCH updates", async () => {
     const app = buildApp();
-    const before = await app.inject({ method: "GET", url: "/api/scenes" });
+    const before = await apiInject(app, { method: "GET", url: "/api/scenes" });
     const original = before.json().scenes.find((scene: { id: string }) => scene.id === "movie");
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PATCH",
       url: "/api/scenes/movie",
       payload: { enabled: true },
@@ -206,7 +206,7 @@ describe("scene routes", () => {
 
   it("preserves omitted fields during partial scene PUT updates", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -223,7 +223,7 @@ describe("scene routes", () => {
     });
 
     const createdScene = createResponse.json().scene;
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PUT",
       url: `/api/scenes/${createdScene.id}`,
       payload: {
@@ -255,7 +255,7 @@ describe("scene routes", () => {
     try {
       initDatabase(dbPath);
       const firstApp = buildApp();
-      const createResponse = await firstApp.inject({
+      const createResponse = await apiInject(firstApp, {
         method: "POST",
         url: "/api/scenes",
         payload: {
@@ -279,7 +279,7 @@ describe("scene routes", () => {
 
       initDatabase(dbPath);
       const secondApp = buildApp();
-      const listResponse = await secondApp.inject({ method: "GET", url: "/api/scenes" });
+      const listResponse = await apiInject(secondApp, { method: "GET", url: "/api/scenes" });
 
       expect(listResponse.statusCode).toBe(200);
       expect(listResponse.json().scenes).toEqual(
@@ -302,7 +302,7 @@ describe("scene routes", () => {
   it("lists newly created scenes at the end in creation order", async () => {
     const app = buildApp();
 
-    const firstCreate = await app.inject({
+    const firstCreate = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -318,7 +318,7 @@ describe("scene routes", () => {
       },
     });
 
-    const secondCreate = await app.inject({
+    const secondCreate = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -337,7 +337,7 @@ describe("scene routes", () => {
     expect(firstCreate.statusCode).toBe(201);
     expect(secondCreate.statusCode).toBe(201);
 
-    const listResponse = await app.inject({ method: "GET", url: "/api/scenes" });
+    const listResponse = await apiInject(app, { method: "GET", url: "/api/scenes" });
     const scenes = listResponse.json().scenes as Array<{ id: string }>;
     const firstCreatedSceneId = firstCreate.json().scene.id as string;
     const secondCreatedSceneId = secondCreate.json().scene.id as string;
@@ -348,7 +348,7 @@ describe("scene routes", () => {
 
   it("removes deleted scenes from later list responses", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -367,7 +367,7 @@ describe("scene routes", () => {
     expect(createResponse.statusCode).toBe(201);
     const createdSceneId = createResponse.json().scene.id as string;
 
-    const deleteResponse = await app.inject({
+    const deleteResponse = await apiInject(app, {
       method: "DELETE",
       url: `/api/scenes/${createdSceneId}`,
     });
@@ -379,7 +379,7 @@ describe("scene routes", () => {
       },
     });
 
-    const listResponse = await app.inject({ method: "GET", url: "/api/scenes" });
+    const listResponse = await apiInject(app, { method: "GET", url: "/api/scenes" });
     const scenes = listResponse.json().scenes as Array<{ id: string }>;
 
     expect(scenes.find((scene) => scene.id === createdSceneId)).toBeUndefined();
@@ -387,7 +387,7 @@ describe("scene routes", () => {
 
   it("keeps an updated scene in the same list position", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -406,11 +406,11 @@ describe("scene routes", () => {
     expect(createResponse.statusCode).toBe(201);
     const createdSceneId = createResponse.json().scene.id as string;
 
-    const listBeforeUpdate = await app.inject({ method: "GET", url: "/api/scenes" });
+    const listBeforeUpdate = await apiInject(app, { method: "GET", url: "/api/scenes" });
     const scenesBeforeUpdate = listBeforeUpdate.json().scenes as Array<{ id: string }>;
     const previousIndex = scenesBeforeUpdate.findIndex((scene) => scene.id === createdSceneId);
 
-    const updateResponse = await app.inject({
+    const updateResponse = await apiInject(app, {
       method: "PUT",
       url: `/api/scenes/${createdSceneId}`,
       payload: {
@@ -428,7 +428,7 @@ describe("scene routes", () => {
 
     expect(updateResponse.statusCode).toBe(200);
 
-    const listAfterUpdate = await app.inject({ method: "GET", url: "/api/scenes" });
+    const listAfterUpdate = await apiInject(app, { method: "GET", url: "/api/scenes" });
     const scenesAfterUpdate = listAfterUpdate.json().scenes as Array<{ id: string; name: string }>;
     const updatedIndex = scenesAfterUpdate.findIndex((scene) => scene.id === createdSceneId);
 
@@ -446,6 +446,7 @@ describe("scene routes", () => {
         ["light-living-room", new LightDevice()],
         ["ac-living-room", new AirConditionerDevice()],
       ]),
+      createTestEncryptedRepositories(),
     );
 
     const before = service.listScenes();
@@ -475,7 +476,7 @@ describe("scene routes", () => {
 
   it("persists room ownership when creating a room-scoped scene", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -503,7 +504,7 @@ describe("scene routes", () => {
 
   it("preserves stored room ownership when a scene update payload tries to move it", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {
@@ -523,7 +524,7 @@ describe("scene routes", () => {
     expect(createResponse.statusCode).toBe(201);
     const createdSceneId = createResponse.json().scene.id as string;
 
-    const updateResponse = await app.inject({
+    const updateResponse = await apiInject(app, {
       method: "PUT",
       url: `/api/scenes/${createdSceneId}`,
       payload: {
@@ -542,10 +543,11 @@ describe("scene routes", () => {
     });
   });
 
-  it("logs scene side-effect failures without changing successful scene execution", async () => {
+  it("fails closed and rolls back scene actions when encrypted persistence fails", async () => {
     const logger = { error: vi.fn() };
+    const registry = new DeviceRegistry();
     const service = new SceneService(
-      new DeviceRegistry(),
+      registry,
       new SceneRegistry(),
       new CommandHistory(),
       new Map<string, DoorLockDevice | LightDevice | AirConditionerDevice>([
@@ -553,19 +555,26 @@ describe("scene routes", () => {
         ["light-living-room", new LightDevice()],
         ["ac-living-room", new AirConditionerDevice()],
       ]),
+      createTestEncryptedRepositories(),
       logger,
+      undefined,
     );
 
     getDb().prepare("DROP TABLE metadata").run();
+    const beforeStates = registry.list().map((device) => ({ id: device.id, state: { ...device.state } }));
 
     const result = await service.runScene("away");
 
     expect(result.ok).toBe(true);
     expect(result.body).toMatchObject({
       sceneId: "away",
-      status: "SUCCESS",
+      status: "PARTIAL_FAILURE",
       results: expect.arrayContaining([
-        expect.objectContaining({ deviceId: "door-front", status: "SUCCESS" }),
+        expect.objectContaining({
+          deviceId: "door-front",
+          status: "COMMAND_INVALID",
+          message: "Scene action persistence failed",
+        }),
       ]),
     });
     expect(result.ok && result.body.syncedDevices).toEqual([]);
@@ -573,10 +582,11 @@ describe("scene routes", () => {
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to persist scene device update:"),
     );
+    expect(registry.list().map((device) => ({ id: device.id, state: device.state }))).toEqual(beforeStates);
   });
 
   it("rejects pending devices when creating scenes", async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([
       {
         provider: "tuya",
@@ -599,7 +609,7 @@ describe("scene routes", () => {
     ]);
 
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/scenes",
       payload: {

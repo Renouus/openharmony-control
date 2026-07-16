@@ -245,6 +245,7 @@ export function mapDevicePanel(device: DeviceSnapshot): DevicePanelState {
     online: device.state.online,
     power: device.state.power ?? false,
     locked: device.state.locked ?? true,
+    mode: device.state.mode,
     brightness: device.state.brightness ?? 0,
     targetTemperature: device.state.targetTemperature ?? 24,
   };
@@ -291,7 +292,7 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
   if (kind === 'air-conditioner') {
     temperature = device.state.targetTemperature ?? 24;
     targetTemperature = device.state.targetTemperature ?? 24;
-    statusLabel = power ? `加热至 ${targetTemperature}.0\u00B0` : '关闭';
+    statusLabel = power ? `${acActionLabel(device.state.mode)} ${targetTemperature}.0\u00B0` : '关闭';
   }
   const card: HomeDeviceCardState = {
     id: device.id,
@@ -301,6 +302,7 @@ export function mapHomeDeviceCard(device: DeviceSnapshot, isLarge: boolean): Hom
     statusLabel,
     power,
     locked,
+    mode: device.state.mode,
     temperature,
     targetTemperature,
     brightness: device.state.brightness,
@@ -845,6 +847,13 @@ function climateModeLabel(mode: string): string {
   if (mode === 'cool') { return '制冷'; }
   if (mode === 'auto') { return '自动'; }
   return '关闭';
+}
+
+function acActionLabel(mode?: string): string {
+  if (mode === 'heat') { return '制热至'; }
+  if (mode === 'cool') { return '制冷至'; }
+  if (mode === 'auto') { return '恒温'; }
+  return '加热至';
 }
 
 function climateStatusLabel(mode: string): string {

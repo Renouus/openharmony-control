@@ -18,4 +18,6 @@ export interface DeviceSimulator {
   readonly deviceId: string;
   /** 执行命令并返回更新后的设备状态 */
   execute(command: DeviceCommand): DeviceExecutionResult;
+  /** Restore an in-memory snapshot after a downstream persistence failure. */
+  restoreState?(state: DeviceState): void;
 }

@@ -1,4 +1,5 @@
 import type { EnhancedDeviceDescriptor } from "@smart-home/device-contract";
+import type { DeviceEncryptedFields } from "./encrypted-repositories";
 
 export type DeviceSyncRow = {
   id: string;
@@ -28,7 +29,7 @@ export type DeviceSyncDto = {
   isDeleted: boolean;
 };
 
-export function mapDeviceRowToSyncDto(row: DeviceSyncRow): DeviceSyncDto {
+export function mapDeviceRowToSyncDto(row: DeviceSyncRow, encrypted: DeviceEncryptedFields): DeviceSyncDto {
   return {
     id: row.id,
     name: row.name,
@@ -37,7 +38,7 @@ export function mapDeviceRowToSyncDto(row: DeviceSyncRow): DeviceSyncDto {
     customIcon: row.custom_icon ?? undefined,
     type: row.type,
     roomId: row.room_id,
-    payload: JSON.parse(row.state_json) as Record<string, unknown>,
+    payload: encrypted.decodeState(row.id, row.state_json),
     updatedAt: row.updated_at,
     version: row.version,
     isDeleted: row.is_deleted === 1,

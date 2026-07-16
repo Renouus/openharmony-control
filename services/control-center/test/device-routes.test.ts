@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import {
   DeviceCapability,
   DeviceHealth,
@@ -9,6 +9,7 @@ import {
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
 import { clientConnections } from "../src/routes/websocket";
+import type { JsonValue } from "../src/security/encrypted-field-codec";
 
 function fakeVendorProvider(): VendorDeviceProvider {
   return {
@@ -57,7 +58,7 @@ function insertManagedVendorDeviceRow(
   name: string,
   type: string,
   roomId: string,
-  state: Record<string, unknown>,
+  state: Record<string, JsonValue>,
 ): void {
   getDb().prepare(`
     INSERT INTO devices (
@@ -69,7 +70,7 @@ function insertManagedVendorDeviceRow(
     name,
     type,
     roomId,
-    JSON.stringify(state),
+    createTestEncryptedRepositories().devices.encodeState(deviceId, state),
     state.updatedAt,
     state.updatedAt,
   );
@@ -93,7 +94,7 @@ describe("device snapshot routes", () => {
 
   it("returns the registered competition demo devices", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/devices" });
+    const response = await apiInject(app, { method: "GET", url: "/api/devices" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -117,12 +118,12 @@ describe("device snapshot routes", () => {
 
   it("returns enhanced device metadata and detail responses", async () => {
     const app = buildApp();
-    const list = await app.inject({ method: "GET", url: "/api/devices" });
-    const detail = await app.inject({
+    const list = await apiInject(app, { method: "GET", url: "/api/devices" });
+    const detail = await apiInject(app, {
       method: "GET",
       url: "/api/devices/door-front",
     });
-    const missing = await app.inject({
+    const missing = await apiInject(app, {
       method: "GET",
       url: "/api/devices/missing",
     });
@@ -144,7 +145,7 @@ describe("device snapshot routes", () => {
 
   it("returns a home summary for the dashboard", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/summary" });
+    const response = await apiInject(app, { method: "GET", url: "/api/summary" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -158,7 +159,7 @@ describe("device snapshot routes", () => {
 
   it("groups controllable lighting devices by room", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/summary" });
+    const response = await apiInject(app, { method: "GET", url: "/api/summary" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -192,7 +193,7 @@ describe("device snapshot routes", () => {
       "Database Light",
       "light",
       "study",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("db-light", {
         power: true,
         brightness: 61,
         colorTemperature: 3300,
@@ -204,7 +205,7 @@ describe("device snapshot routes", () => {
     );
 
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/devices" });
+    const response = await apiInject(app, { method: "GET", url: "/api/devices" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -220,6 +221,23 @@ describe("device snapshot routes", () => {
     expect(response.json().devices).toHaveLength(1);
   });
 
+  it("returns a safe 500 instead of falling back when encrypted device state is corrupt", async () => {
+    getDb().prepare(`
+      INSERT INTO devices (id,name,type,room_id,state_json,updated_at,version,is_deleted,lifecycle_state)
+      VALUES ('light-living-room','Living Light','light','living-room','ENC1:corrupt',1,1,0,'active')
+    `).run();
+    const app = buildApp();
+
+    const list = await apiInject(app, { method: "GET", url: "/api/devices" });
+    const detail = await apiInject(app, { method: "GET", url: "/api/devices/light-living-room" });
+
+    expect(list.statusCode).toBe(500);
+    expect(detail.statusCode).toBe(500);
+    expect(list.json()).toEqual({ code: "ENCRYPTED_DATA_INVALID" });
+    expect(detail.json()).toEqual({ code: "ENCRYPTED_DATA_INVALID" });
+    expect(JSON.stringify(list.json())).not.toContain("light-living-room");
+  });
+
   it("accepts both roomId and room when updating a device room assignment", async () => {
     const db = getDb();
     db.prepare(`
@@ -230,7 +248,7 @@ describe("device snapshot routes", () => {
       "Movable Light",
       "light",
       "entry",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("movable-light", {
         power: false,
         brightness: 0,
         colorTemperature: 3000,
@@ -242,7 +260,7 @@ describe("device snapshot routes", () => {
     );
 
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PUT",
       url: "/api/devices/movable-light/room",
       payload: { room: "study" },
@@ -250,7 +268,7 @@ describe("device snapshot routes", () => {
 
     expect(response.statusCode).toBe(200);
 
-    const updated = await app.inject({ method: "GET", url: "/api/devices/movable-light" });
+    const updated = await apiInject(app, { method: "GET", url: "/api/devices/movable-light" });
     expect(updated.statusCode).toBe(200);
     expect(updated.json()).toMatchObject({
       device: {
@@ -273,7 +291,7 @@ describe("device snapshot routes", () => {
       null,
       "light",
       "bedroom",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("rename-light", {
         power: true,
         brightness: 70,
         colorTemperature: 3000,
@@ -288,7 +306,7 @@ describe("device snapshot routes", () => {
     const versionBefore = Number(
       (db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
     );
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PUT",
       url: "/api/devices/rename-light",
       payload: {
@@ -325,7 +343,7 @@ describe("device snapshot routes", () => {
 
   it("persists and updates a registry-only built-in device", async () => {
     insertRoom("bedroom");
-    const response = await buildApp().inject({
+    const response = await apiInject(buildApp(), {
       method: "PUT",
       url: "/api/devices/light-living-room",
       payload: {
@@ -366,7 +384,7 @@ describe("device snapshot routes", () => {
       "Old Alias",
       "light",
       "bedroom",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("rename-light", {
         power: true,
         brightness: 70,
         colorTemperature: 3000,
@@ -378,7 +396,7 @@ describe("device snapshot routes", () => {
     );
 
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "PUT",
       url: "/api/devices/rename-light",
       payload: {
@@ -416,7 +434,7 @@ describe("device snapshot routes", () => {
     const before = db.prepare("SELECT * FROM devices WHERE id = 'validated-light'").get();
     const versionBefore = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get();
 
-    const response = await buildApp().inject({
+    const response = await apiInject(buildApp(), {
       method: "PUT",
       url: "/api/devices/validated-light",
       payload,
@@ -437,12 +455,12 @@ describe("device snapshot routes", () => {
     const versionBefore = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get();
     const app = buildApp();
     const payload = { customName: "Ghost", note: "", customIcon: "lightbulb", roomId: "bedroom" };
-    const missingResponse = await app.inject({
+    const missingResponse = await apiInject(app, {
       method: "PUT",
       url: "/api/devices/missing-device",
       payload,
     });
-    const inactiveResponse = await app.inject({ method: "PUT", url: "/api/devices/pending-light", payload });
+    const inactiveResponse = await apiInject(app, { method: "PUT", url: "/api/devices/pending-light", payload });
 
     expect(missingResponse.statusCode).toBe(404);
     expect(inactiveResponse.statusCode).toBe(404);
@@ -461,7 +479,7 @@ describe("device snapshot routes", () => {
       "Hall Light",
       "light",
       "living-room",
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState("tuya-light-1", {
         power: true,
         brightness: 50,
         colorTemperature: 4350,
@@ -472,8 +490,8 @@ describe("device snapshot routes", () => {
       40,
     );
 
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const response = await app.inject({
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+    const response = await apiInject(app, {
       method: "GET",
       url: "/api/devices/tuya-light-1",
     });
@@ -498,8 +516,8 @@ describe("device snapshot routes", () => {
       online: true,
     });
 
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const response = await app.inject({
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+    const response = await apiInject(app, {
       method: "PUT",
       url: "/api/devices/tuya-light-1",
       payload: { customName: "Hall Accent", note: "North wall", customIcon: "lightbulb", roomId: "living-room" },
@@ -535,8 +553,8 @@ describe("device snapshot routes", () => {
     clientConnections.set("test-client", fakeClient);
 
     try {
-      const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-      const response = await app.inject({
+      const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+      const response = await apiInject(app, {
         method: "PUT",
         url: "/api/devices/tuya-light-1",
         payload: { customName: "Hall Accent", note: "North wall", customIcon: "lightbulb", roomId: "living-room" },
@@ -566,7 +584,7 @@ describe("device snapshot routes", () => {
   });
 
   it("keeps discovered provider devices pending until the user joins or rejects them", async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([
       {
         provider: "tuya",
@@ -588,15 +606,15 @@ describe("device snapshot routes", () => {
       },
     ]);
 
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
-    const listBeforeJoin = await app.inject({ method: "GET", url: "/api/devices" });
+    const listBeforeJoin = await apiInject(app, { method: "GET", url: "/api/devices" });
     expect(listBeforeJoin.statusCode).toBe(200);
     expect(
       listBeforeJoin.json().devices.some((device: { id: string }) => device.id === "tuya-light-1"),
     ).toBe(false);
 
-    const pending = await app.inject({ method: "GET", url: "/api/devices/pending" });
+    const pending = await apiInject(app, { method: "GET", url: "/api/devices/pending" });
     expect(pending.statusCode).toBe(200);
     expect(pending.json()).toMatchObject({
       devices: [
@@ -608,7 +626,7 @@ describe("device snapshot routes", () => {
       ],
     });
 
-    const joined = await app.inject({
+    const joined = await apiInject(app, {
       method: "POST",
       url: "/api/devices/tuya-light-1/join-home",
       payload: {
@@ -626,7 +644,7 @@ describe("device snapshot routes", () => {
       },
     });
 
-    const listAfterJoin = await app.inject({ method: "GET", url: "/api/devices" });
+    const listAfterJoin = await apiInject(app, { method: "GET", url: "/api/devices" });
     expect(listAfterJoin.statusCode).toBe(200);
     expect(listAfterJoin.json().devices).toEqual(
       expect.arrayContaining([
@@ -657,14 +675,14 @@ describe("device snapshot routes", () => {
       },
     ]);
 
-    const rejected = await app.inject({
+    const rejected = await apiInject(app, {
       method: "POST",
       url: "/api/devices/tuya-sensor-9/reject",
     });
     expect(rejected.statusCode).toBe(200);
     expect(rejected.json()).toMatchObject({ success: true });
 
-    const pendingAfterReject = await app.inject({ method: "GET", url: "/api/devices/pending" });
+    const pendingAfterReject = await apiInject(app, { method: "GET", url: "/api/devices/pending" });
     expect(pendingAfterReject.statusCode).toBe(200);
     expect(
       pendingAfterReject.json().devices.some((device: { id: string }) => device.id === "tuya-sensor-9"),
@@ -674,7 +692,7 @@ describe("device snapshot routes", () => {
   it("creates a device from a supported device code and persists it for follow-up reads", async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/devices",
       payload: {
@@ -692,7 +710,7 @@ describe("device snapshot routes", () => {
       },
     });
 
-    const listResponse = await app.inject({ method: "GET", url: "/api/devices" });
+    const listResponse = await apiInject(app, { method: "GET", url: "/api/devices" });
     expect(listResponse.statusCode).toBe(200);
     expect(listResponse.json().devices).toEqual(
       expect.arrayContaining([
@@ -704,7 +722,7 @@ describe("device snapshot routes", () => {
       ]),
     );
 
-    const summaryResponse = await app.inject({ method: "GET", url: "/api/summary" });
+    const summaryResponse = await apiInject(app, { method: "GET", url: "/api/summary" });
     expect(summaryResponse.statusCode).toBe(200);
     expect(summaryResponse.json()).toMatchObject({
       devices: { total: 14 },
@@ -720,7 +738,7 @@ describe("device snapshot routes", () => {
   it("rejects duplicate device creations for the same template device", async () => {
     const app = buildApp();
 
-    const firstCreate = await app.inject({
+    const firstCreate = await apiInject(app, {
       method: "POST",
       url: "/api/devices",
       payload: {
@@ -731,7 +749,7 @@ describe("device snapshot routes", () => {
 
     expect(firstCreate.statusCode).toBe(201);
 
-    const duplicateCreate = await app.inject({
+    const duplicateCreate = await apiInject(app, {
       method: "POST",
       url: "/api/devices",
       payload: {
@@ -749,7 +767,7 @@ describe("device snapshot routes", () => {
   it("returns a clear error for unsupported device codes", async () => {
     const app = buildApp();
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/devices",
       payload: {

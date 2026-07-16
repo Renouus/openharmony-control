@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "test": "vitest --run --fileParallelism=false",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "security:migrate:check": "tsx scripts/migrate-encrypted-fields.ts",
+    "security:migrate": "tsx scripts/migrate-encrypted-fields.ts --write"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",

@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { apiInject, buildAppWithStubAutomation as buildApp, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, initDatabase } from "./helpers/test-database";
+
+beforeEach(() => initDatabase(":memory:"));
+afterEach(() => closeDatabase());
 
 describe("environment and AC demo devices", () => {
   it("returns temperature and humidity for the sensor", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/devices" });
+    const response = await apiInject(app, { method: "GET", url: "/api/devices" });
     const sensor = response
       .json()
       .devices.find((device: { id: string }) => device.id === "sensor-living-room");
@@ -15,7 +19,7 @@ describe("environment and AC demo devices", () => {
 
   it("marks a device offline through demo fault hooks", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/offline",
       payload: { deviceId: "light-living-room", offline: true },
@@ -30,7 +34,7 @@ describe("environment and AC demo devices", () => {
 
   it("updates environment readings through demo controls", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await demoInject(app, {
       method: "POST",
       url: "/api/demo/environment",
       payload: {
@@ -58,13 +62,14 @@ describe("environment and AC demo devices", () => {
 
   it("rejects invalid environment values", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await demoInject(app, {
       method: "POST",
       url: "/api/demo/environment",
       payload: { humidity: 120 },
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toMatchObject({ code: "ENVIRONMENT_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 });

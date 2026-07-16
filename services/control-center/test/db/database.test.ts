@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
+import { initDatabase, closeDatabase, getDb } from '../helpers/test-database';
 
 describe('Database Initialization', () => {
   beforeEach(() => {
@@ -26,6 +26,8 @@ describe('Database Initialization', () => {
     expect(columns.map(c => c.name)).toContain('version');
 
     const versionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
-    expect(versionRow.value).toBe('0');
+    // The shared test helper explicitly initializes demo mode, whose one-time
+    // encrypted automation seed advances the normal monotonic version counter.
+    expect(versionRow.value).toBe('1');
   });
 });

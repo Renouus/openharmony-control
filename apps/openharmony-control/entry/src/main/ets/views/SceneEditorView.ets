@@ -1,3 +1,4 @@
+import promptAction from '@ohos.promptAction';
 import { ActionDraft, DevicePanelState, RoomItemState, SceneChipState, SceneEditorContext } from '../model/page-view-state';
 import {
   buildScenePayloadDraft,
@@ -8,6 +9,7 @@ import {
 import { AppSymbol } from '../components/AppSymbol';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import {
+  COLOR_ERROR,
   COLOR_ON_SURFACE,
   COLOR_OUTLINE_VARIANT,
   COLOR_PRIMARY,
@@ -28,6 +30,9 @@ export struct SceneEditorView {
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
   @State isLoading: boolean = false;
+  private initialName: string = '';
+  private initialIcon: string = 'movie';
+  private initialActionsJson: string = '[]';
 
   onCancel: () => void = () => {};
   onSave: (payload: ScenePayloadDraft) => Promise<void> | void = () => {};
@@ -36,6 +41,7 @@ export struct SceneEditorView {
     if (this.editingSceneId) {
       this.loadScene();
     }
+    this.captureInitial();
   }
 
   loadScene() {
@@ -45,6 +51,13 @@ export struct SceneEditorView {
       this.draft = mapSceneCardToDraft(scene);
     }
     this.isLoading = false;
+    this.captureInitial();
+  }
+
+  private captureInitial(): void {
+    this.initialName = this.draft.name;
+    this.initialIcon = this.draft.icon ?? 'movie';
+    this.initialActionsJson = JSON.stringify(this.draft.actions);
   }
 
   private findEditingScene() {
@@ -73,6 +86,31 @@ export struct SceneEditorView {
       return 'Ownership: Global';
     }
     return `Ownership: ${this.roomNameFor(roomId)}`;
+  }
+
+  private isDirty(): boolean {
+    if (this.draft.name !== this.initialName) return true;
+    if (this.draft.icon !== this.initialIcon) return true;
+    if (JSON.stringify(this.draft.actions) !== this.initialActionsJson) return true;
+    return false;
+  }
+
+  private async requestCancel(): Promise<void> {
+    if (!this.isDirty()) {
+      this.onCancel();
+      return;
+    }
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      title: '放弃修改？',
+      message: '尚未保存的场景信息将丢失。',
+      buttons: [
+        { text: '继续编辑', color: COLOR_TEXT_MUTED },
+        { text: '放弃修改', color: COLOR_ERROR },
+      ],
+    });
+    if (result.index === 1) {
+      this.onCancel();
+    }
   }
 
   getActionLabel(action: ActionDraft): string {
@@ -148,7 +186,7 @@ export struct SceneEditorView {
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
           .onClick(() => {
-            this.onCancel();
+            this.requestCancel();
           })
         Text(this.editingSceneId ? '编辑场景' : '新增场景')
           .fontSize(18)

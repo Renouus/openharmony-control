@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { getDb } from "../db/database";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { Room, RoomRegistry } from "../registry/rooms";
+import { roomMutationSchema, roomUpdateSchema, routeIdParamsSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 type RoomRow = {
   id: string;
@@ -24,10 +26,9 @@ export async function registerRoomRoutes(
   });
 
   app.post("/api/rooms", async (request, reply) => {
-    const body = request.body as { name?: string; icon?: string };
-    if (!body.name || !body.icon) {
-      return reply.code(400).send({ code: "BAD_REQUEST", message: "name and icon are required" });
-    }
+    const parsed = parseRequest(roomMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const body = parsed.value;
 
     const trimmed = body.name.trim();
     if (trimmed.length === 0 || trimmed.length > 12) {
@@ -39,8 +40,12 @@ export async function registerRoomRoutes(
   });
 
   app.put("/api/rooms/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = request.body as { name?: string; icon?: string };
+    const params = parseRequest(routeIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const parsed = parseRequest(roomUpdateSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { id } = params.value;
+    const body = parsed.value;
 
     if (body.name !== undefined) {
       const trimmed = body.name.trim();
@@ -58,7 +63,9 @@ export async function registerRoomRoutes(
   });
 
   app.delete("/api/rooms/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const params = parseRequest(routeIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const { id } = params.value;
     const success = deleteRoom(id, roomRegistry);
     if (!success) {
       return reply.code(403).send({ code: "FORBIDDEN", message: "Built-in rooms cannot be deleted" });

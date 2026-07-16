@@ -33,6 +33,8 @@ import { WebSocketClient } from './WebSocketClient';
 import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
 import { DomainEventAdapter } from './domain-event-adapter';
 import { shouldBootstrapRooms } from './room-cache-policy';
+import { DevicePreferenceService } from './device-preference-service';
+import { SERVICE_API_BASE_URL } from '../config/ServiceEndpointConfig';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -52,6 +54,7 @@ export interface SmartHomeRepositoryPort {
   joinPendingDevice(deviceId: string, displayName: string, roomId: string, deviceType: string): Promise<DeviceSnapshot>;
   rejectPendingDevice(deviceId: string): Promise<void>;
   updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot>;
+  deleteDevice(deviceId: string): Promise<void>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
   updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
@@ -91,6 +94,10 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly syncDao: SyncDao;
   private readonly wsClient: WebSocketClient;
 
+  // 节流：避免 listDevices 频繁触发后台增量同步
+  private lastDeviceSyncAt: number = 0;
+  private static readonly DEVICE_SYNC_THROTTLE_MS: number = 30000;
+
   constructor(api: DeviceApi) {
     this.api = api;
     this.deviceDao = new DeviceDao();
@@ -99,7 +106,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     this.sceneDao = new SceneDao();
     this.syncDao = new SyncDao();
 
-    this.wsClient = new WebSocketClient('ws://10.0.2.2:3443/ws/events');
+    this.wsClient = new WebSocketClient(SERVICE_API_BASE_URL);
     this.wsClient.onMessageCallback = (event, payload) => {
       this.handleWebSocketEvent(event, payload as Object);
     };
@@ -201,22 +208,30 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async listDevices(): Promise<DeviceSnapshot[]> {
     const store = DatabaseHelper.getInstance().getStore();
-    
+
     // 每次重新打开应用如果本地缓存有值，但可能不是最新的情况需要让它先被刷出来
     const localDevices = await this.deviceDao.getAllDevices(store);
 
     if (localDevices.length === 0) {
-      // 本地无数据，强同步
+      // 本地无数据，必须强同步以获得初始数据
       await this.performBackgroundSync(true);
+      this.lastDeviceSyncAt = Date.now();
       return await this.deviceDao.getAllDevices(store);
-    } else {
-      // 保证重新打开也能拿到云端最新，因为直接 fire-and-forget 可能因为组件已经挂载完了导致界面不再刷新，
-      // 由于这是本地拉取，为了避免后台直接杀进程出现不同步现象，这里加了一个等待让其确保执行完毕再去同步，
-      // 在之前的 performBackgroundSync 中我们会由 websocket 事件向 app 推动同步 (由于杀过后台可能会错过这条 websocket),
-      // 等待同步刷新。为了防止卡界面，这里仍然走静默抓取，只在无数据时阻塞。
-      this.performBackgroundSync(true).catch(console.error);
     }
-    
+
+    // 本地已有数据：先返回缓存让界面快速渲染，后台增量同步只拉取上次同步后的变更。
+    // 节流 30 秒，避免 createDevice → listDevices → listDevices 链式调用引发重复同步。
+    // WebSocket 事件和 sync_completed 回调会独立驱动数据刷新，不依赖此处的后台同步。
+    const now = Date.now();
+    if (now - this.lastDeviceSyncAt > SmartHomeRepository.DEVICE_SYNC_THROTTLE_MS) {
+      this.lastDeviceSyncAt = now;
+      this.performBackgroundSync(false).catch((e: Object) => {
+        console.error('OmniHomeLog', `Incremental device sync failed: ${e}`);
+        // 同步失败时重置时间戳，允许下次 listDevices 立即重试
+        this.lastDeviceSyncAt = 0;
+      });
+    }
+
     return localDevices;
   }
 
@@ -250,6 +265,12 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     const device = await this.api.updateDevice(deviceId, update);
     await this.performBackgroundSync(true);
     return device;
+  }
+
+  async deleteDevice(deviceId: string): Promise<void> {
+    await this.api.deleteDevice(deviceId);
+    DevicePreferenceService.deleteAll(deviceId).catch(() => {});
+    await this.performBackgroundSync(true);
   }
 
   async listRooms(): Promise<RoomItem[]> {
@@ -416,13 +437,56 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.syncDevicesAfterMutation();
   }
 
+  private pendingAutomationRefresh?: Promise<void>;
+
   private async refreshAutomations(): Promise<void> {
+    if (this.pendingAutomationRefresh) {
+      return this.pendingAutomationRefresh;
+    }
+    this.pendingAutomationRefresh = this.doRefreshAutomations();
+    try {
+      await this.pendingAutomationRefresh;
+    } finally {
+      this.pendingAutomationRefresh = undefined;
+    }
+  }
+
+  private async doRefreshAutomations(): Promise<void> {
     const store = DatabaseHelper.getInstance().getStore();
     const remoteAutomations = await this.api.listAutomations();
-    await this.automationDao.replaceAll(
-      store,
-      remoteAutomations.map((automation: AutomationSnapshot) => this.toAutomationSyncItem(automation)),
-    );
+    const remoteIds = new Set<string>();
+
+    const localAutomations = await this.automationDao.getAllSyncItems(store);
+    const localMap = new Map<string, AutomationSyncItem>();
+    localAutomations.forEach((a: AutomationSyncItem) => localMap.set(a.id, a));
+
+    const syncItems: AutomationSyncItem[] = remoteAutomations.map((automation: AutomationSnapshot): AutomationSyncItem => {
+      const local = localMap.get(automation.id);
+      return {
+        id: automation.id,
+        icon: automation.icon,
+        name: automation.name,
+        triggerType: automation.triggerType,
+        triggerJson: automation.triggerJson,
+        actionJson: automation.actionJson,
+        enabled: automation.enabled,
+        updatedAt: local ? local.updatedAt : 0,
+        version: local ? local.version : 0,
+        isDeleted: false,
+      };
+    });
+
+    for (const item of syncItems) {
+      remoteIds.add(item.id);
+    }
+
+    await this.automationDao.upsertAll(store, syncItems);
+
+    for (const local of localAutomations) {
+      if (!remoteIds.has(local.id)) {
+        await this.automationDao.markDeleted(store, local.id, local.version);
+      }
+    }
   }
 
   private toRoomSyncItem(room: RoomItem): RoomSyncItem {
@@ -467,8 +531,8 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       triggerJson: automation.triggerJson,
       actionJson: automation.actionJson,
       enabled: automation.enabled,
-      updatedAt: Date.now(),
-      version: Date.now(),
+      updatedAt: 0,
+      version: 0,
       isDeleted: false,
     };
   }

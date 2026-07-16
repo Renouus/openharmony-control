@@ -5,8 +5,8 @@ import {
   DeviceHealth,
   DeviceKind,
 } from "@smart-home/device-contract";
-import { buildApp } from "../src/app";
-import { closeDatabase, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
 function fakeVendorProvider(): VendorDeviceProvider {
@@ -49,8 +49,8 @@ describe("vendor command routes", () => {
   afterEach(() => closeDatabase());
 
   it("rejects commands for read-only Tuya sensor devices", async () => {
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const signResponse = await app.inject({
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+    const signResponse = await demoInject(app, {
       method: "POST",
       url: "/api/demo/sign-command",
       payload: {
@@ -64,10 +64,10 @@ describe("vendor command routes", () => {
 
     expect(signResponse.statusCode).toBe(200);
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
-      payload: signResponse.json(),
+      payload: signResponse.json().command,
     });
 
     expect(response.statusCode).toBe(400);

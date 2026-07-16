@@ -1,4 +1,6 @@
+import promptAction from '@ohos.promptAction';
 import {
+  COLOR_ERROR,
   COLOR_ON_PRIMARY,
   COLOR_ON_SURFACE,
   COLOR_OUTLINE_VARIANT,
@@ -24,6 +26,8 @@ export struct AddRoomSheet {
   @Prop editingRoomId: string = '';
   @State roomName: string = '';
   @State selectedIcon: string = 'home';
+  @State initialRoomName: string = '';
+  @State initialSelectedIcon: string = 'home';
   @State isSubmitting: boolean = false;
 
   aboutToAppear() {
@@ -34,10 +38,36 @@ export struct AddRoomSheet {
         this.selectedIcon = room.icon;
       }
     }
+    this.initialRoomName = this.roomName;
+    this.initialSelectedIcon = this.selectedIcon;
+  }
+
+  private isDirty(): boolean {
+    return this.roomName !== this.initialRoomName
+      || this.selectedIcon !== this.initialSelectedIcon;
+  }
+
+  private async requestClose(): Promise<void> {
+    if (this.isSubmitting) return;
+    if (!this.isDirty()) {
+      this.onClose();
+      return;
+    }
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      title: '放弃修改？',
+      message: '尚未保存的房间信息将丢失。',
+      buttons: [
+        { text: '继续编辑', color: COLOR_TEXT_MUTED },
+        { text: '放弃修改', color: COLOR_ERROR },
+      ],
+    });
+    if (result.index === 1) {
+      this.onClose();
+    }
   }
 
   build() {
-    BottomSheet({ onClose: () => this.onClose() }) {
+    BottomSheet({ onClose: () => this.requestClose() }) {
       Column({ space: 24 }) {
         Row() {
           Text(this.editingRoomId ? '编辑房间' : '添加房间')

@@ -110,6 +110,7 @@ struct RoomSection {
   onRoomTap: (roomId: string) => void = () => {};
   onDeviceTap: (deviceId: string, kind: string) => void = () => {};
   onDeviceEdit: (deviceId: string) => void = () => {};
+  onDeviceDelete: (deviceId: string) => void = () => {};
 
   build() {
     Column({ space: 12 }) {
@@ -128,7 +129,8 @@ struct RoomSection {
         DeviceGridLayout({
           devices: this.room.devices,
           onDeviceTap: (deviceId: string, kind: string) => this.onDeviceTap(deviceId, kind),
-          onDeviceEdit: (deviceId: string) => this.onDeviceEdit(deviceId)
+          onDeviceEdit: (deviceId: string) => this.onDeviceEdit(deviceId),
+          onDeviceDelete: (deviceId: string) => this.onDeviceDelete(deviceId)
         })
       }
     }
@@ -159,6 +161,10 @@ struct HomeContent {
     if (route.valid) {
       this.navStack.pushPathByName(route.page, route.param);
     }
+  }
+
+  private handleDeviceDelete(deviceId: string): void {
+    this.controller.handleDeleteDevice(this.appState, deviceId);
   }
 
   private handleRoomTap(roomId: string): void {
@@ -233,6 +239,7 @@ struct HomeContent {
             onRoomTap: (roomId: string) => this.handleRoomTap(roomId),
             onDeviceTap: (deviceId: string, kind: string) => this.handleDeviceTap(deviceId, kind),
             onDeviceEdit: (deviceId: string) => this.handleDeviceEdit(deviceId),
+            onDeviceDelete: (deviceId: string) => this.handleDeviceDelete(deviceId),
           })
         }, (room: HomeRoomSectionState) => `${room.roomId}_${room.devices.map((d: HomeDeviceCardState) => `${d.power}_${d.locked}_${d.temperature}_${d.targetTemperature}_${d.brightness}`).join('-')}`)
       }

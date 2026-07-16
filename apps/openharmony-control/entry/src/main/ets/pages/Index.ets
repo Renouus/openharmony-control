@@ -23,8 +23,10 @@ import { NotificationsView } from '../views/NotificationsView';
 import { FamilyView } from '../views/FamilyView';
 import { LightingView } from '../views/LightingView';
 import { AccessView } from '../views/AccessView';
+import { LockControlView } from '../views/LockControlView';
 import { CameraView } from '../views/CameraView';
 import { ClimateView } from '../views/ClimateView';
+import { ClimateControlView } from '../views/ClimateControlView';
 import { SceneEditorView } from '../views/SceneEditorView';
 import { RoutineEditorView } from '../views/RoutineEditorView';
 import { FamilySettingsView } from '../views/FamilySettingsView';
@@ -62,6 +64,11 @@ struct Index {
   @Provide('navStack') navStack: NavProxy = new NavProxy();
   @State appState: AppStateSnapshot = new AppStateSnapshot();
 
+  // ── Scroll position preservation ────────────────────────────────────────
+  private mainScrollController: Scroller = new Scroller();
+  private mainScrollOffset: number = 0;
+  private shouldRestoreScroll: boolean = false;
+
   // ── Local UI state ──────────────────────────────────────────────────────
   @State currentTab: number = 0;
   @State currentSubPage: string = '';   // 子页面标识（空字符串 = 不在子页面）
@@ -97,28 +104,53 @@ struct Index {
     );
     this.isLoading = true;
     try {
-      // 启动时主动触发一次云端同步数据，防止重新打开后因为未能触发 sync_completed 回调而渲染出空页面
-      this.controller.syncProviderDevices().finally(() => {
-        // 同步完成后尝试重载一次界面，防止极端情况网络过慢一直卡 Loading
-        this.controller.refreshAll(this.appState).finally(() => {
-          this.isLoading = false;
-        });
-      });
+      // 先用本地缓存快速渲染首屏（即使云端同步尚未完成也能展示已有数据）
       await this.controller.refreshAll(this.appState);
     } catch (e) {
-      // silently handled
+      // 首屏加载失败时记录日志，不阻塞后续同步流程
+      console.error('OmniHomeLog', `Startup refreshAll failed: ${e}`);
+    } finally {
+      // 无论成功或失败都关闭加载指示器，避免永久旋转
+      this.isLoading = false;
     }
+    // 后台触发云端同步，不阻塞界面；sync_completed 事件 (@Watch) 会驱动后续刷新
+    this.controller.syncProviderDevices()
+      .then((success: boolean) => {
+        if (success) {
+          return this.controller.refreshAll(this.appState);
+        }
+        return Promise.resolve();
+      })
+      .catch((e: Object) => {
+        console.error('OmniHomeLog', `Startup background sync failed: ${e}`);
+      });
   }
 
   // ── Navigation helpers ───────────────────────────────────────────────────
 
   private pushSubPage(page: AppPageId | string, param: Object | null = null): void {
     this.closeTransientUi();
+    if (this.currentSubPage.length === 0) {
+      try {
+        const offset = this.mainScrollController.currentOffset();
+        this.mainScrollOffset = offset.yOffset;
+      } catch (e) {
+        // Scroller might not be bound yet
+      }
+    }
     if (this.currentSubPage.length > 0) {
       this.subPageHistory.push(this.currentSubPage, this.subPageParam);
     }
     this.currentSubPage = page;
     this.subPageParam = param;
+  }
+
+  private isEditorPageWithOwnHeader(): boolean {
+    const pages: string[] = [
+      'deviceEditor', 'sceneEditor', 'createAutomation',
+      'homeInfoEditor', 'emergencyContactEditor',
+    ];
+    return pages.indexOf(this.currentSubPage) !== -1;
   }
 
   private popSubPage(): void {
@@ -128,6 +160,7 @@ struct Index {
       this.subPageParam = previous.param;
       return;
     }
+    this.shouldRestoreScroll = true;
     this.currentSubPage = '';
     this.subPageParam = null;
   }
@@ -226,15 +259,38 @@ struct Index {
       ];
     }
     if (this.isDeviceControlPage() && this.selectedControlDeviceId().length > 0) {
-      return [{
-        value: '编辑设备',
-        action: () => {
-          const route = createDeviceEditorRoute(this.selectedControlDeviceId());
-          if (route.valid) {
-            this.pushSubPage(route.page, route.param);
+      const deviceId = this.selectedControlDeviceId();
+      const panel = this.selectedDevicePanel();
+      const deviceName = panel ? panel.name : deviceId;
+      return [
+        {
+          value: '编辑设备',
+          action: () => {
+            const route = createDeviceEditorRoute(deviceId);
+            if (route.valid) {
+              this.pushSubPage(route.page, route.param);
+            }
+          }
+        },
+        {
+          value: '删除设备',
+          action: () => {
+            AlertDialog.show({
+              title: '确认删除设备',
+              message: `确定要删除「${deviceName}」吗？此操作不可撤销。`,
+              primaryButton: { value: '取消', action: () => {} },
+              secondaryButton: {
+                value: '确认删除',
+                fontColor: '#D32F2F',
+                action: async () => {
+                  await this.controller.handleDeleteDevice(this.appState, deviceId);
+                  this.popSubPage();
+                }
+              },
+            });
           }
         }
-      }];
+      ];
     }
     return [];
   }
@@ -300,15 +356,23 @@ struct Index {
       } else if (this.currentSubPage === 'access') {
         Scroll() {
           Column({ space: 12 }) {
-            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
-            AccessView({
-              appState: this.appState,
-              access: this.appState.access,
-              camera: this.appState.camera,
-              onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, locked),
-              onShareGuest: () => this.controller.handleShareGuest(this.appState),
-              onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
-            })
+            if (this.selectedControlDeviceId().length > 0) {
+              LockControlView({
+                deviceId: this.selectedControlDeviceId(),
+                appState: this.appState,
+                home: this.appState.home,
+              })
+            } else {
+              DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+              AccessView({
+                appState: this.appState,
+                access: this.appState.access,
+                camera: this.appState.camera,
+                onTogglePrimaryLock: (locked: boolean) => this.controller.handleAccessToggleLock(this.appState, '', locked),
+                onShareGuest: () => this.controller.handleShareGuest(this.appState),
+                onToggleCameraRecording: (cameraId: string, recording: boolean) => this.controller.handleCameraToggleRecording(this.appState, cameraId, recording)
+              })
+            }
           }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
@@ -324,13 +388,21 @@ struct Index {
       } else if (this.currentSubPage === 'climate') {
         Scroll() {
           Column({ space: 12 }) {
-            DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
-            ClimateView({
-              appState: this.appState,
-              onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, mode),
-              onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, delta),
-              onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState)
-            })
+            if (this.selectedControlDeviceId().length > 0) {
+              ClimateControlView({
+                deviceId: this.selectedControlDeviceId(),
+                appState: this.appState,
+                home: this.appState.home,
+              })
+            } else {
+              DeviceNoteBanner({ note: this.selectedDevicePanel()?.note ?? '' })
+              ClimateView({
+                appState: this.appState,
+                onSelectMode: (mode: string) => this.controller.handleClimateMode(this.appState, '', mode),
+                onAdjustTarget: (delta: number) => this.controller.handleClimateTarget(this.appState, '', delta),
+                onPowerToggle: () => this.controller.handleClimatePowerToggle(this.appState, '')
+              })
+            }
           }
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
@@ -438,6 +510,14 @@ struct Index {
     .width('100%')
     .layoutWeight(1)
     .backgroundColor(COLOR_BG)
+    .gesture(
+      PanGesture({ direction: PanDirection.Right, distance: 80 })
+        .onActionEnd((event: GestureEvent) => {
+          if (event.offsetX >= 60) {
+            this.popSubPage();
+          }
+        })
+    )
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -445,7 +525,7 @@ struct Index {
   build() {
     Stack() {
       Column() {
-        if (this.currentSubPage !== 'deviceEditor') {
+        if (!this.isEditorPageWithOwnHeader()) {
           AppHeader({
             isSubPage: this.isOnSubPage(),
             title: this.getAppHeaderTitle(),
@@ -463,7 +543,7 @@ struct Index {
           this.SubPageOverlay()
         } else {
           Stack({ alignContent: Alignment.Bottom }) {
-            Scroll() {
+            Scroll(this.mainScrollController) {
               Column() {
                 if (this.currentTab === 0) {
                   HomeView({ appState: this.appState })
@@ -483,6 +563,17 @@ struct Index {
             .scrollBar(BarState.Off)
             .width('100%')
             .height('100%')
+            .onDidScroll((xOffset: number, yOffset: number) => {
+              this.mainScrollOffset = yOffset;
+            })
+            .onAppear(() => {
+              if (this.shouldRestoreScroll) {
+                this.shouldRestoreScroll = false;
+                setTimeout(() => {
+                  this.mainScrollController.scrollTo({ xOffset: 0, yOffset: this.mainScrollOffset, animation: false });
+                }, 100);
+              }
+            })
 
             Row() {
               TabButton({

@@ -26,10 +26,11 @@ import type { DeviceRegistry } from "../registry/device-registry";
 import { broadcastEvent } from "./websocket";
 import { mapDeviceRowToSyncDto, mapVendorDeviceToSyncDto } from "../db/device-sync-mapper";
 import { getDb } from "../db/database";
-import {
-  type DeviceMetadataUpdate,
-  validateDeviceMetadataUpdate,
-} from "../devices/device-metadata";
+import { type DeviceMetadataUpdate } from "../devices/device-metadata";
+import { createDeviceSchema, deviceIdParamsSchema, deviceMetadataMutationSchema, deviceRoomMutationSchema, joinPendingDeviceSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 type DeviceRow = {
   id: string;
@@ -45,18 +46,8 @@ type DeviceRow = {
   is_deleted: number;
 };
 
-type CreateDeviceRequest = {
-  deviceCode?: string;
-  roomId?: string;
-};
-
-type JoinPendingDeviceRequest = {
-  displayName?: string;
-  roomId?: string;
-  deviceType?: string;
-};
-
 type DeviceRouteOptions = {
+  encryptedRepositories: EncryptedRepositories;
   vendorProvider?: VendorDeviceProvider;
 };
 
@@ -64,34 +55,24 @@ export async function registerDeviceRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
   simulators: Map<string, DeviceSimulator>,
-  options: DeviceRouteOptions = {},
+  options: DeviceRouteOptions,
 ): Promise<void> {
-  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.vendorProvider) }));
+  app.get("/api/devices", async () => ({ devices: await loadDevices(registry, options.encryptedRepositories, options.vendorProvider) }));
 
   app.get("/api/devices/pending", async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     return { devices: store.listPendingDevices() };
   });
 
   app.post("/api/devices/:deviceId/join-home", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const body = request.body as JoinPendingDeviceRequest;
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const parsed = parseRequest(joinPendingDeviceSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { deviceId } = params.value;
+    const body = parsed.value;
 
-    if (typeof body.displayName !== "string" || body.displayName.trim().length === 0) {
-      return reply
-        .code(400)
-        .send({ code: "BAD_REQUEST", message: "displayName is required" });
-    }
-    if (typeof body.roomId !== "string" || body.roomId.trim().length === 0) {
-      return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is required" });
-    }
-    if (typeof body.deviceType !== "string" || !isSupportedDeviceKind(body.deviceType)) {
-      return reply
-        .code(400)
-        .send({ code: "BAD_REQUEST", message: "deviceType is invalid" });
-    }
-
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     const device = store.joinHome(deviceId, {
       displayName: body.displayName,
       roomId: body.roomId.trim(),
@@ -105,8 +86,9 @@ export async function registerDeviceRoutes(
   });
 
   app.post("/api/devices/:deviceId/reject", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const store = new ProviderDeviceStore(getDb());
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { deviceId } = params.value;
+    const store = new ProviderDeviceStore(getDb(), options.encryptedRepositories);
     if (!store.rejectDevice(deviceId)) {
       return reply.code(404).send({ code: "PENDING_DEVICE_NOT_FOUND" });
     }
@@ -115,8 +97,9 @@ export async function registerDeviceRoutes(
   });
 
   app.get("/api/devices/:deviceId", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { deviceId } = params.value;
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
@@ -124,7 +107,7 @@ export async function registerDeviceRoutes(
   });
 
   app.get("/api/summary", async () => {
-    const devices = await loadDevices(registry, options.vendorProvider);
+    const devices = await loadDevices(registry, options.encryptedRepositories, options.vendorProvider);
     const door = findLoadedDevice(devices, "door-front");
     const lights = devices.filter((device) => device.kind === DeviceKind.Light);
     const lightCount = lights.filter((device) => device.state.power === true).length;
@@ -199,8 +182,12 @@ export async function registerDeviceRoutes(
   });
 
   app.put("/api/devices/:deviceId/room", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const body = request.body as { roomId?: string; room?: string };
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const parsed = parseRequest(deviceRoomMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { deviceId } = params.value;
+    const body = parsed.value;
     const targetRoomId = body.roomId ?? body.room;
     if (!targetRoomId) {
       return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is required" });
@@ -215,48 +202,68 @@ export async function registerDeviceRoutes(
   });
 
   app.put("/api/devices/:deviceId", async (request, reply) => {
-    const { deviceId } = request.params as { deviceId: string };
-    const validation = validateDeviceMetadataUpdate(request.body);
-    if (!validation.ok) {
-      return reply.code(400).send({ code: "BAD_REQUEST", message: validation.message });
-    }
-    const update = validation.value;
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const parsed = parseRequest(deviceMetadataMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { deviceId } = params.value;
+    const update = parsed.value;
     if (!roomExists(update.roomId)) {
       return reply.code(400).send({ code: "BAD_REQUEST", message: "roomId is invalid" });
     }
 
-    const device = await loadDevice(deviceId, registry, options.vendorProvider);
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!device) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
 
-    persistRegistryDeviceIfNeeded(device);
+    persistRegistryDeviceIfNeeded(device, options.encryptedRepositories);
     if (!updateStoredDeviceMetadata(deviceId, update)) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
-    const updatedDevice = await loadDevice(deviceId, registry, options.vendorProvider);
+    const updatedDevice = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
     if (!updatedDevice) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
     const payload = options.vendorProvider?.ownsDevice(deviceId)
       ? mapVendorDeviceToSyncDto(updatedDevice)
-      : loadSyncDeviceRow(deviceId) ?? mapVendorDeviceToSyncDto(updatedDevice);
+      : loadSyncDeviceRow(deviceId, options.encryptedRepositories) ?? mapVendorDeviceToSyncDto(updatedDevice);
 
     broadcastEvent("DeviceStateUpdated", payload);
     return reply.send({ device: updatedDevice });
   });
 
-  app.post("/api/devices", async (request, reply) => {
-    const body = request.body as CreateDeviceRequest;
-    const deviceCode = body.deviceCode?.trim() ?? "";
-    const roomId = body.roomId?.trim() ?? "";
-
-    if (deviceCode.length === 0 || roomId.length === 0) {
-      return reply.code(400).send({
-        code: "BAD_REQUEST",
-        message: "deviceCode and roomId are required",
-      });
+  app.delete("/api/devices/:deviceId", async (request, reply) => {
+    const params = parseRequest(deviceIdParamsSchema, request.params, reply); if (!params.ok) return;
+    const { deviceId } = params.value;
+    const device = await loadDevice(deviceId, registry, options.encryptedRepositories, options.vendorProvider);
+    if (!device) {
+      return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
+
+    const db = getDb();
+    const version = incrementGlobalVersion();
+    const now = Date.now();
+    db.prepare(`
+      UPDATE devices
+      SET is_deleted = 1, lifecycle_state = 'removed', updated_at = ?, version = ?
+      WHERE id = ? AND is_deleted = 0 AND lifecycle_state = 'active'
+    `).run(now, version, deviceId);
+
+    registry.delete(deviceId);
+
+    const syncRow = loadSyncDeviceRow(deviceId, options.encryptedRepositories);
+    if (syncRow) {
+      broadcastEvent("DeviceStateUpdated", syncRow);
+    }
+
+    return reply.send({ deleted: true });
+  });
+
+  app.post("/api/devices", async (request, reply) => {
+    const parsed = parseRequest(createDeviceSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { deviceCode, roomId } = parsed.value;
 
     const template = findCreatableDeviceTemplate(deviceCode);
     if (!template) {
@@ -267,8 +274,8 @@ export async function registerDeviceRoutes(
       return reply.code(409).send({ code: "DEVICE_ALREADY_EXISTS" });
     }
 
-    ensureRegistryDevicesPersisted(registry);
-    const createdDevice = createDevice(template, roomId, registry);
+    ensureRegistryDevicesPersisted(registry, options.encryptedRepositories);
+    const createdDevice = createDevice(template, roomId, registry, options.encryptedRepositories);
     const simulator = createSimulatorFromTemplate(template, createdDevice);
     if (simulator !== undefined) {
       simulators.set(simulator.deviceId, simulator);
@@ -280,12 +287,13 @@ export async function registerDeviceRoutes(
 
 async function loadDevices(
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor[]> {
-  const dbDevices = loadDevicesFromDb();
+  const dbDevices = loadDevicesFromDb(encryptedRepositories);
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
   const vendorDevices = vendorProvider
-    ? await listManagedVendorDevices(getDb(), vendorProvider)
+    ? await listManagedVendorDevices(getDb(), encryptedRepositories, vendorProvider)
     : [];
   return [...baseDevices, ...vendorDevices]
     .map(applyStoredCustomName)
@@ -296,15 +304,16 @@ async function loadDevices(
 async function loadDevice(
   deviceId: string,
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (vendorProvider?.ownsDevice(deviceId)) {
     return applyStoredCustomName(
-      await loadManagedVendorDevice(getDb(), deviceId, vendorProvider),
+      await loadManagedVendorDevice(getDb(), deviceId, encryptedRepositories, vendorProvider),
     );
   }
 
-  const dbDevices = loadDevicesFromDb();
+  const dbDevices = loadDevicesFromDb(encryptedRepositories);
   if (dbDevices.length > 0) {
     return findLoadedDevice(dbDevices, deviceId);
   }
@@ -318,42 +327,34 @@ function findLoadedDevice(
   return devices.find((device) => device.id === deviceId);
 }
 
-function loadDevicesFromDb(): EnhancedDeviceDescriptor[] {
-  try {
-    const db = getDb();
-    const rows = db
+function loadDevicesFromDb(encryptedRepositories: EncryptedRepositories): EnhancedDeviceDescriptor[] {
+  const db = getDb();
+  const rows = db
       .prepare(`
         SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE is_deleted = 0 AND lifecycle_state = 'active'
         ORDER BY room_id ASC, id ASC
       `)
-      .all() as DeviceRow[];
+    .all() as DeviceRow[];
 
-    return rows.map(mapDeviceRow);
-  } catch {
-    return [];
-  }
+  return rows.map((row) => mapDeviceRow(row, encryptedRepositories));
 }
 
-function loadSyncDeviceRow(deviceId: string) {
-  try {
-    const db = getDb();
-    const row = db
+function loadSyncDeviceRow(deviceId: string, encryptedRepositories: EncryptedRepositories) {
+  const db = getDb();
+  const row = db
       .prepare(`
         SELECT id, name, custom_name, note, custom_icon, type, room_id, state_json, updated_at, version, is_deleted
         FROM devices
         WHERE id = ?
       `)
-      .get(deviceId) as DeviceRow | undefined;
+    .get(deviceId) as DeviceRow | undefined;
 
-    return row ? mapDeviceRowToSyncDto(row) : undefined;
-  } catch {
-    return undefined;
-  }
+  return row ? mapDeviceRowToSyncDto(row, encryptedRepositories.devices) : undefined;
 }
 
-function ensureRegistryDevicesPersisted(registry: DeviceRegistry): void {
+function ensureRegistryDevicesPersisted(registry: DeviceRegistry, encryptedRepositories: EncryptedRepositories): void {
   const db = getDb();
   const row = db.prepare(`
     SELECT COUNT(*) AS count
@@ -377,7 +378,7 @@ function ensureRegistryDevicesPersisted(registry: DeviceRegistry): void {
         device.name,
         device.kind,
         device.room,
-        JSON.stringify(device.state),
+        encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
         device.state.updatedAt,
       );
     });
@@ -388,6 +389,7 @@ function createDevice(
   template: NonNullable<ReturnType<typeof findCreatableDeviceTemplate>>,
   roomId: string,
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
 ): EnhancedDeviceDescriptor {
   const now = Date.now();
   const device = createDeviceFromTemplate(template, roomId, now);
@@ -414,7 +416,7 @@ function createDevice(
     device.name,
     device.kind,
     device.room,
-    JSON.stringify(device.state),
+    encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
     now,
     version,
   );
@@ -427,11 +429,11 @@ function createDevice(
     custom_icon: null,
     type: device.kind,
     room_id: device.room,
-    state_json: JSON.stringify(device.state),
+    state_json: encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
     updated_at: now,
     version,
     is_deleted: 0,
-  });
+  }, encryptedRepositories);
 }
 
 function updateDeviceRoomInDb(deviceId: string, roomId: string): boolean {
@@ -480,9 +482,9 @@ function incrementGlobalVersion(): number {
   return parseInt(row.value, 10);
 }
 
-function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
+function mapDeviceRow(row: DeviceRow, encryptedRepositories: EncryptedRepositories): EnhancedDeviceDescriptor {
   const kind = toDeviceKind(row.type);
-  const state = parseDeviceState(row.state_json, row.updated_at);
+  const state = parseDeviceState(row.id, row.state_json, row.updated_at, encryptedRepositories);
   const descriptor: DeviceDescriptor = {
     id: row.id,
     name: row.name,
@@ -519,19 +521,15 @@ function applyStoredCustomName(
 }
 
 function lookupStoredCustomName(deviceId: string): string | undefined {
-  try {
-    const row = getDb().prepare(`
+  const row = getDb().prepare(`
       SELECT custom_name
       FROM devices
       WHERE id = ? AND is_deleted = 0
-    `).get(deviceId) as { custom_name?: string | null } | undefined;
-    return row?.custom_name ?? undefined;
-  } catch {
-    return undefined;
-  }
+  `).get(deviceId) as { custom_name?: string | null } | undefined;
+  return row?.custom_name ?? undefined;
 }
 
-function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor): void {
+function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor, encryptedRepositories: EncryptedRepositories): void {
   const db = getDb();
   db.prepare(`
     INSERT INTO devices (id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted)
@@ -542,7 +540,7 @@ function persistRegistryDeviceIfNeeded(device: EnhancedDeviceDescriptor): void {
     device.name,
     device.kind,
     device.room,
-    JSON.stringify(device.state),
+    encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
     device.state.updatedAt,
   );
 }
@@ -580,8 +578,8 @@ function updateStoredDeviceMetadata(deviceId: string, update: DeviceMetadataUpda
   })();
 }
 
-function parseDeviceState(rawState: string, updatedAt: number): DeviceState {
-  const parsed = JSON.parse(rawState) as Partial<DeviceState>;
+function parseDeviceState(id: string, rawState: string, updatedAt: number, encryptedRepositories: EncryptedRepositories): DeviceState {
+  const parsed = encryptedRepositories.devices.decodeState(id, rawState) as Partial<DeviceState>;
   return {
     ...parsed,
     updatedAt: parsed.updatedAt ?? updatedAt,
@@ -600,16 +598,6 @@ function toDeviceKind(type: string): DeviceKindName {
     default:
       return DeviceKind.Light;
   }
-}
-
-function isSupportedDeviceKind(value: string): value is DeviceKindName {
-  return [
-    DeviceKind.DoorLock,
-    DeviceKind.Light,
-    DeviceKind.EnvironmentSensor,
-    DeviceKind.AirConditioner,
-    DeviceKind.MotionSensor,
-  ].includes(value as DeviceKindName);
 }
 
 function capabilitiesForKind(kind: DeviceKindName) {

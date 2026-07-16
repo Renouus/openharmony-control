@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-contract';
-import { buildApp } from '../../src/app';
-import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from '../helpers/build-test-app';
+import { initDatabase, closeDatabase, getDb } from '../helpers/test-database';
 import type { VendorDeviceProvider } from '../../src/integrations/vendor-provider';
 import { clientConnections } from '../../src/routes/websocket';
 
@@ -140,7 +140,7 @@ describe('GET /api/sync', () => {
   });
 
   it('should return sync data', async () => {
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=0',
     });
@@ -153,7 +153,7 @@ describe('GET /api/sync', () => {
   });
 
   it('returns automation rows independently from scenes', async () => {
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=0',
     });
@@ -192,9 +192,9 @@ describe('GET /api/sync', () => {
     db.prepare("UPDATE metadata SET value = '1' WHERE key = 'global_version'").run();
     db.prepare(
       "INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run('dev-sync', 'Sync Light', 'light', 'room-1', '{}', Date.now(), 8, 0);
+    ).run('dev-sync', 'Sync Light', 'light', 'room-1', createTestEncryptedRepositories().devices.encodeState('dev-sync', { updatedAt: 1, online: true }), Date.now(), 8, 0);
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=1',
     });
@@ -218,7 +218,7 @@ describe('GET /api/sync', () => {
       'outlet',
       'light',
       'study',
-      JSON.stringify({
+      createTestEncryptedRepositories().devices.encodeState('db-light', {
         power: true,
         brightness: 55,
         colorTemperature: 3200,
@@ -237,9 +237,9 @@ describe('GET /api/sync', () => {
     `).run('Hall Accent', 'North wall', 'lightbulb', 'tuya-light-1');
 
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProviderWithAlias('Hall Light') });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=0',
     });
@@ -296,7 +296,7 @@ describe('GET /api/sync', () => {
     clientConnections.set('test-client', fakeClient);
 
     try {
-      const signResponse = await app.inject({
+      const signResponse = await demoInject(app, {
         method: 'POST',
         url: '/api/demo/sign-command',
         payload: {
@@ -309,14 +309,14 @@ describe('GET /api/sync', () => {
       });
       expect(signResponse.statusCode).toBe(200);
 
-      const commandResponse = await app.inject({
+      const commandResponse = await apiInject(app, {
         method: 'POST',
         url: '/api/commands',
-        payload: signResponse.json(),
+        payload: signResponse.json().command,
       });
       expect(commandResponse.statusCode).toBe(200);
 
-      const syncResponse = await app.inject({
+      const syncResponse = await apiInject(app, {
         method: 'GET',
         url: '/api/sync?lastVersion=0',
       });
@@ -346,9 +346,9 @@ describe('GET /api/sync', () => {
   it('returns vendor devices through /api/sync when a provider is configured', async () => {
     seedManagedVendorDevices();
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=0',
     });
@@ -397,9 +397,9 @@ describe('GET /api/sync', () => {
     );
 
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=0',
     });
@@ -420,9 +420,9 @@ describe('GET /api/sync', () => {
   it('returns only vendor devices whose version is newer than lastVersion', async () => {
     seedManagedVendorDevices();
     await app.close();
-    app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'GET',
       url: '/api/sync?lastVersion=50',
     });

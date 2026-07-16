@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
+import { apiInject, buildAppWithStubAutomation as buildApp } from "./helpers/build-test-app";
 
 describe("access prototype routes", () => {
   it("returns front door access overview", async () => {
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/access" });
+    const response = await apiInject(app, { method: "GET", url: "/api/access" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
@@ -29,7 +29,7 @@ describe("access prototype routes", () => {
   it("creates a temporary guest key for the share guest action", async () => {
     const app = buildApp();
     const start = Date.now();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/access/guest-keys",
       payload: { holder: "Guest", hours: 4 },
@@ -54,31 +54,46 @@ describe("access prototype routes", () => {
 
   it("rejects invalid guest key payloads with a stable error code", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/access/guest-keys",
       payload: { holder: "", hours: 0 },
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 
   it("rejects guest keys with an overflowing expiry", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/access/guest-keys",
       payload: { holder: "Guest", hours: 1e308 },
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ code: "GUEST_KEY_INVALID" });
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
+  });
+
+  it("rejects unknown guest key fields", async () => {
+    const app = buildApp();
+    const response = await apiInject(app, {
+      method: "POST",
+      url: "/api/access/guest-keys",
+      payload: { holder: "Guest", hours: 4, isAdmin: true },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: "VALIDATION_ERROR", fields: expect.any(Array) });
+    expect(response.json()).not.toHaveProperty("stack");
   });
 
   it("trims guest key holder names before returning the key", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/access/guest-keys",
       payload: { holder: "  Guest  ", hours: 4 },
@@ -91,7 +106,7 @@ describe("access prototype routes", () => {
   it("returns the new guest key in the next access overview refresh", async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/access/guest-keys",
       payload: { holder: "Guest", hours: 4 },
@@ -99,7 +114,7 @@ describe("access prototype routes", () => {
 
     expect(createResponse.statusCode).toBe(201);
 
-    const overviewResponse = await app.inject({ method: "GET", url: "/api/access" });
+    const overviewResponse = await apiInject(app, { method: "GET", url: "/api/access" });
     expect(overviewResponse.statusCode).toBe(200);
     expect(overviewResponse.json().keys).toEqual(
       expect.arrayContaining([

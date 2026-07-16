@@ -1,6 +1,7 @@
 export interface DeviceState {
   power?: boolean;
   locked?: boolean;
+  mode?: string;
   temperature?: number;
   humidity?: number;
   targetTemperature?: number;

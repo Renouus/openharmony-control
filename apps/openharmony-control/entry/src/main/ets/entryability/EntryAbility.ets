@@ -2,9 +2,12 @@ import UIAbility from '@ohos.app.ability.UIAbility';
 import Want from '@ohos.app.ability.Want';
 import window from '@ohos.window';
 import { DatabaseHelper } from '../services/db/DatabaseHelper';
+import { configureAppAuthCredentialProvider } from '../security/AuthCredentialProvider';
+import { createPlatformHuksTokenStore } from '../security/HuksTokenStore';
 
 export default class EntryAbility extends UIAbility {
   async onCreate(want: Want): Promise<void> {
+    configureAppAuthCredentialProvider(createPlatformHuksTokenStore(this.context));
     try {
       await DatabaseHelper.getInstance().init(this.context);
       console.info('Database initialized successfully');

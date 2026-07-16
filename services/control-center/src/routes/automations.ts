@@ -10,6 +10,10 @@ import {
   assertDevicesAreActive,
   InactiveDeviceReferenceError,
 } from '../devices/device-lifecycle-guard';
+import { automationIdParamsSchema, automationMutationSchema, automationUpdateSchema } from '@smart-home/device-contract/schemas';
+import { parseRequest } from './parse-request';
+import type { EncryptedRepositories } from '../db/encrypted-repositories';
+import { EncryptedDataInvalidError } from '../security/encrypted-field-codec';
 
 type AutomationRow = {
   id: string;
@@ -34,20 +38,19 @@ type AutomationDescriptor = {
   enabled: boolean;
 };
 
-export async function registerAutomationRoutes(app: FastifyInstance): Promise<void> {
-  const runtime = (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
+export async function registerAutomationRoutes(app: FastifyInstance, encryptedRepositories: EncryptedRepositories): Promise<void> {
+  const runtime = (): AutomationRuntime => (app as FastifyInstance & { automationRuntime: AutomationRuntime }).automationRuntime;
 
   app.get('/api/automations', async () => {
     return {
-      automations: listAutomations(),
+      automations: listAutomations(encryptedRepositories),
     };
   });
 
   app.post('/api/automations', async (request, reply) => {
-    const body = request.body as Partial<AutomationDescriptor>;
-    if (!body?.name || !body.triggerType || !body.triggerJson || !body.actionJson) {
-      return reply.code(400).send({ code: 'INVALID_PAYLOAD' });
-    }
+    const parsed = parseRequest(automationMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const body = parsed.value;
     if (!isValidAutomationConditionGroup(body.triggerJson)) {
       return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
     }
@@ -74,29 +77,55 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
       throw error;
     }
 
-    const automation = createAutomation({
-      icon: body.icon,
-      name: body.name,
-      triggerType: normalized.triggerType,
-      triggerJson: normalized.triggerJson,
-      actionJson: normalized.actionJson,
-      enabled: body.enabled ?? true,
-    });
+    let automation: AutomationDescriptor;
+    const db = getDb();
+    const previousGlobalVersion = (db.prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
+    try {
+      automation = createAutomation({
+        icon: body.icon,
+        name: body.name,
+        triggerType: normalized.triggerType,
+        triggerJson: normalized.triggerJson,
+        actionJson: normalized.actionJson,
+        enabled: body.enabled ?? true,
+      }, encryptedRepositories);
+    } catch (error) {
+      if (error instanceof EncryptedDataInvalidError) return reply.code(400).send({ code: 'AUTOMATION_PAYLOAD_INVALID' });
+      throw error;
+    }
     if (automation.enabled) {
-      await runtime.reload(automation.id);
+      const createdVersion = (db.prepare('SELECT version FROM automations WHERE id = ?').get(automation.id) as { version: number }).version;
+      try {
+        await runtime().reload(automation.id);
+      } catch {
+        db.transaction(() => {
+          db.prepare('DELETE FROM automations WHERE id = ?').run(automation.id);
+          db.prepare("UPDATE metadata SET value=? WHERE key='global_version' AND value=?")
+            .run(previousGlobalVersion, String(createdVersion));
+        })();
+        runtime().unload(automation.id);
+        return reply.code(500).send({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+      }
     }
     return reply.code(201).send({ automation });
   });
 
   app.put('/api/automations/:automationId', async (request, reply) => {
-    const { automationId } = request.params as { automationId: string };
-    const body = request.body as Partial<AutomationDescriptor>;
+    const params = parseRequest(automationIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const parsed = parseRequest(automationUpdateSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { automationId } = params.value;
+    const body = parsed.value;
     if (body.triggerJson && !isValidAutomationConditionGroup(body.triggerJson)) {
       return reply.code(400).send({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
     }
+    const db = getDb();
+    const previousRow = db.prepare('SELECT * FROM automations WHERE id = ?').get(automationId) as AutomationRow | undefined;
+    const previousGlobalVersion = (db.prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
     let automation: AutomationDescriptor | undefined;
     try {
-      automation = updateAutomation(automationId, body);
+      automation = updateAutomation(automationId, body, encryptedRepositories);
     } catch (error) {
       if (error instanceof InactiveDeviceReferenceError) {
         return reply.code(409).send({
@@ -104,28 +133,51 @@ export async function registerAutomationRoutes(app: FastifyInstance): Promise<vo
           deviceId: error.deviceId,
         });
       }
+      if (error instanceof EncryptedDataInvalidError) {
+        return reply.code(400).send({ code: 'AUTOMATION_PAYLOAD_INVALID' });
+      }
       throw error;
     }
     if (!automation) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });
     }
-    await runtime.reload(automation.id);
+    const failedVersion = (db.prepare('SELECT version FROM automations WHERE id = ?').get(automation.id) as { version: number }).version;
+    try {
+      await runtime().reload(automation.id);
+    } catch {
+      if (previousRow) {
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE automations SET icon=?, name=?, trigger_type=?, trigger_json=?, action_json=?, enabled=?, updated_at=?, version=?, is_deleted=?
+            WHERE id=?
+          `).run(previousRow.icon, previousRow.name, previousRow.trigger_type, previousRow.trigger_json,
+            previousRow.action_json, previousRow.enabled, previousRow.updated_at, previousRow.version,
+            previousRow.is_deleted, previousRow.id);
+          db.prepare("UPDATE metadata SET value=? WHERE key='global_version' AND value=?")
+            .run(previousGlobalVersion, String(failedVersion));
+        })();
+        try { await runtime().reload(automation.id); } catch { runtime().unload(automation.id); }
+      }
+      return reply.code(500).send({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+    }
     return { automation };
   });
 
   app.delete('/api/automations/:automationId', async (request, reply) => {
-    const { automationId } = request.params as { automationId: string };
+    const params = parseRequest(automationIdParamsSchema, request.params, reply);
+    if (!params.ok) return;
+    const { automationId } = params.value;
     const success = deleteAutomation(automationId);
     if (!success) {
       return reply.code(404).send({ code: 'AUTOMATION_NOT_FOUND' });
     }
-    runtime.unload(automationId);
+    runtime().unload(automationId);
     return reply.code(204).send();
   });
 }
 
-function listAutomations(): AutomationDescriptor[] {
-  seedBuiltInAutomations();
+function listAutomations(encryptedRepositories: EncryptedRepositories): AutomationDescriptor[] {
+  seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const rows = db.prepare(`
     SELECT *
@@ -133,39 +185,43 @@ function listAutomations(): AutomationDescriptor[] {
     WHERE is_deleted = 0
     ORDER BY updated_at ASC, id ASC
   `).all() as AutomationRow[];
-  return rows.map(mapAutomationRow);
+  return rows.map((row) => mapAutomationRow(row, encryptedRepositories));
 }
 
-function createAutomation(payload: Omit<AutomationDescriptor, 'id'>): AutomationDescriptor {
-  seedBuiltInAutomations();
+function createAutomation(payload: Omit<AutomationDescriptor, 'id'>, encryptedRepositories: EncryptedRepositories): AutomationDescriptor {
+  seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const now = Date.now();
-  const version = incrementAndGetVersion(db);
   const id = `automation-${now}`;
-  db.prepare(`
+  const encryptedTrigger = encryptedRepositories.automations.encodeTriggerJson(id, payload.triggerType, payload.triggerJson);
+  const encryptedActions = encryptedRepositories.automations.encodeActionJson(id, payload.actionJson);
+  db.transaction(() => {
+    const version = incrementAndGetVersion(db);
+    db.prepare(`
     INSERT INTO automations (
       id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-  `).run(
+    `).run(
     id,
     payload.icon ?? null,
     payload.name,
     payload.triggerType,
-    payload.triggerJson,
-    payload.actionJson,
+    encryptedTrigger,
+    encryptedActions,
     payload.enabled ? 1 : 0,
     now,
     version,
-  );
+    );
+  })();
   return {
     id,
     ...payload,
   };
 }
 
-function updateAutomation(automationId: string, patch: Partial<AutomationDescriptor>): AutomationDescriptor | undefined {
-  seedBuiltInAutomations();
+function updateAutomation(automationId: string, patch: Partial<AutomationDescriptor>, encryptedRepositories: EncryptedRepositories): AutomationDescriptor | undefined {
+  seedBuiltInAutomations(encryptedRepositories);
   const db = getDb();
   const existing = db.prepare(`
     SELECT *
@@ -176,7 +232,7 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
     return undefined;
   }
 
-  const base = mapAutomationRow(existing);
+  const base = mapAutomationRow(existing, encryptedRepositories);
   const normalizedPatch = patch.triggerType && patch.triggerJson && patch.actionJson
     ? normalizeAutomationTransport({
         triggerType: patch.triggerType,
@@ -197,28 +253,31 @@ function updateAutomation(automationId: string, patch: Partial<AutomationDescrip
       actionJson: next.actionJson,
     }),
   );
+  const encryptedTrigger = encryptedRepositories.automations.encodeTriggerJson(automationId, next.triggerType, next.triggerJson);
+  const encryptedActions = encryptedRepositories.automations.encodeActionJson(automationId, next.actionJson);
   const now = Date.now();
-  const version = incrementAndGetVersion(db);
-  db.prepare(`
+  db.transaction(() => {
+    const version = incrementAndGetVersion(db);
+    db.prepare(`
     UPDATE automations
     SET icon = ?, name = ?, trigger_type = ?, trigger_json = ?, action_json = ?, enabled = ?, updated_at = ?, version = ?
     WHERE id = ? AND is_deleted = 0
-  `).run(
+    `).run(
     next.icon ?? null,
     next.name,
     next.triggerType,
-    next.triggerJson,
-    next.actionJson,
+    encryptedTrigger,
+    encryptedActions,
     next.enabled ? 1 : 0,
     now,
     version,
     automationId,
-  );
+    );
+  })();
   return next;
 }
 
 function deleteAutomation(automationId: string): boolean {
-  seedBuiltInAutomations();
   const db = getDb();
   const version = incrementAndGetVersion(db);
   const result = db.prepare(`
@@ -229,11 +288,11 @@ function deleteAutomation(automationId: string): boolean {
   return result.changes > 0;
 }
 
-function mapAutomationRow(row: AutomationRow): AutomationDescriptor {
+function mapAutomationRow(row: AutomationRow, encryptedRepositories: EncryptedRepositories): AutomationDescriptor {
   const normalized = normalizeAutomationTransport({
     triggerType: row.trigger_type,
-    triggerJson: row.trigger_json,
-    actionJson: row.action_json,
+    triggerJson: encryptedRepositories.automations.decodeTriggerJson(row.id, row.trigger_type, row.trigger_json),
+    actionJson: encryptedRepositories.automations.decodeActionJson(row.id, row.action_json),
   });
   return {
     id: row.id,
@@ -246,7 +305,7 @@ function mapAutomationRow(row: AutomationRow): AutomationDescriptor {
   };
 }
 
-function seedBuiltInAutomations(): void {
+function seedBuiltInAutomations(encryptedRepositories: EncryptedRepositories): void {
   const db = getDb();
   const countRow = db.prepare('SELECT COUNT(*) AS total FROM automations WHERE is_deleted = 0').get() as { total: number };
   if (countRow.total > 0) {
@@ -264,8 +323,8 @@ function seedBuiltInAutomations(): void {
     'auto_awesome',
     'Night Routine',
     'time',
-    JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-    JSON.stringify([{ id: 'seed-lock', type: 'device_command', deviceId: 'door-front', command: 'lock:true' }]),
+    encryptedRepositories.automations.encodeTriggerJson('night-routine', 'time', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
+    encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device_command', deviceId: 'door-front', command: 'lock:true' }])),
     1,
     now,
     1,

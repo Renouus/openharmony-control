@@ -57,6 +57,7 @@ export type DeviceIconName = (typeof DeviceIcon)[keyof typeof DeviceIcon];
 export type DeviceState = {
   power?: boolean;
   locked?: boolean;
+  mode?: ClimateMode;
   temperature?: number;
   humidity?: number;
   targetTemperature?: number;

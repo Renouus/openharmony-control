@@ -6,10 +6,11 @@
  */
 import type { FastifyInstance } from "fastify";
 import {
-  isClimateMode,
   type ClimateMode,
   type ClimateOverview,
 } from "@smart-home/device-contract";
+import { climateMutationSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 import type { DeviceRegistry } from "../registry/device-registry";
 
 /** 演示用周用量数据（小时） */
@@ -21,6 +22,10 @@ export async function registerClimateRoutes(
 ): Promise<void> {
   /** 当前空调模式（内存可变） */
   let mode: ClimateMode = "cool";
+
+  // Set initial mode on the AC device in the registry so it is included
+  // in device state broadcasts and per-device views.
+  registry.update("ac-living-room", { mode });
 
   /** 从注册表实时读取传感器和空调数据构造气候概览 */
   const readOverview = (): ClimateOverview => {
@@ -40,32 +45,22 @@ export async function registerClimateRoutes(
   app.get("/api/climate", async () => readOverview());
 
   app.patch("/api/climate", async (request, reply) => {
-    const body = request.body as unknown;
-    if (typeof body !== "object" || body === null) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
-
-    const requestedMode = (body as { mode?: unknown }).mode;
-    if (!isClimateMode(requestedMode)) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
+    const parsed = parseRequest(climateMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const requestedMode = parsed.value.mode;
 
     mode = requestedMode;
+    registry.update("ac-living-room", { mode: requestedMode });
     return readOverview();
   });
 
   app.put("/api/climate", async (request, reply) => {
-    const body = request.body as unknown;
-    if (typeof body !== "object" || body === null) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
-
-    const requestedMode = (body as { mode?: unknown }).mode;
-    if (!isClimateMode(requestedMode)) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
+    const parsed = parseRequest(climateMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const requestedMode = parsed.value.mode;
 
     mode = requestedMode;
+    registry.update("ac-living-room", { mode: requestedMode });
     return readOverview();
   });
 }

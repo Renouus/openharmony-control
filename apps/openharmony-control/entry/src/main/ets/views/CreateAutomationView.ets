@@ -1,8 +1,9 @@
+import promptAction from '@ohos.promptAction';
 import { ActionDraft, ConditionDraft, DevicePanelState, RoutineDraft, SceneChipState } from '../model/page-view-state';
 import { AppSymbol } from '../components/AppSymbol';
 import { ConditionPickerSheet } from '../components/ConditionPickerSheet';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
-import { COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
+import { COLOR_ERROR, COLOR_ON_SURFACE, COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE, COLOR_SURFACE_CONTAINER_HIGH, COLOR_SURFACE_CONTAINER_LOW, COLOR_TEXT_MUTED } from '../theme/smart-home-theme';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { DEVICE_CAPABILITIES, DeviceCommandConfig, DevicePropertyConfig } from '../model/automation-capabilities';
 import { AutomationPayloadDraft, AutomationSnapshot } from '../services/device-api';
@@ -17,11 +18,17 @@ export struct CreateAutomationView {
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
   @State hasHydratedEditDraft: boolean = false;
+  private initialName: string = '';
+  private initialIcon: string = 'auto_awesome';
+  private initialConditionLogic: string = 'all';
+  private initialConditionsJson: string = '[]';
+  private initialActionsJson: string = '[]';
   onCancel: () => void = () => {};
   onSave: (payload: AutomationPayloadDraft) => void = () => {};
 
   aboutToAppear(): void {
     if (this.hasHydratedEditDraft || !this.editingAutomationId) {
+      this.captureInitial();
       return;
     }
 
@@ -29,11 +36,48 @@ export struct CreateAutomationView {
       (item: AutomationSnapshot) => item.id === this.editingAutomationId,
     );
     if (!snapshot) {
+      this.captureInitial();
       return;
     }
 
     this.draft = hydrateAutomationDraft(snapshot);
     this.hasHydratedEditDraft = true;
+    this.captureInitial();
+  }
+
+  private captureInitial(): void {
+    this.initialName = this.draft.name;
+    this.initialIcon = this.draft.icon ?? 'auto_awesome';
+    this.initialConditionLogic = this.draft.conditionLogic;
+    this.initialConditionsJson = JSON.stringify(this.draft.conditions);
+    this.initialActionsJson = JSON.stringify(this.draft.actions);
+  }
+
+  private isDirty(): boolean {
+    if (this.draft.name !== this.initialName) return true;
+    if (this.draft.icon !== this.initialIcon) return true;
+    if (this.draft.conditionLogic !== this.initialConditionLogic) return true;
+    if (JSON.stringify(this.draft.conditions) !== this.initialConditionsJson) return true;
+    if (JSON.stringify(this.draft.actions) !== this.initialActionsJson) return true;
+    return false;
+  }
+
+  private async requestCancel(): Promise<void> {
+    if (!this.isDirty()) {
+      this.onCancel();
+      return;
+    }
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      title: '放弃修改？',
+      message: '尚未保存的自动化规则将丢失。',
+      buttons: [
+        { text: '继续编辑', color: COLOR_TEXT_MUTED },
+        { text: '放弃修改', color: COLOR_ERROR },
+      ],
+    });
+    if (result.index === 1) {
+      this.onCancel();
+    }
   }
 
   getConditionLabel(cond: ConditionDraft): string {
@@ -128,7 +172,7 @@ export struct CreateAutomationView {
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
           .onClick(() => {
-            this.onCancel();
+            this.requestCancel();
           })
         Text(this.editingAutomationId ? '编辑自动化' : '新建自动化')
           .fontSize(18)

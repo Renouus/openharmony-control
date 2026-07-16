@@ -14,6 +14,14 @@ import type { DemoFaultState } from "./demo-fault-state";
 import { getDb } from "../db/database";
 import { mapDeviceRowToSyncDto, type DeviceSyncRow } from "../db/device-sync-mapper";
 import { broadcastEvent } from "./websocket";
+import { signCommand } from "../security/envelope";
+import type { DeviceCommand } from "@smart-home/device-contract";
+import { demoEnvironmentSchema, demoMotionSchema, demoOfflineFaultSchema, demoSecurityFaultSchema, deviceCommandSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
+import { signedCommandEnvelopeSchema } from "@smart-home/device-contract/schemas";
+import type { DeviceCommandService } from "../services/device-command-service";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 type OfflineFaultRequest = {
   deviceId?: string;
@@ -36,16 +44,29 @@ type MotionRequest = {
 export async function registerDemoRoutes(
   app: FastifyInstance,
   registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
   faultState: DemoFaultState,
   deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
   sensorEventTriggerAdapter?: SensorEventTriggerAdapter,
+  commandSigningKey?: string,
+  deviceCommandService?: DeviceCommandService,
 ): Promise<void> {
+  if (commandSigningKey) {
+    app.post("/api/demo/sign-command", async (request, reply) => {
+      const parsed = parseRequest(deviceCommandSchema, request.body, reply); if (!parsed.ok) return;
+      return signCommand(parsed.value, commandSigningKey);
+    });
+    app.post("/api/demo/commands", async (request, reply) => {
+      const parsed = parseRequest(signedCommandEnvelopeSchema, request.body, reply); if (!parsed.ok) return;
+      if (!deviceCommandService) return reply.code(503).send({ code: "COMMAND_SERVICE_UNAVAILABLE" });
+      const result = await deviceCommandService.executeSignedCommand(parsed.value);
+      return reply.code(result.statusCode).send(result.body);
+    });
+  }
   /** 故障注入：切换设备在线/离线 */
   app.post("/api/demo/faults/offline", async (request, reply) => {
-    const body = request.body as OfflineFaultRequest;
-    if (!body.deviceId) {
-      return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
-    }
+    const parsed = parseRequest(demoOfflineFaultSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
 
     const beforeState = { ...(registry.find(body.deviceId)?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update(body.deviceId, {
@@ -63,11 +84,11 @@ export async function registerDemoRoutes(
         const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
         const newVersion = parseInt(newVersionRow.value, 10);
         db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-          .run(JSON.stringify(updated.state), Date.now(), newVersion, body.deviceId);
+          .run(encryptedRepositories.devices.encodeState(body.deviceId, updated.state as Record<string, JsonValue>), Date.now(), newVersion, body.deviceId);
       })();
       const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get(body.deviceId) as DeviceSyncRow;
       if (syncedRaw) {
-        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw, encryptedRepositories.devices));
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/offline: " + dbErr);
@@ -95,15 +116,8 @@ export async function registerDemoRoutes(
 
   /** 演示环境模拟：修改传感器读数（含范围校验） */
   app.post("/api/demo/environment", async (request, reply) => {
-    const body = request.body as EnvironmentRequest;
-    if (
-      (body.temperature !== undefined && (body.temperature < -10 || body.temperature > 50)) ||
-      (body.humidity !== undefined && (body.humidity < 0 || body.humidity > 100)) ||
-      (body.aqi !== undefined && (body.aqi < 0 || body.aqi > 500)) ||
-      (body.filterLife !== undefined && (body.filterLife < 0 || body.filterLife > 100))
-    ) {
-      return reply.code(400).send({ code: "ENVIRONMENT_INVALID" });
-    }
+    const parsed = parseRequest(demoEnvironmentSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
 
     const nextState: Partial<DeviceState> = {};
     if (body.temperature !== undefined) nextState.temperature = body.temperature;
@@ -124,11 +138,11 @@ export async function registerDemoRoutes(
         const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
         const newVersion = parseInt(newVersionRow.value, 10);
         db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-          .run(JSON.stringify(updated?.state ?? nextState), Date.now(), newVersion, "sensor-living-room");
+          .run(encryptedRepositories.devices.encodeState("sensor-living-room", (updated?.state ?? nextState) as Record<string, JsonValue>), Date.now(), newVersion, "sensor-living-room");
       })();
       const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get("sensor-living-room") as DeviceSyncRow;
       if (syncedRaw) {
-        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw, encryptedRepositories.devices));
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/environment: " + dbErr);
@@ -157,10 +171,8 @@ export async function registerDemoRoutes(
 
   /** 人体感应联动演示：模拟人体经过或离开 */
   app.post("/api/demo/motion", async (request, reply) => {
-    const body = request.body as MotionRequest;
-    if (!body.deviceId) {
-      return reply.code(400).send({ code: "DEVICE_NOT_FOUND" });
-    }
+    const parsed = parseRequest(demoMotionSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
 
     const beforeMotionState = { ...(registry.find(body.deviceId)?.state ?? {}) } as Record<string, unknown>;
     const updated = registry.update(body.deviceId, {
@@ -179,11 +191,11 @@ export async function registerDemoRoutes(
         const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
         const newVersion = parseInt(newVersionRow.value, 10);
         db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-          .run(JSON.stringify(updated.state), Date.now(), newVersion, body.deviceId);
+          .run(encryptedRepositories.devices.encodeState(body.deviceId, updated.state as Record<string, JsonValue>), Date.now(), newVersion, body.deviceId);
       })();
       const syncedRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get(body.deviceId) as DeviceSyncRow;
       if (syncedRaw) {
-        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw));
+        broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(syncedRaw, encryptedRepositories.devices));
       }
     } catch (dbErr) {
       app.log.error("Failed to update DB for demo/motion sensor: " + dbErr);
@@ -230,11 +242,11 @@ export async function registerDemoRoutes(
               const newVersionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string };
               const newVersion = parseInt(newVersionRow.value, 10);
               db.prepare("UPDATE devices SET state_json = ?, updated_at = ?, version = ? WHERE id = ?")
-                .run(JSON.stringify(lightUpdated.state), Date.now(), newVersion, "light-living-room");
+                .run(encryptedRepositories.devices.encodeState("light-living-room", lightUpdated.state as Record<string, JsonValue>), Date.now(), newVersion, "light-living-room");
             })();
             const lightRaw = db.prepare("SELECT * FROM devices WHERE id = ?").get("light-living-room") as DeviceSyncRow;
             if (lightRaw) {
-              broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(lightRaw));
+              broadcastEvent('DeviceStateUpdated', mapDeviceRowToSyncDto(lightRaw, encryptedRepositories.devices));
             }
           }
         } catch (dbErr) {
@@ -267,8 +279,9 @@ export async function registerDemoRoutes(
   });
 
   /** 安全演示：强制拒绝所有命令 */
-  app.post("/api/demo/faults/security", async (request) => {
-    const body = request.body as { forceUnauthorizedCommands?: boolean };
+  app.post("/api/demo/faults/security", async (request, reply) => {
+    const parsed = parseRequest(demoSecurityFaultSchema, request.body, reply); if (!parsed.ok) return;
+    const body = parsed.value;
     faultState.forceUnauthorizedCommands = body.forceUnauthorizedCommands === true;
     return {
       forceUnauthorizedCommands: faultState.forceUnauthorizedCommands,

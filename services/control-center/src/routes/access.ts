@@ -5,12 +5,9 @@
  * POST /api/access/guest-keys — 创建临时访客钥匙（过期时间 = now + hours）
  */
 import type { FastifyInstance } from "fastify";
+import { guestKeyMutationSchema } from "@smart-home/device-contract/schemas";
 import type { DeviceRegistry } from "../registry/device-registry";
-
-type GuestKeyRequest = {
-  holder: string;
-  hours: number;
-};
+import { parseRequest } from "./parse-request";
 
 type AccessKey = {
   id: string;
@@ -21,21 +18,6 @@ type AccessKey = {
 };
 
 /** 类型守卫：校验访客钥匙请求体 */
-function isGuestKeyRequest(body: unknown): body is GuestKeyRequest {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const candidate = body as Partial<GuestKeyRequest>;
-  return (
-    typeof candidate.holder === "string" &&
-    candidate.holder.trim().length > 0 &&
-    typeof candidate.hours === "number" &&
-    Number.isFinite(candidate.hours) &&
-    candidate.hours > 0
-  );
-}
-
 /** 演示用家庭成员数字钥匙 */
 const demoKeys: AccessKey[] = [
   {
@@ -86,12 +68,9 @@ export async function registerAccessRoutes(
 
   /** 创建临时访客钥匙 */
   app.post("/api/access/guest-keys", async (request, reply) => {
-    if (!isGuestKeyRequest(request.body)) {
-      return reply.code(400).send({ code: "GUEST_KEY_INVALID" });
-    }
-
-    const { hours } = request.body;
-    const holder = request.body.holder.trim();
+    const parsed = parseRequest(guestKeyMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const { holder, hours } = parsed.value;
     const now = Date.now();
     const expiresAt = now + hours * 60 * 60 * 1000;
 
