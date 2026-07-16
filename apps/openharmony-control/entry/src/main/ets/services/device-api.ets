@@ -1,4 +1,5 @@
 import http from '@ohos.net.http';
+import { createAuthenticatedHttp } from './authenticated-http';
 import { DeviceSnapshot } from '../model/device-view-model';
 
 export interface DeviceListResponse {
@@ -483,7 +484,7 @@ export class DeviceApi {
   }
 
   async syncProviderDevices(providerId: string = 'tuya'): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/providers/${providerId}/discover`, {
         method: http.RequestMethod.POST,
@@ -501,7 +502,7 @@ export class DeviceApi {
   }
 
   async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       console.info('OmniHomeLog', `fetchSyncUpdates starting from version: ${lastVersion}`);
       const response = await client.request(`${this.baseUrl}/api/sync?lastVersion=${lastVersion}`, {
@@ -520,7 +521,7 @@ export class DeviceApi {
   }
 
   async listDevices(): Promise<DeviceSnapshot[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       console.info('OmniHomeLog', `Fetching devices from API: ${this.baseUrl}/api/devices`);
       const response = await client.request(`${this.baseUrl}/api/devices`, {
@@ -539,7 +540,7 @@ export class DeviceApi {
   }
 
   async listRooms(): Promise<RoomItem[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/rooms`, {
         method: http.RequestMethod.GET,
@@ -553,7 +554,7 @@ export class DeviceApi {
   }
 
   async createRoom(name: string, icon: string): Promise<RoomItem> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/rooms`, {
         method: http.RequestMethod.POST,
@@ -568,7 +569,7 @@ export class DeviceApi {
   }
 
   async updateRoom(id: string, name?: string, icon?: string): Promise<RoomItem> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const payload: Record<string, string> = {};
       if (name !== undefined) payload.name = name;
@@ -587,7 +588,7 @@ export class DeviceApi {
   }
 
   async deleteRoom(id: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       await client.request(`${this.baseUrl}/api/rooms/${id}`, {
         method: http.RequestMethod.DELETE,
@@ -598,7 +599,7 @@ export class DeviceApi {
   }
 
   async updateDeviceRoom(deviceId: string, roomId: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       await client.request(`${this.baseUrl}/api/devices/${deviceId}/room`, {
         method: http.RequestMethod.PUT,
@@ -611,7 +612,7 @@ export class DeviceApi {
   }
 
   async updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
         method: http.RequestMethod.PUT,
@@ -630,7 +631,7 @@ export class DeviceApi {
   }
 
   async deleteDevice(deviceId: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
         method: http.RequestMethod.DELETE,
@@ -645,7 +646,7 @@ export class DeviceApi {
   }
 
   async listPendingDevices(): Promise<PendingDeviceSnapshot[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/devices/pending`, {
         method: http.RequestMethod.GET,
@@ -664,7 +665,7 @@ export class DeviceApi {
     roomId: string,
     deviceType: string,
   ): Promise<DeviceSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const payload: JoinPendingDeviceRequest = { displayName, roomId, deviceType };
       const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}/join-home`, {
@@ -684,7 +685,7 @@ export class DeviceApi {
   }
 
   async rejectPendingDevice(deviceId: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}/reject`, {
         method: http.RequestMethod.POST,
@@ -699,7 +700,7 @@ export class DeviceApi {
   }
 
   async createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const payload: CreateDeviceRequest = { deviceCode, roomId };
       const response = await client.request(`${this.baseUrl}/api/devices`, {
@@ -719,7 +720,7 @@ export class DeviceApi {
   }
 
   async getSummary(): Promise<HomeSummary> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/summary`, {
         method: http.RequestMethod.GET,
@@ -732,7 +733,7 @@ export class DeviceApi {
   }
 
   async listScenes(): Promise<PersistedSceneSnapshot[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes`, {
         method: http.RequestMethod.GET,
@@ -746,7 +747,7 @@ export class DeviceApi {
   }
 
   async listAutomations(): Promise<AutomationSnapshot[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/automations`, {
         method: http.RequestMethod.GET,
@@ -760,7 +761,7 @@ export class DeviceApi {
   }
 
   async runScene(sceneId: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}/run`, {
         method: http.RequestMethod.POST,
@@ -775,7 +776,7 @@ export class DeviceApi {
   }
 
   async createScene(payload: ScenePayloadDraft): Promise<PersistedSceneSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes`, {
         method: http.RequestMethod.POST,
@@ -794,7 +795,7 @@ export class DeviceApi {
   }
 
   async updateScene(sceneId: string, payload: ScenePayloadDraft | SceneEnablePayload): Promise<PersistedSceneSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
         method: http.RequestMethod.PUT,
@@ -813,7 +814,7 @@ export class DeviceApi {
   }
 
   async deleteScene(sceneId: string): Promise<PersistedScene> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/scenes/${sceneId}`, {
         method: http.RequestMethod.DELETE,
@@ -830,7 +831,7 @@ export class DeviceApi {
   }
 
   async createAutomation(payload: AutomationPayloadDraft): Promise<AutomationSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/automations`, {
         method: http.RequestMethod.POST,
@@ -849,7 +850,7 @@ export class DeviceApi {
   }
 
   async updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/automations/${automationId}`, {
         method: http.RequestMethod.PUT,
@@ -868,7 +869,7 @@ export class DeviceApi {
   }
 
   async deleteAutomation(automationId: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/automations/${automationId}`, {
         method: http.RequestMethod.DELETE,
@@ -883,7 +884,7 @@ export class DeviceApi {
   }
 
   async listHistory(limit: number = 20): Promise<CommandHistoryEntry[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/commands/history?limit=${limit}`, {
         method: http.RequestMethod.GET,
@@ -897,7 +898,7 @@ export class DeviceApi {
   }
 
   async getAccessOverview(): Promise<AccessOverview> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/access`, {
         method: http.RequestMethod.GET,
@@ -910,7 +911,7 @@ export class DeviceApi {
   }
 
   async shareGuestKey(holder: string, hours: number): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const request: ShareGuestKeyRequest = { holder, hours };
       const response = await client.request(`${this.baseUrl}/api/access/guest-keys`, {
@@ -928,7 +929,7 @@ export class DeviceApi {
   }
 
   async getCameraOverview(): Promise<CameraSnapshot[]> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/cameras`, {
         method: http.RequestMethod.GET,
@@ -942,7 +943,7 @@ export class DeviceApi {
   }
 
   async toggleCameraRecording(cameraId: string, recording: boolean): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const request: CameraRecordingRequest = { recording };
       const encodedCameraId = encodeURIComponent(cameraId);
@@ -961,7 +962,7 @@ export class DeviceApi {
   }
 
   async getFamilyOverview(): Promise<FamilyOverview> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/family`, {
         method: http.RequestMethod.GET,
@@ -974,7 +975,7 @@ export class DeviceApi {
   }
 
   async getFamilySettings(): Promise<FamilySettingsSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/family/settings`, {
         method: http.RequestMethod.GET,
@@ -987,7 +988,7 @@ export class DeviceApi {
   }
 
   async updateFamilySettings(payload: FamilySettingsUpdateRequest): Promise<FamilySettingsSnapshot> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/family/settings`, {
         method: http.RequestMethod.PUT,
@@ -1002,7 +1003,7 @@ export class DeviceApi {
   }
 
   async sendBroadcast(message: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const request: BroadcastRequest = { message };
       const response = await client.request(`${this.baseUrl}/api/family/broadcast`, {
@@ -1020,7 +1021,7 @@ export class DeviceApi {
   }
 
   async getClimateOverview(): Promise<ClimateOverview> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/climate`, {
         method: http.RequestMethod.GET,
@@ -1033,7 +1034,7 @@ export class DeviceApi {
   }
 
   async updateClimateMode(mode: string): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const request: ClimateModeRequest = { mode };
       const response = await client.request(`${this.baseUrl}/api/climate`, {
@@ -1052,18 +1053,12 @@ export class DeviceApi {
   }
 
   async postDemoCommand(command: DeviceCommand): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
-      const signed = await client.request(`${this.baseUrl}/api/demo/sign-command`, {
-        method: http.RequestMethod.POST,
-        header: { 'content-type': 'application/json' },
-        extraData: JSON.stringify(command),
-        expectDataType: http.HttpDataType.STRING,
-      });
       const response = await client.request(`${this.baseUrl}/api/commands`, {
         method: http.RequestMethod.POST,
         header: { 'content-type': 'application/json' },
-        extraData: signed.result as string,
+        extraData: JSON.stringify(command),
         expectDataType: http.HttpDataType.STRING,
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {
@@ -1075,7 +1070,7 @@ export class DeviceApi {
   }
 
   async postDemoMotion(deviceId: string, motionDetected: boolean): Promise<void> {
-    const client = http.createHttp();
+    const client = createAuthenticatedHttp();
     try {
       const response = await client.request(`${this.baseUrl}/api/demo/motion`, {
         method: http.RequestMethod.POST,
