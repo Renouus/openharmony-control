@@ -23,33 +23,33 @@ async function main(): Promise<void> {
   const app = buildApp(registry);
   app.log.info(`Database initialized at ${dbPath}`);
 
-  try {
-    const initialDevices = registry.list();
-    const seededCount = seedRegistryDevicesIfEmpty(db, initialDevices);
-    if (seededCount > 0) {
-      app.log.info(`Seeded ${seededCount} initial devices into an empty database`);
-    } else {
-      app.log.info("Preserved existing persisted devices during startup");
-    }
-  } catch (error) {
-    app.log.error(`Failed to seed initial data: ${error}`);
-  }
-
-  const tlsCertPath = process.env.TLS_CERT_PATH;
-  const tlsKeyPath = process.env.TLS_KEY_PATH;
-  const listenOptions =
-    tlsCertPath && tlsKeyPath
-      ? {
-          host,
-          port,
-          https: {
-            cert: readFileSync(tlsCertPath),
-            key: readFileSync(tlsKeyPath),
-          },
-        }
-      : { host, port };
-
   await runServerWithShutdownOnFailure(app, async () => {
+    try {
+      const initialDevices = registry.list();
+      const seededCount = seedRegistryDevicesIfEmpty(db, initialDevices);
+      if (seededCount > 0) {
+        app.log.info(`Seeded ${seededCount} initial devices into an empty database`);
+      } else {
+        app.log.info("Preserved existing persisted devices during startup");
+      }
+    } catch (error) {
+      app.log.error(`Failed to seed initial data: ${error}`);
+    }
+
+    const tlsCertPath = process.env.TLS_CERT_PATH;
+    const tlsKeyPath = process.env.TLS_KEY_PATH;
+    const listenOptions =
+      tlsCertPath && tlsKeyPath
+        ? {
+            host,
+            port,
+            https: {
+              cert: readFileSync(tlsCertPath),
+              key: readFileSync(tlsKeyPath),
+            },
+          }
+        : { host, port };
+
     await app.listen(listenOptions);
   });
 }

@@ -34,4 +34,17 @@ describe("control center server lifecycle", () => {
 
     expect(logger.error).toHaveBeenCalledWith(closeError);
   });
+
+  it("closes the app when pre-listen startup work fails", async () => {
+    const tlsReadError = new Error("TLS certificate cannot be read");
+    const close = vi.fn(async () => undefined);
+    const logger = { error: vi.fn() };
+
+    await expect(runServerWithShutdownOnFailure(
+      { close, log: logger },
+      async () => { throw tlsReadError; },
+    )).rejects.toBe(tlsReadError);
+
+    expect(close).toHaveBeenCalledOnce();
+  });
 });
