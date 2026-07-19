@@ -103,6 +103,7 @@ export function createMqttTransport(
     }),
     subscribe: async (topic, handler) => {
       if (closed) throw new Error("MQTT transport is closed");
+      const previousRegistration = subscriptions.get(topic);
       const registration = { handler };
       subscriptions.set(topic, registration);
       try {
@@ -110,7 +111,10 @@ export function createMqttTransport(
           client.subscribe(topic, { qos: 1 }, (error) => error ? reject(error) : resolve());
         });
       } catch (error) {
-        if (subscriptions.get(topic) === registration) subscriptions.delete(topic);
+        if (subscriptions.get(topic) === registration) {
+          if (previousRegistration) subscriptions.set(topic, previousRegistration);
+          else subscriptions.delete(topic);
+        }
         throw error;
       }
       return () => {

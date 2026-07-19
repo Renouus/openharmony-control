@@ -339,6 +339,28 @@ describe("mqtt provider", () => {
 });
 
 describe("mqtt.js transport", () => {
+  it("restores the existing registration when a replacement subscribe is rejected", async () => {
+    const handlers = new Map<string, (...args: any[]) => void>();
+    let subscribeCalls = 0;
+    const client = {
+      connected: true,
+      on: vi.fn((event: string, handler: (...args: any[]) => void) => { handlers.set(event, handler); return client; }),
+      off: vi.fn(),
+      subscribe: vi.fn((_topic: string, _options: unknown, done: (error?: Error) => void) => {
+        subscribeCalls++;
+        done(subscribeCalls === 1 ? undefined : new Error("SUBACK rejected"));
+      }),
+      publish: vi.fn(), end: vi.fn((_force: boolean, done: () => void) => done()),
+    };
+    const transport = createMqttTransport(config, vi.fn(() => client) as never);
+    const original = vi.fn(); const replacement = vi.fn();
+    await transport.subscribe("omnihome/gateways/gateway-1/status", original);
+    await expect(transport.subscribe("omnihome/gateways/gateway-1/status", replacement)).rejects.toThrow("SUBACK rejected");
+    handlers.get("message")?.("omnihome/gateways/gateway-1/status", Buffer.from("{}"));
+    expect(original).toHaveBeenCalledOnce();
+    expect(replacement).not.toHaveBeenCalled();
+  });
+
   it("passes authenticated durable options and routes wildcard messages without a live broker", async () => {
     const handlers = new Map<string, (...args: any[]) => void>();
     const client = {
