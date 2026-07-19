@@ -190,13 +190,60 @@ describe("ProviderDeviceStore", () => {
       power: true, online: true, updatedAt: 400,
     })).toMatchObject({ state: { power: false, updatedAt: 500 } });
     expect(store.updateActiveDeviceState("tuya-light-1", {
-      power: true, online: true, updatedAt: 500,
+      updatedAt: 500, online: true, power: false,
     })).toMatchObject({ state: { power: false, updatedAt: 500 } });
     expect(store.updateActiveDeviceState("tuya-light-1", {
       power: true, online: true, updatedAt: Number.NaN,
-    })).toMatchObject({ state: { power: false, updatedAt: 500 } });
+    })).toBeUndefined();
 
     expect(globalVersion()).toBe(versionAfterNewState);
     expect(store.listActiveDevices()[0]?.state).toMatchObject({ power: false, updatedAt: 500 });
+  });
+
+  it("accepts a different state produced at the same timestamp", () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredLight]);
+    store.joinHome("tuya-light-1", {
+      displayName: "Bedroom Bedside Lamp", roomId: "bedroom", deviceType: "light",
+    });
+    store.updateActiveDeviceState("tuya-light-1", {
+      power: false, brightness: 10, online: true, updatedAt: 700,
+    });
+    const versionBefore = Number(
+      (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    );
+
+    expect(store.updateActiveDeviceState("tuya-light-1", {
+      updatedAt: 700, online: true, brightness: 80, power: true,
+    })).toMatchObject({
+      state: { power: true, brightness: 80, updatedAt: 700 },
+    });
+    expect(Number(
+      (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    )).toBe(versionBefore + 1);
+  });
+
+  it.each([
+    ["malformed JSON", "{not-json"],
+    ["missing timestamp", JSON.stringify({ power: false, online: true })],
+    ["invalid timestamp", JSON.stringify({ power: false, online: true, updatedAt: "invalid" })],
+  ])("repairs persisted state with %s when a valid newer state arrives", (_case, persistedState) => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredLight]);
+    store.joinHome("tuya-light-1", {
+      displayName: "Bedroom Bedside Lamp", roomId: "bedroom", deviceType: "light",
+    });
+    getDb().prepare("UPDATE devices SET state_json = ? WHERE id = ?")
+      .run(persistedState, "tuya-light-1");
+    const versionBefore = Number(
+      (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    );
+
+    expect(store.updateActiveDeviceState("tuya-light-1", {
+      power: true, online: true, updatedAt: 800,
+    })).toMatchObject({ state: { power: true, updatedAt: 800 } });
+    expect(Number(
+      (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    )).toBe(versionBefore + 1);
   });
 });

@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { isDeepStrictEqual } from "node:util";
 import {
   DeviceCapability,
   DeviceHealth,
@@ -290,6 +291,10 @@ export class ProviderDeviceStore {
     deviceId: string,
     state: DeviceState,
   ): ActiveDeviceStateUpdateResult | undefined {
+    if (!validStateTimestamp(state.updatedAt)) {
+      return undefined;
+    }
+
     const result = this.db.transaction(() => {
       const activeRow = this.db.prepare(`
         SELECT state_json
@@ -300,17 +305,23 @@ export class ProviderDeviceStore {
         return undefined;
       }
 
-      let persistedUpdatedAt: unknown;
+      let persistedState: Record<string, unknown> | undefined;
       try {
-        persistedUpdatedAt = (JSON.parse(activeRow.state_json) as Record<string, unknown>).updatedAt;
+        const parsed = JSON.parse(activeRow.state_json) as unknown;
+        if (record(parsed)) {
+          persistedState = parsed;
+        }
       } catch {
-        return { applied: false };
+        persistedState = undefined;
       }
-      if (!validStateTimestamp(state.updatedAt) || !validStateTimestamp(persistedUpdatedAt)) {
-        return { applied: false };
-      }
-      if (state.updatedAt <= persistedUpdatedAt) {
-        return { applied: false };
+      const persistedUpdatedAt = persistedState?.updatedAt;
+      if (validStateTimestamp(persistedUpdatedAt)) {
+        if (state.updatedAt < persistedUpdatedAt) {
+          return { applied: false };
+        }
+        if (state.updatedAt === persistedUpdatedAt && isDeepStrictEqual(state, persistedState)) {
+          return { applied: false };
+        }
       }
 
       const currentVersionRow = this.db
@@ -354,6 +365,10 @@ export class ProviderDeviceStore {
 
 function validStateTimestamp(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parseCapabilities(raw: string | null): DeviceCapabilityName[] {
