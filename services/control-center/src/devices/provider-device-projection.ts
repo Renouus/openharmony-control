@@ -2,7 +2,6 @@ import type Database from "better-sqlite3";
 import type { DeviceIconName, EnhancedDeviceDescriptor } from "@smart-home/device-contract";
 import {
   mapDeviceRowToSyncDto,
-  mapVendorDeviceToSyncDto,
   type DeviceSyncDto,
   type DeviceSyncRow,
 } from "../db/device-sync-mapper";
@@ -84,6 +83,7 @@ export async function listManagedVendorSyncDevices(
   const liveDevices = await vendorProvider.listDevices();
   const liveById = new Map(liveDevices.map((device) => [device.id, device]));
   const storedVendorIds = loadStoredVendorIds(db, vendorProvider);
+  const store = new ProviderDeviceStore(db);
 
   const managedDevices = rows.map((row) => {
     const liveDevice = liveById.get(row.id);
@@ -91,34 +91,69 @@ export async function listManagedVendorSyncDevices(
       return mapDeviceRowToSyncDto(row);
     }
 
-    const customName = row.custom_name ?? liveDevice.customName;
-    const updatedAt = Math.max(row.updated_at, liveDevice.state.updatedAt);
+    store.updateActiveDeviceStateDetailed(row.id, liveDevice.state);
+    const refreshedRow = loadActiveVendorRowById(db, vendorProvider, row.id) ?? row;
+    const persisted = mapDeviceRowToSyncDto(refreshedRow);
+    const customName = refreshedRow.custom_name ?? liveDevice.customName;
     return {
-      id: liveDevice.id,
+      ...persisted,
       name: liveDevice.name,
       customName: customName ?? undefined,
-      note: row.note ?? liveDevice.note,
-      customIcon: row.custom_icon ?? liveDevice.customIcon,
+      note: refreshedRow.note ?? liveDevice.note,
+      customIcon: refreshedRow.custom_icon ?? liveDevice.customIcon,
       type: liveDevice.kind,
-      roomId: row.room_id ?? liveDevice.room,
-      payload: liveDevice.state as Record<string, unknown>,
-      updatedAt,
-      version: row.version,
-      isDeleted: false,
+      roomId: refreshedRow.room_id ?? liveDevice.room,
     };
   });
   const legacyConfiguredDevices = liveDevices
     .filter((device) => vendorProvider.ownsDevice(device.id) && !storedVendorIds.has(device.id))
-    .map((device) => mapVendorDeviceToSyncDto(device, loadGlobalVersion(db)));
+    .map((device) => persistLegacyConfiguredDevice(db, vendorProvider, device))
+    .filter((device): device is DeviceSyncDto => device !== undefined);
 
   return [...managedDevices, ...legacyConfiguredDevices];
 }
 
-function loadGlobalVersion(db: Database.Database): number {
-  const row = db
-    .prepare("SELECT value FROM metadata WHERE key = 'global_version'")
-    .get() as { value: string } | undefined;
-  return row ? Number.parseInt(row.value, 10) : 0;
+function persistLegacyConfiguredDevice(
+  db: Database.Database,
+  vendorProvider: VendorDeviceProvider,
+  device: EnhancedDeviceDescriptor,
+): DeviceSyncDto | undefined {
+  db.transaction(() => {
+    const existing = db.prepare("SELECT id FROM devices WHERE id = ?").get(device.id);
+    if (existing) {
+      return;
+    }
+
+    db.prepare(
+      "UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'global_version'",
+    ).run();
+    const versionRow = db.prepare("SELECT value FROM metadata WHERE key = 'global_version'")
+      .get() as { value: string };
+    const version = Number.parseInt(versionRow.value, 10);
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO devices (
+        id, name, custom_name, note, custom_icon, type, room_id, state_json,
+        updated_at, version, is_deleted, lifecycle_state, sort_order, confirmed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'active', ?, ?)
+    `).run(
+      device.id,
+      device.name,
+      device.customName ?? null,
+      device.note ?? null,
+      device.customIcon ?? null,
+      device.kind,
+      device.room,
+      JSON.stringify(device.state),
+      device.state.updatedAt,
+      version,
+      device.displayOrder,
+      now,
+    );
+  })();
+
+  const row = loadActiveVendorRowById(db, vendorProvider, device.id);
+  return row ? mapDeviceRowToSyncDto(row) : undefined;
 }
 
 function loadStoredVendorIds(

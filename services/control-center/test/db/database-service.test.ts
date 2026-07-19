@@ -63,16 +63,29 @@ function insertVendorDeviceRow(
     options.customName ?? null,
     'light',
     options.roomId ?? 'living-room',
-    JSON.stringify(options.state ?? {}),
+    JSON.stringify(options.state ?? {
+      power: true,
+      brightness: 50,
+      colorTemperature: 4350,
+      online: true,
+      updatedAt: 1720100000000,
+    }),
     options.updatedAt ?? 1,
     options.version ?? 1,
     options.isDeleted ?? 0,
     options.lifecycleState ?? 'active',
   );
+  const version = options.version ?? 1;
+  db.prepare(`
+    UPDATE metadata
+    SET value = CAST(MAX(CAST(value AS INTEGER), ?) AS TEXT)
+    WHERE key = 'global_version'
+  `).run(version);
 }
 
-function insertActiveVendorDevice(version = 1): void {
-  getDb().prepare(`
+function insertActiveVendorDevice(version = 1, stateUpdatedAt = 1720100000000): void {
+  const db = getDb();
+  db.prepare(`
     INSERT INTO devices (
       id, name, custom_name, type, room_id, state_json, updated_at, version,
       is_deleted, lifecycle_state, sort_order
@@ -82,11 +95,22 @@ function insertActiveVendorDevice(version = 1): void {
     'Ceiling lighting',
     'light',
     'living-room',
-    JSON.stringify({ power: true, online: true, updatedAt: version }),
-    version,
+    JSON.stringify({
+      power: true,
+      brightness: 50,
+      colorTemperature: 4350,
+      online: true,
+      updatedAt: stateUpdatedAt,
+    }),
+    stateUpdatedAt,
     version,
     80,
   );
+  db.prepare(`
+    UPDATE metadata
+    SET value = CAST(MAX(CAST(value AS INTEGER), ?) AS TEXT)
+    WHERE key = 'global_version'
+  `).run(version);
 }
 
 describe('DatabaseService', () => {
@@ -229,6 +253,68 @@ describe('DatabaseService', () => {
     const incrementalSync = await service.getSyncData(initialSync.currentVersion);
     expect(incrementalSync.currentVersion).toBe(2);
     expect(incrementalSync.rooms.map((room) => room.id)).toContain('study');
+  });
+
+  it('assigns a new local version when an active provider device changes externally', async () => {
+    const db = getDb();
+    insertActiveVendorDevice(1, 1720100000000);
+    const vendorProvider = fakeVendorProvider(1720100000000);
+    const service = new DatabaseService(db, vendorProvider);
+
+    const initialSync = await service.getSyncData(0);
+    expect(initialSync.currentVersion).toBe(1);
+
+    const initialDevices = await vendorProvider.listDevices();
+    vendorProvider.listDevices = async () => [{
+      ...initialDevices[0],
+      state: {
+        ...initialDevices[0].state,
+        brightness: 75,
+        updatedAt: 1720100001000,
+      },
+    }];
+
+    const changedSync = await service.getSyncData(initialSync.currentVersion);
+    const changedDevice = changedSync.devices.find((device) => device.id === 'tuya-vdevo178318782505115');
+    expect(changedSync.currentVersion).toBe(2);
+    expect(changedDevice).toEqual(expect.objectContaining({
+      version: 2,
+      payload: expect.objectContaining({ brightness: 75, updatedAt: 1720100001000 }),
+    }));
+
+    const unchangedSync = await service.getSyncData(changedSync.currentVersion);
+    expect(unchangedSync.currentVersion).toBe(2);
+    expect(unchangedSync.devices).toHaveLength(0);
+  });
+
+  it('persists legacy configured providers into the local version domain', async () => {
+    const db = getDb();
+    const vendorProvider = fakeVendorProvider(1720100000000);
+    const service = new DatabaseService(db, vendorProvider);
+
+    const initialSync = await service.getSyncData(0);
+    const initialDevice = initialSync.devices.find((device) => device.id === 'tuya-vdevo178318782505115');
+    expect(initialSync.currentVersion).toBe(1);
+    expect(initialDevice?.version).toBe(1);
+    expect(db.prepare("SELECT lifecycle_state FROM devices WHERE id = ?")
+      .get('tuya-vdevo178318782505115')).toEqual({ lifecycle_state: 'active' });
+
+    const initialDevices = await vendorProvider.listDevices();
+    vendorProvider.listDevices = async () => [{
+      ...initialDevices[0],
+      state: {
+        ...initialDevices[0].state,
+        power: false,
+        updatedAt: 1720100001000,
+      },
+    }];
+
+    const changedSync = await service.getSyncData(initialSync.currentVersion);
+    expect(changedSync.currentVersion).toBe(2);
+    expect(changedSync.devices[0]).toEqual(expect.objectContaining({
+      version: 2,
+      payload: expect.objectContaining({ power: false, updatedAt: 1720100001000 }),
+    }));
   });
 
   it('should exclude pending vendor devices from sync data', async () => {
