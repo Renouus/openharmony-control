@@ -132,6 +132,7 @@ export async function startMqttGateway(input: {
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
   let snapshotPromise: Promise<void> | undefined;
+  let snapshotQueued = false;
   let snapshotDirty = false;
   let heartbeatPromise: Promise<boolean> | undefined;
 
@@ -165,14 +166,16 @@ export async function startMqttGateway(input: {
     return safePublish(topics.ack, entry.acknowledgement, false);
   };
 
-  const remember = (entry: CommandEntry): void => {
-    if (acknowledgements.size === 256) {
-      const oldestRequestId = acknowledgements.keys().next().value as string | undefined;
-      if (oldestRequestId !== undefined) {
-        acknowledgements.delete(oldestRequestId);
-      }
+  const reserveCacheSlot = (): boolean => {
+    if (acknowledgements.size < 256) {
+      return true;
     }
-    acknowledgements.set(entry.acknowledgement.requestId, entry);
+    const evictableRequestId = [...acknowledgements.keys()].find((requestId) => !deliveries.has(requestId));
+    if (evictableRequestId === undefined) {
+      return false;
+    }
+    acknowledgements.delete(evictableRequestId);
+    return true;
   };
 
   const deliverCommand = async (entry: CommandEntry): Promise<boolean> => {
@@ -208,7 +211,10 @@ export async function startMqttGateway(input: {
     return delivery;
   };
 
-  const executeAndCache = (command: GatewayCommand): CommandEntry => {
+  const executeAndCache = (command: GatewayCommand): CommandEntry | undefined => {
+    if (!reserveCacheSlot()) {
+      return undefined;
+    }
     const acknowledgement = executeGatewayCommand(devices, command, now());
     const entry: CommandEntry = acknowledgement.status === "SUCCESS"
       ? {
@@ -221,7 +227,7 @@ export async function startMqttGateway(input: {
           stateDelivered: false,
         }
       : { acknowledgement, stateDelivered: true };
-    remember(entry);
+    acknowledgements.set(entry.acknowledgement.requestId, entry);
     return entry;
   };
 
@@ -234,6 +240,9 @@ export async function startMqttGateway(input: {
       return;
     }
     const entry = acknowledgements.get(command.requestId) ?? executeAndCache(command);
+    if (!entry) {
+      return;
+    }
     const pending = deliveries.get(command.requestId);
     if (pending) {
       const delivered = await pending;
@@ -282,9 +291,15 @@ export async function startMqttGateway(input: {
 
   const requestSnapshot = (): Promise<void> => {
     if (snapshotPromise) {
+      snapshotQueued = true;
       return snapshotPromise;
     }
-    const snapshot = track(runSnapshot());
+    const snapshot = track((async () => {
+      do {
+        snapshotQueued = false;
+        await runSnapshot();
+      } while (snapshotQueued && !stopped);
+    })());
     snapshotPromise = snapshot;
     void snapshot.finally(() => {
       if (snapshotPromise === snapshot) {
