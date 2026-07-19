@@ -170,4 +170,33 @@ describe("ProviderDeviceStore", () => {
     })).toBeUndefined();
     expect(globalVersion()).toBe(beforeUpdateVersion + 1);
   });
+
+  it("ignores stale, equal, and invalid-timestamp state updates without advancing version", () => {
+    const store = new ProviderDeviceStore(getDb());
+    store.upsertDiscoveredDevices([discoveredLight]);
+    store.joinHome("tuya-light-1", {
+      displayName: "Bedroom Bedside Lamp", roomId: "bedroom", deviceType: "light",
+    });
+    const globalVersion = () => Number(
+      (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
+    );
+
+    store.updateActiveDeviceState("tuya-light-1", {
+      power: false, online: true, updatedAt: 500,
+    });
+    const versionAfterNewState = globalVersion();
+
+    expect(store.updateActiveDeviceState("tuya-light-1", {
+      power: true, online: true, updatedAt: 400,
+    })).toMatchObject({ state: { power: false, updatedAt: 500 } });
+    expect(store.updateActiveDeviceState("tuya-light-1", {
+      power: true, online: true, updatedAt: 500,
+    })).toMatchObject({ state: { power: false, updatedAt: 500 } });
+    expect(store.updateActiveDeviceState("tuya-light-1", {
+      power: true, online: true, updatedAt: Number.NaN,
+    })).toMatchObject({ state: { power: false, updatedAt: 500 } });
+
+    expect(globalVersion()).toBe(versionAfterNewState);
+    expect(store.listActiveDevices()[0]?.state).toMatchObject({ power: false, updatedAt: 500 });
+  });
 });

@@ -136,7 +136,8 @@ export function persistActiveProviderStateUpdate(
   try {
     const db = getDb();
     const store = new ProviderDeviceStore(db);
-    if (!store.updateActiveDeviceState(deviceId, state)) {
+    const update = store.updateActiveDeviceStateDetailed(deviceId, state);
+    if (!update) {
       return undefined;
     }
     const row = db.prepare("SELECT * FROM devices WHERE id = ?")
@@ -145,7 +146,9 @@ export function persistActiveProviderStateUpdate(
       return undefined;
     }
     const syncedDevice = mapDeviceRowToSyncDto(row);
-    broadcastEvent("DeviceStateUpdated", syncedDevice);
+    if (update.applied) {
+      broadcastEvent("DeviceStateUpdated", syncedDevice);
+    }
     return syncedDevice;
   } catch (error) {
     logger.error(`Failed to persist provider device state:${String(error)}`);

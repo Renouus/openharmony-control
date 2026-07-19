@@ -50,6 +50,11 @@ export type PendingDeviceDto = {
   capabilities: string[];
 };
 
+export type ActiveDeviceStateUpdateResult = {
+  device: EnhancedDeviceDescriptor;
+  applied: boolean;
+};
+
 type DeviceRow = {
   id: string;
   name: string;
@@ -278,7 +283,36 @@ export class ProviderDeviceStore {
     deviceId: string,
     state: DeviceState,
   ): EnhancedDeviceDescriptor | undefined {
-    const updated = this.db.transaction(() => {
+    return this.updateActiveDeviceStateDetailed(deviceId, state)?.device;
+  }
+
+  public updateActiveDeviceStateDetailed(
+    deviceId: string,
+    state: DeviceState,
+  ): ActiveDeviceStateUpdateResult | undefined {
+    const result = this.db.transaction(() => {
+      const activeRow = this.db.prepare(`
+        SELECT state_json
+        FROM devices
+        WHERE id = ? AND lifecycle_state = 'active' AND is_deleted = 0
+      `).get(deviceId) as { state_json: string } | undefined;
+      if (!activeRow) {
+        return undefined;
+      }
+
+      let persistedUpdatedAt: unknown;
+      try {
+        persistedUpdatedAt = (JSON.parse(activeRow.state_json) as Record<string, unknown>).updatedAt;
+      } catch {
+        return { applied: false };
+      }
+      if (!validStateTimestamp(state.updatedAt) || !validStateTimestamp(persistedUpdatedAt)) {
+        return { applied: false };
+      }
+      if (state.updatedAt <= persistedUpdatedAt) {
+        return { applied: false };
+      }
+
       const currentVersionRow = this.db
         .prepare("SELECT value FROM metadata WHERE key = 'global_version'")
         .get() as { value: string };
@@ -290,18 +324,19 @@ export class ProviderDeviceStore {
       `).run(JSON.stringify(state), Date.now(), nextVersion, deviceId);
 
       if (result.changes === 0) {
-        return false;
+        return undefined;
       }
 
       this.db.prepare("UPDATE metadata SET value = ? WHERE key = 'global_version'")
         .run(String(nextVersion));
-      return true;
+      return { applied: true };
     })();
 
-    if (!updated) {
+    if (!result) {
       return undefined;
     }
-    return this.listActiveDevices().find((device) => device.id === deviceId);
+    const device = this.listActiveDevices().find((item) => item.id === deviceId);
+    return device ? { device, applied: result.applied } : undefined;
   }
 
   private incrementVersion(): number {
@@ -315,6 +350,10 @@ export class ProviderDeviceStore {
       .get() as { value: string };
     return Number.parseInt(row.value, 10);
   }
+}
+
+function validStateTimestamp(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function parseCapabilities(raw: string | null): DeviceCapabilityName[] {
