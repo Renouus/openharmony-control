@@ -44,7 +44,10 @@ export function mapDeviceRowToSyncDto(row: DeviceSyncRow): DeviceSyncDto {
   };
 }
 
-export function mapVendorDeviceToSyncDto(device: EnhancedDeviceDescriptor): DeviceSyncDto {
+export function mapVendorDeviceToSyncDto(
+  device: EnhancedDeviceDescriptor,
+  version: number,
+): DeviceSyncDto {
   const updatedAt = device.state.updatedAt;
 
   return {
@@ -57,7 +60,7 @@ export function mapVendorDeviceToSyncDto(device: EnhancedDeviceDescriptor): Devi
     roomId: device.room,
     payload: device.state as Record<string, unknown>,
     updatedAt,
-    version: updatedAt,
+    version,
     isDeleted: false,
   };
 }

@@ -93,8 +93,6 @@ export async function listManagedVendorSyncDevices(
 
     const customName = row.custom_name ?? liveDevice.customName;
     const updatedAt = Math.max(row.updated_at, liveDevice.state.updatedAt);
-    const version = Math.max(row.version, liveDevice.state.updatedAt);
-
     return {
       id: liveDevice.id,
       name: liveDevice.name,
@@ -105,15 +103,22 @@ export async function listManagedVendorSyncDevices(
       roomId: row.room_id ?? liveDevice.room,
       payload: liveDevice.state as Record<string, unknown>,
       updatedAt,
-      version,
+      version: row.version,
       isDeleted: false,
     };
   });
   const legacyConfiguredDevices = liveDevices
     .filter((device) => vendorProvider.ownsDevice(device.id) && !storedVendorIds.has(device.id))
-    .map(mapVendorDeviceToSyncDto);
+    .map((device) => mapVendorDeviceToSyncDto(device, loadGlobalVersion(db)));
 
   return [...managedDevices, ...legacyConfiguredDevices];
+}
+
+function loadGlobalVersion(db: Database.Database): number {
+  const row = db
+    .prepare("SELECT value FROM metadata WHERE key = 'global_version'")
+    .get() as { value: string } | undefined;
+  return row ? Number.parseInt(row.value, 10) : 0;
 }
 
 function loadStoredVendorIds(

@@ -174,7 +174,7 @@ export class DatabaseService {
       isDeleted: row.is_deleted === 1,
     }));
 
-    const currentVersion = await this.getCurrentVersion(vendorDevices);
+    const currentVersion = this.getCurrentVersion();
 
     return {
       currentVersion,
@@ -192,7 +192,7 @@ export class DatabaseService {
     return parseInt(versionRow.value, 10);
   }
 
-  private async getCurrentVersion(vendorDevices: DeviceSyncDto[]): Promise<number> {
+  private getCurrentVersion(): number {
     const row = this.db.prepare(`
       SELECT MAX(version) AS version FROM (
         SELECT CAST(value AS INTEGER) AS version FROM metadata WHERE key = 'global_version'
@@ -207,12 +207,7 @@ export class DatabaseService {
       )
     `).get() as { version: number | null };
 
-    const dbVersion = row.version ?? 0;
-    const vendorVersion = vendorDevices.reduce((maxVersion: number, device: DeviceSyncDto) => {
-      return Math.max(maxVersion, device.version);
-    }, 0);
-
-    return Math.max(dbVersion, vendorVersion);
+    return row.version ?? 0;
   }
 
   private async loadAllVendorSyncDevices(): Promise<DeviceSyncDto[]> {

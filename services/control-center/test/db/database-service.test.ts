@@ -194,11 +194,11 @@ describe('DatabaseService', () => {
           online: true,
         }),
         updatedAt: 1720100000000,
-        version: 1720100000000,
+        version: 1,
         isDeleted: false,
       }),
     );
-    expect(syncResult.currentVersion).toBe(1720100000000);
+    expect(syncResult.currentVersion).toBe(1);
   });
 
   it('should exclude vendor devices from incremental sync when lastVersion already covers them', async () => {
@@ -206,10 +206,29 @@ describe('DatabaseService', () => {
     insertActiveVendorDevice();
     const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
 
-    const syncResult = await service.getSyncData(1720100000000);
+    const syncResult = await service.getSyncData(1);
 
     expect(syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
-    expect(syncResult.currentVersion).toBe(1720100000000);
+    expect(syncResult.currentVersion).toBe(1);
+  });
+
+  it('keeps provider timestamps out of the sync cursor so later room changes remain visible', async () => {
+    const db = getDb();
+    insertActiveVendorDevice(1);
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+
+    const initialSync = await service.getSyncData(0);
+    expect(initialSync.currentVersion).toBe(1);
+
+    db.prepare(`
+      INSERT INTO rooms (id, name, icon, built_in, updated_at, version, is_deleted)
+      VALUES ('study', 'Study', 'room', 0, 1720100001000, 2, 0)
+    `).run();
+    db.prepare("UPDATE metadata SET value = '2' WHERE key = 'global_version'").run();
+
+    const incrementalSync = await service.getSyncData(initialSync.currentVersion);
+    expect(incrementalSync.currentVersion).toBe(2);
+    expect(incrementalSync.rooms.map((room) => room.id)).toContain('study');
   });
 
   it('should exclude pending vendor devices from sync data', async () => {
@@ -249,7 +268,7 @@ describe('DatabaseService', () => {
       customName: 'Local ceiling light',
       roomId: 'bedroom',
       updatedAt: 1720100001000,
-      version: 1720100002000,
+      version: 7,
     });
 
     const syncResult = await service.getSyncData(0);
@@ -259,7 +278,7 @@ describe('DatabaseService', () => {
       customName: 'Local ceiling light',
       roomId: 'bedroom',
       updatedAt: 1720100001000,
-      version: 1720100002000,
+      version: 7,
     }));
   });
 
@@ -273,7 +292,7 @@ describe('DatabaseService', () => {
       roomId: 'bedroom',
       state: { power: false, brightness: 17, online: false },
       updatedAt: 1720100001000,
-      version: 1720100002000,
+      version: 7,
     });
 
     const syncResult = await service.getSyncData(0);
@@ -284,7 +303,7 @@ describe('DatabaseService', () => {
       roomId: 'bedroom',
       payload: { power: false, brightness: 17, online: false },
       updatedAt: 1720100001000,
-      version: 1720100002000,
+      version: 7,
       isDeleted: false,
     }));
   });

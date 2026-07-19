@@ -238,9 +238,8 @@ export async function registerDeviceRoutes(
     if (!updatedDevice) {
       return reply.code(404).send({ code: "DEVICE_NOT_FOUND" });
     }
-    const payload = options.vendorProvider?.ownsDevice(deviceId)
-      ? mapVendorDeviceToSyncDto(updatedDevice)
-      : loadSyncDeviceRow(deviceId) ?? mapVendorDeviceToSyncDto(updatedDevice);
+    const payload = loadSyncDeviceRow(deviceId)
+      ?? mapVendorDeviceToSyncDto(updatedDevice, loadGlobalVersion());
 
     broadcastEvent("DeviceStateUpdated", payload);
     return reply.send({ device: updatedDevice });
@@ -504,6 +503,16 @@ function incrementGlobalVersion(): number {
   `).get() as { value: string };
 
   return parseInt(row.value, 10);
+}
+
+function loadGlobalVersion(): number {
+  const row = getDb().prepare(`
+    SELECT value
+    FROM metadata
+    WHERE key = 'global_version'
+  `).get() as { value: string };
+
+  return Number.parseInt(row.value, 10);
 }
 
 function mapDeviceRow(row: DeviceRow): EnhancedDeviceDescriptor {
