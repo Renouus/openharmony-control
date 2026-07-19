@@ -3,6 +3,7 @@ import { loadControlCenterEnv } from "./config/control-center-env";
 import { buildApp } from "./app";
 import { initDatabase } from "./db/database";
 import { DeviceRegistry } from "./registry/device-registry";
+import { runServerWithShutdownOnFailure } from "./server-lifecycle";
 
 loadControlCenterEnv();
 
@@ -63,7 +64,7 @@ async function main(): Promise<void> {
   await app.listen(listenOptions);
 }
 
-main().catch((error) => {
+runServerWithShutdownOnFailure(app, main).catch((error) => {
   app.log.error(error);
   process.exitCode = 1;
 });

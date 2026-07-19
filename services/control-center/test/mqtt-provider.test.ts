@@ -327,6 +327,26 @@ describe("mqtt provider", () => {
     await expect(closing).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
   });
 
+  it("makes concurrent close callers await the same transport cleanup", async () => {
+    const transport = new FakeTransport();
+    let releaseClose!: () => void;
+    transport.close = vi.fn(() => new Promise<void>((resolve) => { releaseClose = resolve; }));
+    const provider = createMqttProvider({ config, transport });
+    let firstSettled = false;
+    let secondSettled = false;
+
+    const first = provider.close().then(() => { firstSettled = true; });
+    const second = provider.close().then(() => { secondSettled = true; });
+    await Promise.resolve();
+
+    expect(transport.close).toHaveBeenCalledOnce();
+    expect(firstSettled).toBe(false);
+    expect(secondSettled).toBe(false);
+
+    releaseClose();
+    await Promise.all([first, second]);
+  });
+
   it("bounds a never-settling publish, rejects invalid request ids before publishing, and ignores late failures", async () => {
     const callbacks: Array<() => void> = [];
     let rejectPublish!: (reason?: unknown) => void;

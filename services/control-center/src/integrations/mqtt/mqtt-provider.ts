@@ -176,6 +176,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   let refreshInvalidation: { generation: number; reject: (error: Error) => void } | undefined;
   let initialized = false;
   let readyAttempt: Promise<void> | undefined;
+  let closeAttempt: Promise<void> | undefined;
 
   const base = `omnihome/gateways/${config.gatewayId}`;
   const statusTopic = `${base}/status`;
@@ -389,18 +390,21 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
         if (readyAttempt === attempt) readyAttempt = undefined;
       }
     },
-    close: async () => {
-      if (closed) return;
-      closed = true; gatewayOnline = false;
-      invalidateSubscriptionRefresh();
-      unbindConnect(); unbindDisconnect();
-      for (const unsubscribe of subscriptions.values()) unsubscribe();
-      subscriptions.clear(); stateListeners.clear();
-      for (const [requestId, request] of pending) {
-        pending.delete(requestId); clearTimeoutFn(request.timer);
-        request.resolve(failure("DEVICE_OFFLINE", "MQTT provider is closed"));
-      }
-      await transport?.close();
+    close: () => {
+      if (closeAttempt) return closeAttempt;
+      closeAttempt = (async () => {
+        closed = true; gatewayOnline = false;
+        invalidateSubscriptionRefresh();
+        unbindConnect(); unbindDisconnect();
+        for (const unsubscribe of subscriptions.values()) unsubscribe();
+        subscriptions.clear(); stateListeners.clear();
+        for (const [requestId, request] of pending) {
+          pending.delete(requestId); clearTimeoutFn(request.timer);
+          request.resolve(failure("DEVICE_OFFLINE", "MQTT provider is closed"));
+        }
+        await transport?.close();
+      })();
+      return closeAttempt;
     },
     onStateChange: (listener) => { stateListeners.add(listener); return () => stateListeners.delete(listener); },
     discoverDevices: async (): Promise<DiscoveredProviderDevice[]> => [...inventory.values()].flatMap((device) => {
