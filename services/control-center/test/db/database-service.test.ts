@@ -161,4 +161,26 @@ describe('DatabaseService', () => {
     expect(syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
     expect(syncResult.currentVersion).toBe(1720100000000);
   });
+
+  it('should exclude pending vendor devices from sync data', async () => {
+    const db = getDb();
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+    db.prepare(
+      `INSERT INTO devices (
+        id, name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending')`,
+    ).run(
+      'tuya-vdevo178318782505115',
+      'Ceiling lighting',
+      'light',
+      'living-room',
+      '{}',
+      1,
+      1,
+    );
+
+    const syncResult = await service.getSyncData(0);
+
+    expect(syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
+  });
 });

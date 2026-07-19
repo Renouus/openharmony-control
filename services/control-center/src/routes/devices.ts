@@ -267,7 +267,9 @@ async function loadDevices(
 ): Promise<EnhancedDeviceDescriptor[]> {
   const dbDevices = loadDevicesFromDb();
   const baseDevices = dbDevices.length > 0 ? dbDevices : registry.list();
-  const vendorDevices = await listManagedVendorDevices(getDb(), vendorProvider);
+  const vendorDevices = vendorProvider
+    ? await listManagedVendorDevices(getDb(), vendorProvider)
+    : [];
   return [...baseDevices, ...vendorDevices]
     .map(applyStoredCustomName)
     .filter((device): device is EnhancedDeviceDescriptor => device !== undefined)
