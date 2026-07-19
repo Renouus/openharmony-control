@@ -1,3 +1,5 @@
+import { assertTopicSegment } from "@smart-home/device-contract/mqtt";
+
 export type MqttConfig = {
   brokerUrl: string;
   gatewayId: string;
@@ -42,4 +44,3 @@ export function loadMqttConfig(env: MqttEnvironment = process.env): MqttConfig |
     offlineAfterMs: positiveSafeInteger(env, "MQTT_GATEWAY_OFFLINE_AFTER_MS"),
   };
 }
-import { assertTopicSegment } from "@smart-home/device-contract/mqtt";
