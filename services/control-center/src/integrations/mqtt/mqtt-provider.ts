@@ -174,6 +174,8 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   let subscriptionRefresh: Promise<void> | undefined;
   let subscriptionGeneration = 0;
   let refreshInvalidation: { generation: number; reject: (error: Error) => void } | undefined;
+  let initialized = false;
+  let readyAttempt: Promise<void> | undefined;
 
   const base = `omnihome/gateways/${config.gatewayId}`;
   const statusTopic = `${base}/status`;
@@ -372,11 +374,20 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     providerId: "mqtt",
     ready: async (timeoutMs = config.commandTimeoutMs) => {
       if (closed) throw new Error("MQTT provider is closed");
+      if (initialized) return;
+      if (readyAttempt) return readyAttempt;
       const generation = subscriptionGeneration;
-      await withinTimeout(async () => {
+      const attempt = withinTimeout(async () => {
         await ensureTransport().ready(timeoutMs);
         await refreshSubscriptions(generation);
       }, timeoutMs, invalidateSubscriptionRefresh);
+      readyAttempt = attempt;
+      try {
+        await attempt;
+        initialized = true;
+      } finally {
+        if (readyAttempt === attempt) readyAttempt = undefined;
+      }
     },
     close: async () => {
       if (closed) return;

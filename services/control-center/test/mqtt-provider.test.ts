@@ -108,6 +108,16 @@ function seed(transport: FakeTransport) {
 }
 
 describe("mqtt provider", () => {
+  it("makes successful ready calls idempotent", async () => {
+    const transport = new StalledSubscribeTransport();
+    const provider = createMqttProvider({ config, transport });
+
+    await provider.ready(10);
+    await provider.ready(10);
+
+    expect(transport.subscribeCalls).toBe(4);
+  });
+
   it("defers default mqtt client creation until ready and fails commands closed beforehand", async () => {
     const handlers = new Map<string, (...args: any[]) => void>();
     const client = {

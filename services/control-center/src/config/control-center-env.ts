@@ -1,10 +1,20 @@
 import { existsSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 
 export type EnvLike = Record<string, string | undefined>;
 
-export function resolveControlCenterEnvPath(workspaceRoot = process.cwd()): string {
+const moduleWorkspaceRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+
+function resolveWorkspaceRoot(input: string): string {
+  if (basename(input) === "control-center" && basename(dirname(input)) === "services") {
+    return dirname(dirname(input));
+  }
+  return input;
+}
+
+export function resolveControlCenterEnvPath(workspaceRoot = moduleWorkspaceRoot): string {
   if (basename(workspaceRoot) === "control-center") {
     return join(workspaceRoot, ".env");
   }
@@ -13,13 +23,17 @@ export function resolveControlCenterEnvPath(workspaceRoot = process.cwd()): stri
 }
 
 export function loadControlCenterEnv(
-  workspaceRoot = process.cwd(),
+  workspaceRoot = moduleWorkspaceRoot,
   env: EnvLike = process.env,
 ): void {
-  const path = resolveControlCenterEnvPath(workspaceRoot);
-  if (!existsSync(path)) {
-    return;
+  const root = resolveWorkspaceRoot(workspaceRoot);
+  const paths = [
+    join(root, "deploy", "mqtt", ".env"),
+    resolveControlCenterEnvPath(workspaceRoot),
+  ];
+  for (const path of paths) {
+    if (existsSync(path)) {
+      config({ path, processEnv: env as Record<string, string>, override: false });
+    }
   }
-
-  config({ path, processEnv: env as Record<string, string> });
 }

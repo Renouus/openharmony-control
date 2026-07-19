@@ -50,6 +50,8 @@ import websocketRoutes from "./routes/websocket";
 import type { VendorDeviceProvider } from "./integrations/vendor-provider";
 import { createTuyaProvider } from "./integrations/tuya/tuya-provider";
 import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
+import { loadMqttConfig } from "./integrations/mqtt/mqtt-config";
+import { createMqttProvider } from "./integrations/mqtt/mqtt-provider";
 
 function createNoopAutomationRuntime(): AutomationRuntime {
   return {
@@ -68,8 +70,23 @@ export type AppBuildOptions = {
 export function createVendorProviderFromEnv(
   env: EnvLike = process.env,
 ): VendorDeviceProvider | undefined {
-  const tuyaConfig = loadTuyaConfig(env);
-  return tuyaConfig ? createTuyaProvider({ config: tuyaConfig }) : undefined;
+  const mode = env.DEVICE_PROVIDER ?? "simulator";
+  switch (mode) {
+    case "simulator":
+      return undefined;
+    case "tuya": {
+      const config = loadTuyaConfig(env);
+      if (!config) throw new Error("Tuya configuration was not loaded");
+      return createTuyaProvider({ config });
+    }
+    case "mqtt": {
+      const config = loadMqttConfig(env);
+      if (!config) throw new Error("MQTT configuration was not loaded");
+      return createMqttProvider({ config });
+    }
+    default:
+      throw new Error(`Unsupported DEVICE_PROVIDER: ${mode}`);
+  }
 }
 
 export function buildApp(
@@ -86,8 +103,12 @@ export function buildApp(
   const removeProviderStateListener = vendorProvider?.onStateChange?.((deviceId, state) => {
     persistActiveProviderStateUpdate(deviceId, state, app.log);
   });
+  app.addHook("onReady", async () => {
+    await vendorProvider?.ready?.();
+  });
   app.addHook("onClose", async () => {
     removeProviderStateListener?.();
+    await vendorProvider?.close?.();
   });
 
   // 9 个设备模拟器? 门锁 + 5 灯光 + 2 空调
