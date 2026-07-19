@@ -107,7 +107,9 @@ export function createMqttTransport(
       await new Promise<void>((resolve, reject) => {
         client.subscribe(topic, { qos: 1 }, (error) => error ? reject(error) : resolve());
       });
-      return () => { subscriptions.delete(topic); };
+      return () => {
+        if (subscriptions.get(topic) === handler) subscriptions.delete(topic);
+      };
     },
     onConnect: (listener) => { connectListeners.add(listener); return () => connectListeners.delete(listener); },
     onDisconnect: (listener) => { disconnectListeners.add(listener); return () => disconnectListeners.delete(listener); },
@@ -160,6 +162,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   let unbindConnect: Unsubscribe = () => {};
   let unbindDisconnect: Unsubscribe = () => {};
   let subscriptionRefresh: Promise<void> | undefined;
+  let subscriptionGeneration = 0;
 
   const base = `omnihome/gateways/${config.gatewayId}`;
   const statusTopic = `${base}/status`;
@@ -260,26 +263,45 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     }
   }
 
-  async function subscribeAll() {
+  function isCurrentSubscriptionAttempt(generation: number): boolean {
+    return !closed && generation === subscriptionGeneration;
+  }
+
+  async function subscribeAll(generation: number) {
     const activeTransport = ensureTransport();
     const topics = [statusTopic, inventoryTopic, stateTopic, ackTopic];
     for (const topic of topics) {
+      if (!isCurrentSubscriptionAttempt(generation)) return;
+      const unsubscribe = await activeTransport.subscribe(topic, routeMessage);
+      if (!isCurrentSubscriptionAttempt(generation)) {
+        unsubscribe();
+        return;
+      }
       const previous = subscriptions.get(topic);
       if (previous) previous();
-      subscriptions.set(topic, await activeTransport.subscribe(topic, routeMessage));
+      subscriptions.set(topic, unsubscribe);
     }
   }
 
-  function refreshSubscriptions(): Promise<void> {
+  function invalidateSubscriptionRefresh() {
+    subscriptionGeneration++;
+    subscriptionRefresh = undefined;
+  }
+
+  function refreshSubscriptions(generation = subscriptionGeneration): Promise<void> {
+    if (!isCurrentSubscriptionAttempt(generation)) return Promise.resolve();
     if (!subscriptionRefresh) {
-      subscriptionRefresh = subscribeAll().finally(() => {
-        subscriptionRefresh = undefined;
-      });
+      const attempt = subscribeAll(generation);
+      subscriptionRefresh = attempt;
+      void attempt.then(
+        () => { if (subscriptionRefresh === attempt) subscriptionRefresh = undefined; },
+        () => { if (subscriptionRefresh === attempt) subscriptionRefresh = undefined; },
+      );
     }
     return subscriptionRefresh;
   }
 
-  function withinTimeout<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+  function withinTimeout<T>(operation: () => Promise<T>, timeoutMs: number, onTimeout?: () => void): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let settled = false;
       const finish = (callback: (value: T) => void, value: T) => {
@@ -290,7 +312,10 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
         if (settled) return;
         settled = true; clearTimeoutFn(timer); reject(error);
       };
-      const timer = setTimeoutFn(() => fail(new Error("MQTT provider ready timed out")), timeoutMs);
+      const timer = setTimeoutFn(() => {
+        onTimeout?.();
+        fail(new Error("MQTT provider ready timed out"));
+      }, timeoutMs);
       void operation().then((value) => finish(resolve, value), fail);
     });
   }
@@ -298,7 +323,10 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   function bindTransport(activeTransport: ControlCenterMqttTransport) {
     transport = activeTransport;
     unbindConnect = activeTransport.onConnect(() => { void refreshSubscriptions().catch(() => safeWarn("MQTT subscription refresh failed")); });
-    unbindDisconnect = activeTransport.onDisconnect(() => { gatewayOnline = false; });
+    unbindDisconnect = activeTransport.onDisconnect(() => {
+      gatewayOnline = false;
+      invalidateSubscriptionRefresh();
+    });
   }
 
   function ensureTransport(): ControlCenterMqttTransport {
@@ -316,14 +344,16 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     providerId: "mqtt",
     ready: async (timeoutMs) => {
       if (closed) throw new Error("MQTT provider is closed");
+      const generation = subscriptionGeneration;
       await withinTimeout(async () => {
         await ensureTransport().ready(timeoutMs);
-        await refreshSubscriptions();
-      }, timeoutMs);
+        await refreshSubscriptions(generation);
+      }, timeoutMs, invalidateSubscriptionRefresh);
     },
     close: async () => {
       if (closed) return;
       closed = true; gatewayOnline = false;
+      invalidateSubscriptionRefresh();
       unbindConnect(); unbindDisconnect();
       for (const unsubscribe of subscriptions.values()) unsubscribe();
       subscriptions.clear(); stateListeners.clear();

@@ -22,7 +22,9 @@ class FakeTransport implements ControlCenterMqttTransport {
   }
   async subscribe(topic: string, handler: MessageHandler) {
     this.subscriptions.set(topic, handler);
-    return () => { this.subscriptions.delete(topic); };
+    return () => {
+      if (this.subscriptions.get(topic) === handler) this.subscriptions.delete(topic);
+    };
   }
   onConnect(listener: () => void) { this.connectListeners.add(listener); return () => this.connectListeners.delete(listener); }
   onDisconnect(listener: () => void) { this.disconnectListeners.add(listener); return () => this.disconnectListeners.delete(listener); }
@@ -46,6 +48,27 @@ class StalledSubscribeTransport extends FakeTransport {
       return await new Promise<() => void>(() => {});
     }
     return await super.subscribe(topic, handler);
+  }
+}
+
+class RecoveringSubscribeTransport extends FakeTransport {
+  public subscribeCalls = 0;
+  private firstSubscription?: { topic: string; handler: MessageHandler; resolve: (unsubscribe: () => void) => void };
+
+  override async subscribe(topic: string, handler: MessageHandler) {
+    this.subscribeCalls++;
+    if (this.subscribeCalls === 1) {
+      return await new Promise<() => void>((resolve) => {
+        this.firstSubscription = { topic, handler, resolve };
+      });
+    }
+    return await super.subscribe(topic, handler);
+  }
+
+  async resolveFirstSubscription() {
+    const first = this.firstSubscription;
+    if (!first) throw new Error("Missing stalled subscription");
+    first.resolve(await super.subscribe(first.topic, first.handler));
   }
 }
 
@@ -219,6 +242,34 @@ describe("mqtt provider", () => {
     reconnecting.connect(); reconnecting.connect(); reconnecting.connect();
     await Promise.resolve();
     expect(reconnecting.subscribeCalls).toBe(5);
+  });
+
+  it("recovers from a timed-out subscription attempt without letting late handlers replace the reconnect", async () => {
+    const timers: Array<() => void> = [];
+    const transport = new RecoveringSubscribeTransport();
+    const provider = createMqttProvider({ config, transport, setTimeoutFn: (fn) => { timers.push(fn); return timers.length; }, clearTimeoutFn: () => {} });
+    const firstReady = provider.ready(10);
+    await Promise.resolve(); await Promise.resolve();
+    expect(transport.subscribeCalls).toBe(1);
+    timers[0]();
+    await expect(firstReady).rejects.toThrow("timed out");
+
+    transport.disconnect(); transport.connect();
+    for (let turn = 0; turn < 10 && transport.subscribeCalls < 5; turn++) await Promise.resolve();
+    expect(transport.subscribeCalls).toBe(5);
+    transport.emit("omnihome/gateways/gateway-1/status", { gatewayId: "gateway-1", online: true, updatedAt: 1 });
+    transport.emit("omnihome/gateways/gateway-1/inventory", {
+      gatewayId: "gateway-1", updatedAt: 2,
+      devices: [{ id: "light-1", name: "Desk Light", kind: "light", capabilities: ["switch"] }],
+    });
+    await transport.resolveFirstSubscription();
+    await Promise.resolve();
+    transport.emit("omnihome/gateways/gateway-1/devices/light-1/state", {
+      gatewayId: "gateway-1", deviceId: "light-1", state: { online: true, power: true, updatedAt: 3 },
+    });
+    await expect(provider.listDevices()).resolves.toEqual([
+      expect.objectContaining({ id: "mqtt-gateway-1-light-1", state: expect.objectContaining({ power: true }) }),
+    ]);
   });
 
   it("maps matching ack failures and ignores wrong request or device", async () => {
