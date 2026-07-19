@@ -294,7 +294,7 @@ describe("MQTT gateway runtime", () => {
     expect(devices.get("living-room-light")?.state.power).toBe(false);
   });
 
-  it("preserves a blocked delivery identity while evicting completed cache entries", async () => {
+  it("separates FIFO result eviction from an active delivery identity", async () => {
     const transport = new FakeTransport();
     const devices = (await import("../src/devices")).createGatewayDevices(10);
     await startMqttGateway({ config, transport, devices, now: () => 20 });
@@ -307,35 +307,28 @@ describe("MQTT gateway runtime", () => {
     for (let index = 0; index < 255; index += 1) {
       await transport.receive(commandTopic("environment-sensor"), command(`completed-${index}`, "environment-sensor"));
     }
-    await transport.receive(commandTopic("environment-sensor"), command("evicts-completed-1", "environment-sensor"));
-    transport.clearPublications();
+    await transport.receive(commandTopic("environment-sensor"), command("new-257", "environment-sensor"));
     const conflictingDuplicate = transport.receive(commandTopic(), command("blocked-identity-1", "living-room-light", { on: true }));
     releaseState();
     await Promise.all([first, conflictingDuplicate]);
 
-    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+    expect(transport.publications.some(({ topic }) => topic === "omnihome/gateways/lab-gateway/commands/new-257/ack")).toBe(true);
+    const primaryPublications = transport.publications.filter(({ topic }) => topic.includes("blocked-identity-1") || topic.endsWith("/devices/living-room-light/state"));
+    expect(primaryPublications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/devices/living-room-light/state",
       "omnihome/gateways/lab-gateway/commands/blocked-identity-1/ack",
       "omnihome/gateways/lab-gateway/commands/blocked-identity-1/ack",
     ]);
-    expect(parse(transport.publications[0])).toEqual(parse(transport.publications[1]));
-    expect(parse(transport.publications[0])).toMatchObject({ state: { power: false, updatedAt: 20 } });
+    expect(parse(primaryPublications[1])).toEqual(parse(primaryPublications[2]));
+    expect(parse(primaryPublications[1])).toMatchObject({ state: { power: false, updatedAt: 20 } });
     expect(devices.get("living-room-light")?.state).toMatchObject({ power: false, updatedAt: 20 });
-  });
-
-  it("fails closed when all 256 cached slots have pending delivery", async () => {
-    const transport = new FakeTransport();
-    const runtime = await startMqttGateway({ config, transport, shutdownTimeoutMs: 1 });
-    transport.stallPublishesUntilForceClose();
-    const pending = Array.from({ length: 256 }, (_, index) => transport.receive(
-      commandTopic(),
-      command(`inflight-${index}`, "living-room-light", { on: index % 2 === 0 }),
-    ));
-    await Promise.resolve();
-    const overflow = transport.receive(commandTopic(), command("inflight-overflow", "living-room-light", { on: true }));
-    await Promise.resolve();
-
-    expect(transport.publications).toHaveLength(256);
-    await Promise.all([...pending, overflow, runtime.stop()]);
+    transport.clearPublications();
+    await transport.receive(commandTopic(), command("blocked-identity-1", "living-room-light", { on: true }));
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/devices/living-room-light/state",
+      "omnihome/gateways/lab-gateway/commands/blocked-identity-1/ack",
+    ]);
+    expect(parse(transport.publications[0])).toMatchObject({ state: { power: true } });
   });
 
   it("replays cached failure acknowledgements without publishing state", async () => {

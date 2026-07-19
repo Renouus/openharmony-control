@@ -128,6 +128,7 @@ export async function startMqttGateway(input: {
   const commandSubscription = `${base}/devices/+/commands`;
   const acknowledgements = new Map<string, CommandEntry>();
   const deliveries = new Map<string, Promise<boolean>>();
+  const deliveryEntries = new Map<string, CommandEntry>();
   const inFlight = new Set<Promise<unknown>>();
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
@@ -166,16 +167,13 @@ export async function startMqttGateway(input: {
     return safePublish(topics.ack, entry.acknowledgement, false);
   };
 
-  const reserveCacheSlot = (): boolean => {
-    if (acknowledgements.size < 256) {
-      return true;
+  const reserveCacheSlot = (): void => {
+    if (acknowledgements.size === 256) {
+      const oldestRequestId = acknowledgements.keys().next().value as string | undefined;
+      if (oldestRequestId !== undefined) {
+        acknowledgements.delete(oldestRequestId);
+      }
     }
-    const evictableRequestId = [...acknowledgements.keys()].find((requestId) => !deliveries.has(requestId));
-    if (evictableRequestId === undefined) {
-      return false;
-    }
-    acknowledgements.delete(evictableRequestId);
-    return true;
   };
 
   const deliverCommand = async (entry: CommandEntry): Promise<boolean> => {
@@ -203,18 +201,18 @@ export async function startMqttGateway(input: {
     }
     const delivery = deliverCommand(entry);
     deliveries.set(requestId, delivery);
+    deliveryEntries.set(requestId, entry);
     void delivery.finally(() => {
       if (deliveries.get(requestId) === delivery) {
         deliveries.delete(requestId);
+        deliveryEntries.delete(requestId);
       }
     }).catch(() => undefined);
     return delivery;
   };
 
   const executeAndCache = (command: GatewayCommand): CommandEntry | undefined => {
-    if (!reserveCacheSlot()) {
-      return undefined;
-    }
+    reserveCacheSlot();
     const acknowledgement = executeGatewayCommand(devices, command, now());
     const entry: CommandEntry = acknowledgement.status === "SUCCESS"
       ? {
@@ -239,7 +237,9 @@ export async function startMqttGateway(input: {
     if (!command || topic !== `${base}/devices/${command.deviceId}/commands`) {
       return;
     }
-    const entry = acknowledgements.get(command.requestId) ?? executeAndCache(command);
+    const entry = acknowledgements.get(command.requestId)
+      ?? deliveryEntries.get(command.requestId)
+      ?? executeAndCache(command);
     if (!entry) {
       return;
     }
