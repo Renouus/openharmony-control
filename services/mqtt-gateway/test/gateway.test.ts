@@ -26,13 +26,19 @@ class FakeTransport implements GatewayMqttTransport {
   readonly subscriptions = new Map<string, (topic: string, payload: string) => void | Promise<void>>();
   readonly connectHandlers = new Set<() => void | Promise<void>>();
   closeCalls = 0;
+  forceCloseCalls = 0;
   rejectNextPublish = false;
+  rejectTopic: string | undefined;
   subscribeError: Error | undefined;
+  closeError: Error | undefined;
   private deferredPublish: { promise: Promise<void>; resolve: () => void } | undefined;
+  private stalledPublishes = false;
+  private stalledResolvers: Array<() => void> = [];
 
   async publish(topic: string, payload: string, options: { qos: 1; retain: boolean }): Promise<void> {
-    if (this.rejectNextPublish) {
+    if (this.rejectNextPublish || this.rejectTopic === topic) {
       this.rejectNextPublish = false;
+      this.rejectTopic = undefined;
       throw new Error("broker unavailable");
     }
     this.publications.push({ topic, payload, options });
@@ -40,6 +46,9 @@ class FakeTransport implements GatewayMqttTransport {
       const deferred = this.deferredPublish;
       this.deferredPublish = undefined;
       await deferred.promise;
+    }
+    if (this.stalledPublishes) {
+      await new Promise<void>((resolve) => this.stalledResolvers.push(resolve));
     }
   }
 
@@ -55,8 +64,17 @@ class FakeTransport implements GatewayMqttTransport {
     return () => this.connectHandlers.delete(handler);
   }
 
-  async close(): Promise<void> {
+  async close(force = false): Promise<void> {
     this.closeCalls += 1;
+    if (force) {
+      this.forceCloseCalls += 1;
+      for (const resolve of this.stalledResolvers.splice(0)) {
+        resolve();
+      }
+    }
+    if (this.closeError) {
+      throw this.closeError;
+    }
   }
 
   async triggerConnect(): Promise<void> {
@@ -84,6 +102,10 @@ class FakeTransport implements GatewayMqttTransport {
     });
     this.deferredPublish = { promise, resolve };
     return resolve;
+  }
+
+  stallPublishesUntilForceClose(): void {
+    this.stalledPublishes = true;
   }
 }
 
@@ -272,6 +294,22 @@ describe("MQTT gateway runtime", () => {
     expect(devices.get("living-room-light")?.state.power).toBe(false);
   });
 
+  it("replays cached failure acknowledgements without publishing state", async () => {
+    const transport = new FakeTransport();
+    await startMqttGateway({ config, transport });
+    await transport.triggerConnect();
+    transport.clearPublications();
+
+    await transport.receive(commandTopic("environment-sensor"), command("invalid-duplicate-1", "environment-sensor"));
+    await transport.receive(commandTopic("environment-sensor"), command("invalid-duplicate-1", "environment-sensor"));
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/commands/invalid-duplicate-1/ack",
+      "omnihome/gateways/lab-gateway/commands/invalid-duplicate-1/ack",
+    ]);
+    expect(parse(transport.publications[0])).toEqual(parse(transport.publications[1]));
+  });
+
   it("evicts the oldest cached acknowledgement after 256 requests", async () => {
     const transport = new FakeTransport();
     await startMqttGateway({ config, transport });
@@ -311,21 +349,86 @@ describe("MQTT gateway runtime", () => {
     ]);
   });
 
-  it("does not acknowledge or cache a successful command when retained state publish rejects", async () => {
+  it("retries cached state delivery without reexecuting a command after a retained state publish rejects", async () => {
     const transport = new FakeTransport();
-    await startMqttGateway({ config, transport });
+    const devices = (await import("../src/devices")).createGatewayDevices(10);
+    let commandTime = 20;
+    const deliveryErrors: string[] = [];
+    await startMqttGateway({ config, transport, devices, now: () => commandTime, logger: (event) => deliveryErrors.push(event) });
     await transport.triggerConnect();
     transport.clearPublications();
     transport.rejectNextPublish = true;
 
     await transport.receive(commandTopic(), command("rejected-1"));
     expect(transport.publications).toEqual([]);
+    expect(devices.get("living-room-light")?.state.updatedAt).toBe(20);
+    commandTime = 30;
     await transport.receive(commandTopic(), command("rejected-1"));
 
     expect(transport.publications.map(({ topic }) => topic)).toEqual([
       "omnihome/gateways/lab-gateway/devices/living-room-light/state",
       "omnihome/gateways/lab-gateway/commands/rejected-1/ack",
     ]);
+    expect(parse(transport.publications[0])).toMatchObject({ state: { updatedAt: 20 } });
+    expect(parse(transport.publications[1])).toMatchObject({ state: { updatedAt: 20 } });
+    expect(devices.get("living-room-light")?.state.updatedAt).toBe(20);
+    expect(deliveryErrors).toEqual(["MQTT_GATEWAY_COMMAND_DELIVERY_FAILED"]);
+  });
+
+  it("coalesces stalled heartbeats and force-closes within the shutdown timeout", async () => {
+    const transport = new FakeTransport();
+    const timers = timerHarness();
+    const runtime = await startMqttGateway({ config, transport, ...timers, shutdownTimeoutMs: 1 });
+    transport.stallPublishesUntilForceClose();
+    await timers.tick();
+    await timers.tick();
+    await timers.tick();
+
+    expect(transport.publications).toHaveLength(1);
+    await expect(Promise.race([
+      runtime.stop(),
+      new Promise<void>((_resolve, reject) => setTimeout(() => reject(new Error("shutdown timed out")), 50)),
+    ])).resolves.toBeUndefined();
+    expect(transport.forceCloseCalls).toBe(1);
+  });
+
+  it("marks a failed snapshot dirty and recovers the full snapshot on a heartbeat", async () => {
+    const transport = new FakeTransport();
+    const timers = timerHarness();
+    const events: string[] = [];
+    await startMqttGateway({ config, transport, ...timers, logger: (event) => events.push(event) });
+    transport.rejectTopic = "omnihome/gateways/lab-gateway/inventory";
+    await transport.triggerConnect();
+    transport.clearPublications();
+
+    await timers.tick();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(transport.publications.map(({ topic }) => topic)).toContain("omnihome/gateways/lab-gateway/inventory");
+    expect(transport.publications.filter(({ options }) => options.retain)).toHaveLength(7);
+    expect(events).toEqual(["MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED"]);
+  });
+
+  it("coalesces reconnect snapshots while a snapshot publish is pending", async () => {
+    const transport = new FakeTransport();
+    const runtime = await startMqttGateway({ config, transport, shutdownTimeoutMs: 1 });
+    transport.stallPublishesUntilForceClose();
+
+    const first = transport.triggerConnect();
+    await Promise.resolve();
+    const second = transport.triggerConnect();
+    const third = transport.triggerConnect();
+
+    expect(transport.publications).toHaveLength(1);
+    await Promise.all([first, second, third, runtime.stop()]);
+  });
+
+  it("rejects stop when forced transport close fails", async () => {
+    const transport = new FakeTransport();
+    const runtime = await startMqttGateway({ config, transport });
+    transport.closeError = new Error("close failed");
+
+    await expect(runtime.stop()).rejects.toThrow("close failed");
   });
 
   it("drains an in-flight command before offline shutdown without publishing its acknowledgement", async () => {
@@ -424,6 +527,9 @@ describe("MQTT gateway runtime", () => {
     const listeners = new Map<string, (...args: unknown[]) => void>();
     const subscriptions: unknown[][] = [];
     let endCalls = 0;
+    const endArguments: unknown[][] = [];
+    const removed: unknown[][] = [];
+    let handlerCalls = 0;
     const client = {
       publish: () => undefined,
       subscribe: (...args: unknown[]) => {
@@ -433,9 +539,10 @@ describe("MQTT gateway runtime", () => {
       on: (event: string, listener: (...args: unknown[]) => void) => {
         listeners.set(event, listener);
       },
-      off: () => undefined,
+      off: (...args: unknown[]) => { removed.push(args); },
       end: (...args: unknown[]) => {
         endCalls += 1;
+        endArguments.push(args);
         (args[2] as (error?: Error) => void)();
       },
     };
@@ -445,15 +552,20 @@ describe("MQTT gateway runtime", () => {
     process.on("unhandledRejection", capture);
 
     await transport.subscribe("omnihome/gateways/lab-gateway/devices/+/commands", async () => {
+      handlerCalls += 1;
       throw new Error("handler rejected");
     });
+    listeners.get("message")?.("omnihome/gateways/other-gateway/devices/living-room-light/commands", Buffer.from("{}"));
     listeners.get("message")?.("omnihome/gateways/lab-gateway/devices/living-room-light/commands", Buffer.from("{}"));
     await new Promise((resolve) => setImmediate(resolve));
-    await transport.close();
+    await transport.close(true);
     process.off("unhandledRejection", capture);
 
     expect(subscriptions[0][1]).toEqual({ qos: 1 });
+    expect(handlerCalls).toBe(1);
     expect(unhandled).toEqual([]);
     expect(endCalls).toBe(1);
+    expect(endArguments[0][0]).toBe(true);
+    expect(removed.map(([event]) => event)).toContain("message");
   });
 });

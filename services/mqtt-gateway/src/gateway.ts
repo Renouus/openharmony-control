@@ -3,6 +3,7 @@ import {
   buildGatewayTopics,
   parseGatewayCommand,
   type GatewayAck,
+  type GatewayCommand,
   type GatewayDeviceState,
   type GatewayInventory,
   type GatewayStatus,
@@ -14,17 +15,30 @@ import {
   type GatewayDevice,
 } from "./devices";
 
+export type GatewayLogEvent =
+  | "MQTT_GATEWAY_COMMAND_DELIVERY_FAILED"
+  | "MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED";
+
 export interface GatewayMqttTransport {
   publish(topic: string, payload: string, options: { qos: 1; retain: boolean }): Promise<void>;
   subscribe(topic: string, handler: (topic: string, payload: string) => void | Promise<void>): Promise<void>;
   onConnect(handler: () => void | Promise<void>): () => void;
-  close(): Promise<void>;
+  close(force?: boolean): Promise<void>;
 }
 
 type MqttConnect = (url: string, options: IClientOptions) => MqttClient;
+type CommandEntry = { acknowledgement: GatewayAck; state?: GatewayDeviceState; stateDelivered: boolean };
 
 function gatewayBase(gatewayId: string): string {
   return `omnihome/gateways/${gatewayId}`;
+}
+
+function matchesTopic(filter: string, topic: string): boolean {
+  const filterParts = filter.split("/");
+  const topicParts = topic.split("/");
+  return filterParts.length === topicParts.length && filterParts.every(
+    (part, index) => part === "+" || part === topicParts[index],
+  );
 }
 
 function publishClient(
@@ -57,15 +71,26 @@ export function createMqttTransport(
       retain: true,
     },
   });
+  const subscriptions = new Map<string, (topic: string, payload: string) => void | Promise<void>>();
+  const messageListener = (topic: string, payload: Buffer): void => {
+    for (const [filter, handler] of subscriptions) {
+      if (matchesTopic(filter, topic)) {
+        void Promise.resolve(handler(topic, payload.toString())).catch(() => undefined);
+      }
+    }
+  };
+  client.on("message", messageListener);
 
   return {
     publish: (topic, payload, options) => publishClient(client, topic, payload, options),
     subscribe: (topic, handler) => new Promise((resolve, reject) => {
-      client.subscribe(topic, { qos: 1 }, (error) => (error ? reject(error) : resolve()));
-      client.on("message", (messageTopic, message) => {
-        if (messageTopic === topic || topic.endsWith("/+") || topic.includes("/+")) {
-          void Promise.resolve(handler(messageTopic, message.toString())).catch(() => undefined);
+      client.subscribe(topic, { qos: 1 }, (error) => {
+        if (error) {
+          reject(error);
+          return;
         }
+        subscriptions.set(topic, handler);
+        resolve();
       });
     }),
     onConnect: (handler) => {
@@ -75,8 +100,10 @@ export function createMqttTransport(
       client.on("connect", listener);
       return () => client.off("connect", listener);
     },
-    close: () => new Promise((resolve, reject) => {
-      client.end(false, {}, (error) => (error ? reject(error) : resolve()));
+    close: (force = false) => new Promise((resolve, reject) => {
+      subscriptions.clear();
+      client.off("message", messageListener);
+      client.end(force, {}, (error) => (error ? reject(error) : resolve()));
     }),
   };
 }
@@ -88,20 +115,25 @@ export async function startMqttGateway(input: {
   devices?: Map<string, GatewayDevice>;
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
+  shutdownTimeoutMs?: number;
+  logger?: (event: GatewayLogEvent) => void;
 }): Promise<{ stop(): Promise<void> }> {
   const now = input.now ?? Date.now;
   const transport = input.transport ?? createMqttTransport(input.config, mqtt.connect, now);
   const devices = input.devices ?? createGatewayDevices(now());
   const setIntervalFn = input.setIntervalFn ?? setInterval;
   const clearIntervalFn = input.clearIntervalFn ?? clearInterval;
+  const shutdownTimeoutMs = Math.max(0, input.shutdownTimeoutMs ?? 5_000);
   const base = gatewayBase(input.config.gatewayId);
   const commandSubscription = `${base}/devices/+/commands`;
-  const acknowledgements = new Map<string, GatewayAck>();
-  const inFlightCommands = new Map<string, Promise<GatewayAck | undefined>>();
+  const acknowledgements = new Map<string, CommandEntry>();
+  const deliveries = new Map<string, Promise<boolean>>();
+  const inFlight = new Set<Promise<unknown>>();
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
-
-  const inFlight = new Set<Promise<unknown>>();
+  let snapshotPromise: Promise<void> | undefined;
+  let snapshotDirty = false;
+  let heartbeatPromise: Promise<boolean> | undefined;
 
   const track = <Result>(work: Promise<Result>): Promise<Result> => {
     inFlight.add(work);
@@ -109,94 +141,88 @@ export async function startMqttGateway(input: {
     return work;
   };
 
-  const drainInFlight = async (): Promise<void> => {
-    while (inFlight.size > 0) {
-      await Promise.allSettled([...inFlight]);
-    }
-  };
-
-  const safePublish = async (
-    topic: string,
-    payload: unknown,
-    retain: boolean,
-  ): Promise<boolean> => {
+  const safePublish = async (topic: string, payload: unknown, retain: boolean): Promise<boolean> => {
     try {
       await transport.publish(topic, JSON.stringify(payload), { qos: 1, retain });
       return true;
     } catch {
-      // MQTT reconnect logic owns delivery retries; a failed send must not crash the runtime.
       return false;
     }
   };
 
-  const publishStatus = async (online: boolean): Promise<boolean> => {
-    const status: GatewayStatus = { gatewayId: input.config.gatewayId, online, updatedAt: now() };
-    return safePublish(`${base}/status`, status, true);
-  };
+  const publishStatus = (online: boolean): Promise<boolean> => safePublish(
+    `${base}/status`,
+    { gatewayId: input.config.gatewayId, online, updatedAt: now() } satisfies GatewayStatus,
+    true,
+  );
 
-  const publishSnapshot = async (): Promise<void> => {
-    if (stopped) {
-      return;
-    }
-    if (!await publishStatus(true) || stopped) {
-      return;
-    }
-    const inventory: GatewayInventory = {
-      gatewayId: input.config.gatewayId,
-      updatedAt: now(),
-      devices: [...devices.values()].map(({ state: _state, ...descriptor }) => ({ ...descriptor })),
-    };
-    if (!await safePublish(`${base}/inventory`, inventory, true) || stopped) {
-      return;
-    }
-    for (const device of devices.values()) {
-      const state: GatewayDeviceState = {
-        gatewayId: input.config.gatewayId,
-        deviceId: device.id,
-        state: device.state,
-      };
-      if (!await safePublish(`${base}/devices/${device.id}/state`, state, true) || stopped) {
-        return;
-      }
-    }
-  };
-
-  const publishAcknowledgement = async (acknowledgement: GatewayAck): Promise<void> => {
+  const publishAcknowledgement = (entry: CommandEntry): Promise<boolean> => {
     const topics = buildGatewayTopics(
       input.config.gatewayId,
-      acknowledgement.deviceId,
-      acknowledgement.requestId,
+      entry.acknowledgement.deviceId,
+      entry.acknowledgement.requestId,
     );
-    await safePublish(topics.ack, acknowledgement, false);
+    return safePublish(topics.ack, entry.acknowledgement, false);
   };
 
-  const remember = (acknowledgement: GatewayAck): void => {
+  const remember = (entry: CommandEntry): void => {
     if (acknowledgements.size === 256) {
       const oldestRequestId = acknowledgements.keys().next().value as string | undefined;
       if (oldestRequestId !== undefined) {
         acknowledgements.delete(oldestRequestId);
       }
     }
-    acknowledgements.set(acknowledgement.requestId, acknowledgement);
+    acknowledgements.set(entry.acknowledgement.requestId, entry);
   };
 
-  const executeAndRemember = async (command: NonNullable<ReturnType<typeof parseGatewayCommand>>): Promise<GatewayAck | undefined> => {
-    const acknowledgement = executeGatewayCommand(devices, command, now());
-    if (acknowledgement.status === "SUCCESS") {
-      const state: GatewayDeviceState = {
-        gatewayId: input.config.gatewayId,
-        deviceId: acknowledgement.deviceId,
-        state: acknowledgement.state,
-      };
-      if (!await safePublish(`${base}/devices/${acknowledgement.deviceId}/state`, state, true) || stopped) {
-        return;
+  const deliverCommand = async (entry: CommandEntry): Promise<boolean> => {
+    if (entry.state && !entry.stateDelivered) {
+      if (!await safePublish(`${base}/devices/${entry.state.deviceId}/state`, entry.state, true) || stopped) {
+        input.logger?.("MQTT_GATEWAY_COMMAND_DELIVERY_FAILED");
+        return false;
       }
+      entry.stateDelivered = true;
     }
-    if (stopped) {
-      return undefined;
+    if (stopped || !await publishAcknowledgement(entry)) {
+      if (!stopped) {
+        input.logger?.("MQTT_GATEWAY_COMMAND_DELIVERY_FAILED");
+      }
+      return false;
     }
-    remember(acknowledgement);
-    return acknowledgement;
+    return true;
+  };
+
+  const getOrStartDelivery = (entry: CommandEntry): Promise<boolean> => {
+    const requestId = entry.acknowledgement.requestId;
+    const pending = deliveries.get(requestId);
+    if (pending) {
+      return pending;
+    }
+    const delivery = deliverCommand(entry);
+    deliveries.set(requestId, delivery);
+    void delivery.finally(() => {
+      if (deliveries.get(requestId) === delivery) {
+        deliveries.delete(requestId);
+      }
+    }).catch(() => undefined);
+    return delivery;
+  };
+
+  const executeAndCache = (command: GatewayCommand): CommandEntry => {
+    const acknowledgement = executeGatewayCommand(devices, command, now());
+    const entry: CommandEntry = acknowledgement.status === "SUCCESS"
+      ? {
+          acknowledgement,
+          state: {
+            gatewayId: input.config.gatewayId,
+            deviceId: acknowledgement.deviceId,
+            state: acknowledgement.state,
+          },
+          stateDelivered: false,
+        }
+      : { acknowledgement, stateDelivered: true };
+    remember(entry);
+    return entry;
   };
 
   const handleCommand = async (topic: string, payload: string): Promise<void> => {
@@ -207,41 +233,74 @@ export async function startMqttGateway(input: {
     if (!command || topic !== `${base}/devices/${command.deviceId}/commands`) {
       return;
     }
-
-    const cached = acknowledgements.get(command.requestId);
-    if (cached) {
-      await publishAcknowledgement(cached);
-      return;
-    }
-
-    const pending = inFlightCommands.get(command.requestId);
+    const entry = acknowledgements.get(command.requestId) ?? executeAndCache(command);
+    const pending = deliveries.get(command.requestId);
     if (pending) {
-      const acknowledgement = await pending;
-      if (acknowledgement && !stopped) {
-        await publishAcknowledgement(acknowledgement);
+      const delivered = await pending;
+      if (stopped) {
+        return;
+      }
+      if (delivered) {
+        await publishAcknowledgement(entry);
+      } else {
+        await getOrStartDelivery(entry);
       }
       return;
     }
-
-    const execution = executeAndRemember(command);
-    inFlightCommands.set(command.requestId, execution);
-    try {
-      const acknowledgement = await execution;
-      if (acknowledgement && !stopped) {
-        await publishAcknowledgement(acknowledgement);
-      }
-    } finally {
-      inFlightCommands.delete(command.requestId);
-    }
+    await getOrStartDelivery(entry);
   };
 
-  const removeConnectHandler = transport.onConnect(() => track(publishSnapshot()));
+  const runSnapshot = async (): Promise<void> => {
+    if (stopped) {
+      return;
+    }
+    if (!await publishStatus(true) || stopped) {
+      snapshotDirty = !stopped;
+      if (!stopped) input.logger?.("MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED");
+      return;
+    }
+    const inventory: GatewayInventory = {
+      gatewayId: input.config.gatewayId,
+      updatedAt: now(),
+      devices: [...devices.values()].map(({ state: _state, ...descriptor }) => ({ ...descriptor })),
+    };
+    if (!await safePublish(`${base}/inventory`, inventory, true) || stopped) {
+      snapshotDirty = !stopped;
+      if (!stopped) input.logger?.("MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED");
+      return;
+    }
+    for (const device of devices.values()) {
+      const state: GatewayDeviceState = { gatewayId: input.config.gatewayId, deviceId: device.id, state: device.state };
+      if (!await safePublish(`${base}/devices/${device.id}/state`, state, true) || stopped) {
+        snapshotDirty = !stopped;
+        if (!stopped) input.logger?.("MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED");
+        return;
+      }
+    }
+    snapshotDirty = false;
+  };
+
+  const requestSnapshot = (): Promise<void> => {
+    if (snapshotPromise) {
+      return snapshotPromise;
+    }
+    const snapshot = track(runSnapshot());
+    snapshotPromise = snapshot;
+    void snapshot.finally(() => {
+      if (snapshotPromise === snapshot) {
+        snapshotPromise = undefined;
+      }
+    }).catch(() => undefined);
+    return snapshot;
+  };
+
+  const removeConnectHandler = transport.onConnect(() => requestSnapshot());
   try {
     await transport.subscribe(commandSubscription, (topic, payload) => track(handleCommand(topic, payload)).catch(() => undefined));
   } catch (error) {
     removeConnectHandler();
     try {
-      await transport.close();
+      await transport.close(true);
     } catch {
       // Preserve the subscription failure without leaking a close rejection.
     }
@@ -249,8 +308,18 @@ export async function startMqttGateway(input: {
   }
 
   const heartbeat = setIntervalFn(() => {
-    if (!stopped) {
-      void track(publishStatus(true)).catch(() => undefined);
+    if (stopped || heartbeatPromise) {
+      return;
+    }
+    const pending = track(publishStatus(true));
+    heartbeatPromise = pending;
+    void pending.finally(() => {
+      if (heartbeatPromise === pending) {
+        heartbeatPromise = undefined;
+      }
+    }).catch(() => undefined);
+    if (snapshotDirty) {
+      void requestSnapshot();
     }
   }, input.config.heartbeatMs);
 
@@ -263,12 +332,22 @@ export async function startMqttGateway(input: {
       clearIntervalFn(heartbeat);
       removeConnectHandler();
       stopPromise = (async () => {
-        await drainInFlight();
-        await publishStatus(false);
-        try {
-          await transport.close();
-        } catch {
-          // Closing cannot leave a shutdown path with an unhandled rejection.
+        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<void>((resolve) => {
+          deadlineTimer = setTimeout(resolve, shutdownTimeoutMs);
+        });
+        const waitUntilDeadline = async (work: Promise<unknown>): Promise<{ settled: boolean; error?: unknown }> => Promise.race([
+          work.then(() => ({ settled: true }), (error: unknown) => ({ settled: true, error })),
+          deadline.then(() => ({ settled: false })),
+        ]);
+        await waitUntilDeadline(Promise.allSettled([...inFlight]));
+        await waitUntilDeadline(publishStatus(false));
+        const closeResult = await waitUntilDeadline(transport.close(true));
+        if (deadlineTimer !== undefined) {
+          clearTimeout(deadlineTimer);
+        }
+        if (closeResult.error !== undefined) {
+          throw closeResult.error;
         }
       })();
       return stopPromise;

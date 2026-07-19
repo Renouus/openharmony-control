@@ -92,4 +92,42 @@ describe("MQTT gateway server entry", () => {
     expect(processRef.exitCode).toBe(1);
     expect(reports).toEqual(["MQTT gateway startup failed"]);
   });
+
+  it("reports only whitelisted MQTT configuration keys", async () => {
+    const reports: string[] = [];
+    const processRef = { env: {}, exitCode: undefined as number | undefined, once: () => undefined };
+
+    await runServer({
+      processRef,
+      loadEnvironment: () => undefined,
+      loadConfig: () => { throw new Error("MQTT_GATEWAY_ID"); },
+      reportError: (message) => reports.push(message),
+    });
+
+    expect(processRef.exitCode).toBe(1);
+    expect(reports).toEqual(["MQTT gateway startup failed: MQTT_GATEWAY_ID"]);
+  });
+
+  it("reports a rejected gateway stop as a normal shutdown failure", async () => {
+    const handlers = new Map<string, () => void>();
+    const reports: string[] = [];
+    const processRef = {
+      env: {},
+      exitCode: undefined as number | undefined,
+      once: (signal: string, handler: () => void) => { handlers.set(signal, handler); },
+    };
+
+    await runServer({
+      processRef,
+      loadEnvironment: () => undefined,
+      loadConfig: () => config,
+      startGateway: async () => ({ stop: async () => { throw new Error("close failed"); } }),
+      reportError: (message) => reports.push(message),
+    });
+    handlers.get("SIGTERM")?.();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(processRef.exitCode).toBe(1);
+    expect(reports).toEqual(["MQTT gateway shutdown failed"]);
+  });
 });

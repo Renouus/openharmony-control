@@ -14,6 +14,15 @@ type ProcessRuntime = {
   once(signal: NodeJS.Signals, listener: () => void): unknown;
 };
 
+const safeConfigurationKeys = new Set([
+  "MQTT_BROKER_URL",
+  "MQTT_GATEWAY_ID",
+  "MQTT_GATEWAY_CLIENT_ID",
+  "MQTT_GATEWAY_USERNAME",
+  "MQTT_GATEWAY_PASSWORD",
+  "MQTT_HEARTBEAT_MS",
+]);
+
 function repositoryRootFor(cwd: string): string {
   const absoluteCwd = resolve(cwd);
   return basename(absoluteCwd) === "mqtt-gateway" && basename(dirname(absoluteCwd)) === "services"
@@ -67,8 +76,11 @@ export async function runServer(input: {
     };
     processRef.once("SIGINT", stop);
     processRef.once("SIGTERM", stop);
-  } catch {
-    reportError("MQTT gateway startup failed");
+  } catch (error) {
+    const key = error instanceof Error && safeConfigurationKeys.has(error.message)
+      ? `: ${error.message}`
+      : "";
+    reportError(`MQTT gateway startup failed${key}`);
     processRef.exitCode = 1;
   }
 }
