@@ -159,6 +159,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   let closed = false;
   let unbindConnect: Unsubscribe = () => {};
   let unbindDisconnect: Unsubscribe = () => {};
+  let subscriptionRefresh: Promise<void> | undefined;
 
   const base = `omnihome/gateways/${config.gatewayId}`;
   const statusTopic = `${base}/status`;
@@ -168,7 +169,21 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
 
   function notify(wireId: string, state: DeviceState) {
     const deviceId = normalizeMqttDeviceId(config.gatewayId, wireId);
-    for (const listener of stateListeners) listener(deviceId, state);
+    for (const listener of stateListeners) {
+      try {
+        listener(deviceId, state);
+      } catch {
+        safeWarn("MQTT state listener failed");
+      }
+    }
+  }
+
+  function safeWarn(message: string) {
+    try {
+      input.logger?.warn(message);
+    } catch {
+      // A logging failure must not affect MQTT protocol handling.
+    }
   }
 
   function failure(code: VendorExecutionFailure["code"], message: string): VendorExecutionFailure {
@@ -196,6 +211,10 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     return !closed && (transport?.connected() ?? false) && gatewayOnline &&
       lastHeartbeatReceivedAt !== undefined &&
       now() - lastHeartbeatReceivedAt <= config.offlineAfterMs;
+  }
+
+  function projectedState(state: DeviceState): DeviceState {
+    return gatewayAvailable() ? state : { ...state, online: false };
   }
 
   function routeMessage(topic: string, raw: string) {
@@ -251,9 +270,34 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     }
   }
 
+  function refreshSubscriptions(): Promise<void> {
+    if (!subscriptionRefresh) {
+      subscriptionRefresh = subscribeAll().finally(() => {
+        subscriptionRefresh = undefined;
+      });
+    }
+    return subscriptionRefresh;
+  }
+
+  function withinTimeout<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      let settled = false;
+      const finish = (callback: (value: T) => void, value: T) => {
+        if (settled) return;
+        settled = true; clearTimeoutFn(timer); callback(value);
+      };
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true; clearTimeoutFn(timer); reject(error);
+      };
+      const timer = setTimeoutFn(() => fail(new Error("MQTT provider ready timed out")), timeoutMs);
+      void operation().then((value) => finish(resolve, value), fail);
+    });
+  }
+
   function bindTransport(activeTransport: ControlCenterMqttTransport) {
     transport = activeTransport;
-    unbindConnect = activeTransport.onConnect(() => { void subscribeAll().catch(() => input.logger?.warn("MQTT subscription refresh failed")); });
+    unbindConnect = activeTransport.onConnect(() => { void refreshSubscriptions().catch(() => safeWarn("MQTT subscription refresh failed")); });
     unbindDisconnect = activeTransport.onDisconnect(() => { gatewayOnline = false; });
   }
 
@@ -272,8 +316,10 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     providerId: "mqtt",
     ready: async (timeoutMs) => {
       if (closed) throw new Error("MQTT provider is closed");
-      await ensureTransport().ready(timeoutMs);
-      await subscribeAll();
+      await withinTimeout(async () => {
+        await ensureTransport().ready(timeoutMs);
+        await refreshSubscriptions();
+      }, timeoutMs);
     },
     close: async () => {
       if (closed) return;
@@ -291,17 +337,18 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     discoverDevices: async (): Promise<DiscoveredProviderDevice[]> => [...inventory.values()].flatMap((device) => {
       const state = states.get(device.id);
       if (!state) return [];
+      const projected = projectedState(state);
       return [{
         provider: "mqtt", externalDeviceId: `${config.gatewayId}-${device.id}`,
-        originalName: device.name, online: state.online && gatewayAvailable(), deviceType: device.kind,
+        originalName: device.name, online: projected.online, deviceType: device.kind,
         ...(device.roomHint === undefined ? {} : { roomHint: device.roomHint }),
-        state, capabilities: device.capabilities,
-        status: [{ code: "state", value: state }], functions: device.capabilities.map((code) => ({ code })), raw: device,
+        state: projected, capabilities: device.capabilities,
+        status: [{ code: "state", value: projected }], functions: device.capabilities.map((code) => ({ code })), raw: device,
       }];
     }),
     getDiscoveredDeviceStatus: async (externalDeviceId): Promise<ProviderDeviceStatus[]> => {
       const wireId = externalWireId(externalDeviceId); const state = wireId ? states.get(wireId) : undefined;
-      return state ? [{ code: "state", value: state }] : [];
+      return state ? [{ code: "state", value: projectedState(state) }] : [];
     },
     getDiscoveredDeviceCapabilities: async (externalDeviceId): Promise<ProviderCapability[]> => {
       const wireId = externalWireId(externalDeviceId); const device = wireId ? inventory.get(wireId) : undefined;
@@ -310,12 +357,14 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     ownsDevice: (deviceId) => deviceWireId(deviceId) !== undefined,
     listDevices: async (): Promise<EnhancedDeviceDescriptor[]> => [...inventory.values()].flatMap((device, displayOrder) => {
       const state = states.get(device.id); if (!state) return [];
-      return [{ id: normalizeMqttDeviceId(config.gatewayId, device.id), name: device.name, kind: device.kind, brand: "mqtt", capabilities: device.capabilities, state, room: device.roomHint ?? "", displayOrder, health: state.online && gatewayAvailable() ? DeviceHealth.Online : DeviceHealth.Offline }];
+      const projected = projectedState(state);
+      return [{ id: normalizeMqttDeviceId(config.gatewayId, device.id), name: device.name, kind: device.kind, brand: "mqtt", capabilities: device.capabilities, state: projected, room: device.roomHint ?? "", displayOrder, health: projected.online ? DeviceHealth.Online : DeviceHealth.Offline }];
     }),
     getDevice: async (deviceId) => {
       const wireId = deviceWireId(deviceId); const device = wireId ? inventory.get(wireId) : undefined; const state = wireId ? states.get(wireId) : undefined;
       if (!device || !state) return undefined;
-      return { id: deviceId, name: device.name, kind: device.kind, brand: "mqtt", capabilities: device.capabilities, state, room: device.roomHint ?? "", displayOrder: [...inventory.keys()].indexOf(wireId!), health: state.online && gatewayAvailable() ? DeviceHealth.Online : DeviceHealth.Offline };
+      const projected = projectedState(state);
+      return { id: deviceId, name: device.name, kind: device.kind, brand: "mqtt", capabilities: device.capabilities, state: projected, room: device.roomHint ?? "", displayOrder: [...inventory.keys()].indexOf(wireId!), health: projected.online ? DeviceHealth.Online : DeviceHealth.Offline };
     },
     executeCommand: async (command: DeviceCommand): Promise<VendorExecutionResult> => {
       const wireId = deviceWireId(command.deviceId);

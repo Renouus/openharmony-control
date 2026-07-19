@@ -36,6 +36,19 @@ class FakeTransport implements ControlCenterMqttTransport {
   disconnect() { this.isConnected = false; for (const listener of this.disconnectListeners) listener(); }
 }
 
+class StalledSubscribeTransport extends FakeTransport {
+  public subscribeCalls = 0;
+  public stallSubscriptions = false;
+
+  override async subscribe(topic: string, handler: MessageHandler) {
+    this.subscribeCalls++;
+    if (this.stallSubscriptions) {
+      return await new Promise<() => void>(() => {});
+    }
+    return await super.subscribe(topic, handler);
+  }
+}
+
 function matches(filter: string, topic: string) {
   const expected = filter.split("/");
   const actual = topic.split("/");
@@ -135,6 +148,20 @@ describe("mqtt provider", () => {
     expect(listener).toHaveBeenCalledWith("mqtt-gateway-1-light-1", expect.objectContaining({ power: true }));
   });
 
+  it("resolves a successful ack even when a state listener throws", async () => {
+    const transport = new FakeTransport();
+    const logger = { warn: vi.fn() };
+    const provider = createMqttProvider({ config, transport, now: () => 10, logger });
+    await provider.ready(10); seed(transport);
+    provider.onStateChange(() => { throw new Error("listener failure"); });
+    const pending = provider.executeCommand({ requestId: "request-throwing-listener", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
+    transport.emit("omnihome/gateways/gateway-1/commands/request-throwing-listener/ack", {
+      requestId: "request-throwing-listener", deviceId: "light-1", status: "SUCCESS", message: "ok", state: { online: true, power: true, updatedAt: 20 },
+    });
+    await expect(pending).resolves.toMatchObject({ ok: true, status: "SUCCESS" });
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
   it("fails commands before publishing when disconnected, stale, offline, or unknown", async () => {
     let now = 1;
     const transport = new FakeTransport(); const provider = createMqttProvider({ config, transport, now: () => now });
@@ -151,10 +178,47 @@ describe("mqtt provider", () => {
     const transport = new FakeTransport(); const provider = createMqttProvider({ config, transport, now: () => 10 });
     await provider.ready(10); seed(transport);
     transport.disconnect();
-    await expect(provider.getDevice("mqtt-gateway-1-light-1")).resolves.toMatchObject({ health: "offline" });
+    await expect(provider.discoverDevices()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ online: false, state: expect.objectContaining({ online: false }) }),
+    ]));
+    await expect(provider.listDevices()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ health: "offline", state: expect.objectContaining({ online: false }) }),
+    ]));
+    await expect(provider.getDevice("mqtt-gateway-1-light-1")).resolves.toMatchObject({ health: "offline", state: { online: false } });
     transport.connect();
     transport.emit("omnihome/gateways/gateway-1/status", { gatewayId: "gateway-1", online: true, updatedAt: 999 });
     await expect(provider.getDevice("mqtt-gateway-1-light-1")).resolves.toMatchObject({ health: "online" });
+  });
+
+  it("projects heartbeat-expired cached state as offline without mutating the wire state", async () => {
+    let now = 10;
+    const transport = new FakeTransport(); const provider = createMqttProvider({ config, transport, now: () => now });
+    await provider.ready(10); seed(transport);
+    now = 1_011;
+    await expect(provider.discoverDevices()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ online: false, state: expect.objectContaining({ online: false, power: true }) }),
+    ]));
+    transport.emit("omnihome/gateways/gateway-1/status", { gatewayId: "gateway-1", online: true, updatedAt: 999 });
+    await expect(provider.getDevice("mqtt-gateway-1-light-1")).resolves.toMatchObject({ state: { online: true, power: true } });
+  });
+
+  it("bounds ready across stalled subscriptions and coalesces reconnect refresh storms", async () => {
+    const timers: Array<() => void> = [];
+    const stalled = new StalledSubscribeTransport(); stalled.stallSubscriptions = true;
+    const blocked = createMqttProvider({ config, transport: stalled, setTimeoutFn: (fn) => { timers.push(fn); return timers.length; }, clearTimeoutFn: () => {} });
+    const ready = blocked.ready(10);
+    await Promise.resolve();
+    timers[0]();
+    await expect(ready).rejects.toThrow("timed out");
+    expect(stalled.subscribeCalls).toBe(1);
+
+    const reconnecting = new StalledSubscribeTransport();
+    const provider = createMqttProvider({ config, transport: reconnecting });
+    await provider.ready(10);
+    reconnecting.stallSubscriptions = true;
+    reconnecting.connect(); reconnecting.connect(); reconnecting.connect();
+    await Promise.resolve();
+    expect(reconnecting.subscribeCalls).toBe(5);
   });
 
   it("maps matching ack failures and ignores wrong request or device", async () => {
@@ -173,7 +237,7 @@ describe("mqtt provider", () => {
     const provider = createMqttProvider({ config, transport, now: () => 10, setTimeoutFn: (fn) => { callbacks.push(fn); return callbacks.length; }, clearTimeoutFn: () => {} });
     await provider.ready(10); seed(transport);
     const timeout = provider.executeCommand({ requestId: "request-4", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
-    callbacks[0]();
+    callbacks.at(-1)!();
     await expect(timeout).resolves.toMatchObject({ ok: false, code: "COMMAND_TIMEOUT" });
     transport.publish = async () => { throw new Error("broker gone"); };
     await expect(provider.executeCommand({ requestId: "request-5", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } })).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
@@ -194,7 +258,7 @@ describe("mqtt provider", () => {
       .resolves.toMatchObject({ ok: false, code: "COMMAND_INVALID" });
     expect(transport.published).toHaveLength(0);
     const pending = provider.executeCommand({ requestId: "request-7", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
-    callbacks[0]();
+    callbacks.at(-1)!();
     await expect(pending).resolves.toMatchObject({ ok: false, code: "COMMAND_TIMEOUT" });
     rejectPublish(new Error("late broker failure"));
     await Promise.resolve();
