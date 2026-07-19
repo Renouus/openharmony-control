@@ -1,15 +1,16 @@
 services:
+  # Credential rotation: edit the ignored deploy/mqtt/.env, then run
+  # `docker compose down` followed by `docker compose up -d mqtt` so the
+  # broker is recreated and reloads the atomically replaced password file.
+  # Do not use `down -v`; the named data and secrets volumes are preserved.
   mqtt-credentials:
     image: eclipse-mosquitto:2
+    user: "0:0"
     env_file:
       - deploy/mqtt/.env
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        rm -f /mosquitto/secrets/passwords &&
-        mosquitto_passwd -b -c /mosquitto/secrets/passwords "$${MQTT_CONTROL_CENTER_USERNAME}" "$${MQTT_CONTROL_CENTER_PASSWORD}" &&
-        mosquitto_passwd -b /mosquitto/secrets/passwords "$${MQTT_GATEWAY_USERNAME}" "$${MQTT_GATEWAY_PASSWORD}"
+    entrypoint: ["/bin/sh", "/mosquitto/config/init-credentials.sh"]
     volumes:
+      - ./deploy/mqtt/init-credentials.sh:/mosquitto/config/init-credentials.sh:ro
       - mqtt-secrets:/mosquitto/secrets
 
   mqtt:

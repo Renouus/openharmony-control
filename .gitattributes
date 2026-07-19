@@ -1,0 +1,2 @@
+.gitattributes text eol=lf
+deploy/mqtt/*.sh text eol=lf
