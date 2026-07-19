@@ -46,8 +46,7 @@ import { AutomationViewModel } from '../viewmodel/automation-view-model';
 import { NotificationsViewModel } from '../viewmodel/notifications-view-model';
 import { FamilyViewModel } from '../viewmodel/family-view-model';
 import { normalizeRepositoryError } from '../services/smart-home-repository';
-
-const BACKEND_BASE_URL: string = 'http://10.0.2.2:3443';
+import { SERVICE_API_BASE_URL } from '../config/ServiceEndpointConfig';
 
 export interface DeviceCreationResult {
   success: boolean;
@@ -74,7 +73,7 @@ export class AppController {
   readonly familyViewModel: FamilyViewModel;
 
   constructor() {
-    const api = new DeviceApi(BACKEND_BASE_URL);
+    const api = new DeviceApi(SERVICE_API_BASE_URL);
     this.repository = new SmartHomeRepository(api);
     this.sceneStore = new SceneStore();
     this.automationStore = new AutomationStore();
@@ -346,7 +345,7 @@ export class AppController {
   }
 
   async handleDemoMotion(snapshot: AppStateSnapshot, deviceId: string, motionDetected: boolean): Promise<void> {
-    const api = new DeviceApi(BACKEND_BASE_URL);
+    const api = new DeviceApi(SERVICE_API_BASE_URL);
     try {
       await api.postDemoMotion(deviceId, motionDetected);
     } catch (e) {

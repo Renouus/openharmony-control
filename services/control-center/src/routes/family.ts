@@ -6,16 +6,14 @@
  */
 import type { FamilyMemberDescriptor } from "@smart-home/device-contract";
 import type { FastifyInstance } from "fastify";
+import { familyBroadcastSchema, familySettingsMutationSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 
 type FamilyActivity = {
   id: string;
   type: "presence" | "broadcast";
   message: string;
   createdAt: number;
-};
-
-type BroadcastRequest = {
-  message: string;
 };
 
 type FamilySettings = {
@@ -78,30 +76,6 @@ function createActivities(): FamilyActivity[] {
 }
 
 /** 类型守卫：校验广播请求体 */
-function isBroadcastRequest(body: unknown): body is BroadcastRequest {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const candidate = body as Partial<BroadcastRequest>;
-  return typeof candidate.message === "string" && candidate.message.trim().length > 0;
-}
-
-function isFamilySettingsPatch(body: unknown): body is Partial<FamilySettings> {
-  if (body === null || typeof body !== "object") {
-    return false;
-  }
-
-  const candidate = body as Partial<FamilySettings>;
-  return [
-    candidate.homeName,
-    candidate.address,
-    candidate.timezone,
-    candidate.emergencyContactName,
-    candidate.emergencyContactPhone,
-  ].every((field) => field === undefined || typeof field === "string");
-}
-
 export async function registerFamilyRoutes(app: FastifyInstance): Promise<void> {
   const activities = createActivities();
   const familySettings: FamilySettings = {
@@ -121,23 +95,20 @@ export async function registerFamilyRoutes(app: FastifyInstance): Promise<void> 
   app.get("/api/family/settings", async () => familySettings);
 
   app.put("/api/family/settings", async (request, reply) => {
-    if (!isFamilySettingsPatch(request.body)) {
-      return reply.code(400).send({ code: "INVALID_SETTINGS_PAYLOAD" });
-    }
-
-    Object.assign(familySettings, request.body);
+    const parsed = parseRequest(familySettingsMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    Object.assign(familySettings, parsed.value);
     return familySettings;
   });
 
   app.post("/api/family/broadcast", async (request, reply) => {
-    if (!isBroadcastRequest(request.body)) {
-      return reply.code(400).send({ code: "BROADCAST_INVALID" });
-    }
+    const parsed = parseRequest(familyBroadcastSchema, request.body, reply);
+    if (!parsed.ok) return;
 
     const activity = {
       id: `broadcast-${Date.now()}`,
       type: "broadcast",
-      message: request.body.message.trim(),
+      message: parsed.value.message,
       createdAt: Date.now(),
     } satisfies FamilyActivity;
 

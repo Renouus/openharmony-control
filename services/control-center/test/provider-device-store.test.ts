@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import {
   ProviderDeviceStore,
   type DiscoveredProviderDevice,
 } from "../src/devices/provider-device-store";
+import { createTestEncryptedRepositories } from "./helpers/build-test-app";
 
 const discoveredLight: DiscoveredProviderDevice = {
   provider: "tuya",
@@ -54,7 +55,7 @@ describe("ProviderDeviceStore", () => {
   afterEach(() => closeDatabase());
 
   it("upserts discovered devices as pending without active projection", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     const result = store.upsertDiscoveredDevices([discoveredLight]);
 
     expect(result).toMatchObject({
@@ -85,7 +86,7 @@ describe("ProviderDeviceStore", () => {
   });
 
   it("joinHome activates a pending device without overwriting provider name later", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredLight]);
     const joined = store.joinHome("tuya-light-1", {
       displayName: "Bedroom Bedside Lamp",
@@ -125,7 +126,7 @@ describe("ProviderDeviceStore", () => {
   });
 
   it("rejected devices are not repeatedly returned as pending", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredLight]);
     store.rejectDevice("tuya-light-1");
     const result = store.upsertDiscoveredDevices([discoveredLight]);
@@ -135,7 +136,7 @@ describe("ProviderDeviceStore", () => {
   });
 
   it("uses persisted provider metadata for active device brand", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredThirdPartySensor]);
     store.joinHome("acme-tuya-sensor-9", {
       displayName: "Entry Motion Sensor",
@@ -153,7 +154,7 @@ describe("ProviderDeviceStore", () => {
   });
 
   it("updates state and version only for an existing active device", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredLight]);
     const globalVersion = () => Number(
       (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
@@ -185,7 +186,7 @@ describe("ProviderDeviceStore", () => {
   });
 
   it("ignores stale, equal, and invalid-timestamp state updates without advancing version", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredLight]);
     store.joinHome("tuya-light-1", {
       displayName: "Bedroom Bedside Lamp", roomId: "bedroom", deviceType: "light",
@@ -214,7 +215,7 @@ describe("ProviderDeviceStore", () => {
   });
 
   it("accepts a different state produced at the same timestamp", () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredLight]);
     store.joinHome("tuya-light-1", {
       displayName: "Bedroom Bedside Lamp", roomId: "bedroom", deviceType: "light",
@@ -241,7 +242,7 @@ describe("ProviderDeviceStore", () => {
     ["missing timestamp", JSON.stringify({ power: false, online: true })],
     ["invalid timestamp", JSON.stringify({ power: false, online: true, updatedAt: "invalid" })],
   ])("repairs persisted state with %s when a valid newer state arrives", (_case, persistedState) => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([discoveredLight]);
     store.joinHome("tuya-light-1", {
       displayName: "Bedroom Bedside Lamp", roomId: "bedroom", deviceType: "light",

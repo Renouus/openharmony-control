@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMqttTransport, startMqttGateway } from "@smart-home/mqtt-gateway";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, createTestEncryptedRepositories, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import { createMqttProvider } from "../src/integrations/mqtt/mqtt-provider";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -95,7 +95,7 @@ describe("MQTT Docker software loop", () => {
         },
       });
       provider = activeProvider;
-      const activeApp = buildApp(undefined, "mqtt-integration-shared-key", {
+      const activeApp = buildApp(undefined, {
         vendorProvider: activeProvider,
       });
       app = activeApp;
@@ -125,12 +125,12 @@ describe("MQTT Docker software loop", () => {
         return devices.find((device) => device.externalDeviceId === `${gatewayId}-living-room-light`);
       }, 4_000, "Retained MQTT inventory/state did not arrive before the integration deadline");
 
-      const discovery = await activeApp.inject({ method: "POST", url: "/api/providers/mqtt/discover" });
+      const discovery = await apiInject(activeApp, { method: "POST", url: "/api/providers/mqtt/discover" });
       expect(discovery.statusCode).toBe(200);
       expect(discovery.json()).toMatchObject({ provider: "mqtt", createdPending: 4 });
 
       const deviceId = `mqtt-${discoveredLight.externalDeviceId}`;
-      const join = await activeApp.inject({
+      const join = await apiInject(activeApp, {
         method: "POST",
         url: `/api/devices/${deviceId}/join-home`,
         payload: { displayName: discoveredLight.originalName, roomId: "living-room", deviceType: "light" },
@@ -144,10 +144,10 @@ describe("MQTT Docker software loop", () => {
         name: "switch",
         payload: { on: true },
       };
-      const signed = await activeApp.inject({ method: "POST", url: "/api/demo/sign-command", payload: command });
+      const signed = await demoInject(activeApp, { method: "POST", url: "/api/demo/sign-command", payload: command });
       expect(signed.statusCode).toBe(200);
 
-      const response = await activeApp.inject({ method: "POST", url: "/api/commands", payload: signed.json() });
+      const response = await apiInject(activeApp, { method: "POST", url: "/api/commands", payload: signed.json().command });
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({ status: "SUCCESS", deviceId, state: { power: true } });
 
@@ -155,7 +155,8 @@ describe("MQTT Docker software loop", () => {
         | { state_json: string }
         | undefined;
       expect(row).toBeDefined();
-      expect(JSON.parse(row!.state_json)).toMatchObject({ power: true });
+      expect(createTestEncryptedRepositories().devices.decodeState(deviceId, row!.state_json))
+        .toMatchObject({ power: true });
       await expect(activeProvider.getDevice(deviceId)).resolves.toMatchObject({ state: { power: true } });
     } finally {
       await app?.close().catch(() => undefined);

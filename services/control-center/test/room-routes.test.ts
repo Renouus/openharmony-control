@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 
 describe("room routes", () => {
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe("room routes", () => {
     `).run("study", "Study", "desk", 0, 1718600000000, 5, 0);
 
     const app = buildApp();
-    const response = await app.inject({ method: "GET", url: "/api/rooms" });
+    const response = await apiInject(app, { method: "GET", url: "/api/rooms" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().rooms).toEqual(
@@ -44,7 +44,7 @@ describe("room routes", () => {
     try {
       initDatabase(dbPath);
       const firstApp = buildApp();
-      const createResponse = await firstApp.inject({
+      const createResponse = await apiInject(firstApp, {
         method: "POST",
         url: "/api/rooms",
         payload: { name: "Study", icon: "desk" },
@@ -58,7 +58,7 @@ describe("room routes", () => {
 
       initDatabase(dbPath);
       const secondApp = buildApp();
-      const listResponse = await secondApp.inject({ method: "GET", url: "/api/rooms" });
+      const listResponse = await apiInject(secondApp, { method: "GET", url: "/api/rooms" });
 
       expect(listResponse.statusCode).toBe(200);
       expect(listResponse.json().rooms).toEqual(

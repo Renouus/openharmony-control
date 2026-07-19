@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import { CommandHistory } from "../src/history/command-history";
 import { DeviceRegistry } from "../src/registry/device-registry";
 import { ReplayGuard, signCommand } from "../src/security/envelope";
@@ -11,19 +11,20 @@ import { DeviceCommandService } from "../src/services/device-command-service";
 import { LightDevice } from "../src/devices/light-device";
 import { CommandStatus, DeviceCapability, DeviceHealth, DeviceKind } from "@smart-home/device-contract";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
+import { canonicalCommandHash, CommandIdempotencyStore } from "../src/db/command-idempotency-store";
 
 async function sign(
   app: ReturnType<typeof buildApp>,
   payload: Record<string, unknown>,
 ) {
-  const signed = await app.inject({
+  const signed = await demoInject(app, {
     method: "POST",
     url: "/api/demo/sign-command",
     payload,
   });
 
   expect(signed.statusCode).toBe(200);
-  return signed.json();
+  return signed.json().command;
 }
 
 function fakeVendorProvider(): VendorDeviceProvider {
@@ -61,9 +62,31 @@ function fakeVendorProvider(): VendorDeviceProvider {
   };
 }
 
+function insertActiveProviderDevice(
+  deviceId: string,
+  type = "light",
+  state: Record<string, never> | Record<string, boolean | number> = {
+    power: false, online: true, updatedAt: 1,
+  },
+): void {
+  const encryptedRepositories = createTestEncryptedRepositories();
+  getDb().prepare(`
+    INSERT OR REPLACE INTO devices (
+      id, name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state
+    ) VALUES (?, ?, ?, 'living-room', ?, ?, 1, 0, 'active')
+  `).run(
+    deviceId,
+    "Provider Device",
+    type,
+    encryptedRepositories.devices.encodeState(deviceId, state),
+    Date.now(),
+  );
+}
+
 describe("secure device commands", () => {
   beforeEach(() => {
     initDatabase(":memory:");
+    const encryptedRepositories = createTestEncryptedRepositories();
     getDb().prepare(`
       INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
@@ -72,7 +95,7 @@ describe("secure device commands", () => {
       "Living Room Light",
       "light",
       "living-room",
-      JSON.stringify({
+      encryptedRepositories.devices.encodeState("light-living-room", {
         power: false,
         brightness: 0,
         colorTemperature: 3000,
@@ -85,6 +108,7 @@ describe("secure device commands", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     closeDatabase();
   });
 
@@ -98,7 +122,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -124,6 +148,124 @@ describe("secure device commands", () => {
     });
   });
 
+  it("replays a completed raw command without executing it twice and rejects conflicting reuse", async () => {
+    const app = buildApp();
+    const raw = {
+      requestId: "idempotent-command",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    };
+    const first = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    const replay = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    const conflict = await apiInject(app, {
+      method: "POST", url: "/api/commands", payload: { ...raw, payload: { on: false } },
+    });
+    expect(first.statusCode).toBe(200);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json()).toEqual({ code: "REQUEST_ID_CONFLICT" });
+    expect(getDb().prepare("SELECT COUNT(*) AS count FROM history WHERE request_id = ?").get(raw.requestId)).toEqual({ count: 1 });
+  });
+
+  it("returns a stable pending response while one concurrent injection executes once", async () => {
+    let executionCount = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const provider = fakeVendorProvider();
+    provider.ownsDevice = () => true;
+    provider.executeCommand = async () => {
+      executionCount += 1;
+      await gate;
+      return { ok: false, code: "COMMAND_INVALID", status: CommandStatus.CommandInvalid, message: "terminal" };
+    };
+    insertActiveProviderDevice("tuya-device");
+    const app = buildApp(undefined, { vendorProvider: provider });
+    const raw = {
+      requestId: "concurrent-command",
+      timestamp: Date.now(),
+      deviceId: "tuya-device",
+      name: "switch",
+      payload: { on: true },
+    };
+    const firstPromise = apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    await vi.waitFor(() => expect(executionCount).toBe(1));
+    const pending = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    expect(pending.statusCode).toBe(202);
+    expect(pending.json()).toEqual({ code: "COMMAND_IN_PROGRESS" });
+    release();
+    expect((await firstPromise).statusCode).toBe(400);
+    expect(executionCount).toBe(1);
+  });
+
+  it("persists and replays a safe terminal result when a provider rejects, including after restart", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "command-rejection-"));
+    const path = join(directory, "db.sqlite");
+    let executionCount = 0;
+    const provider = fakeVendorProvider();
+    provider.ownsDevice = () => true;
+    provider.executeCommand = async () => {
+      executionCount += 1;
+      throw new Error("secret provider detail");
+    };
+    try {
+      closeDatabase();
+      initDatabase(path);
+      insertActiveProviderDevice("tuya-device");
+      const raw = { requestId: "provider-rejection", timestamp: Date.now(), deviceId: "tuya-device", name: "switch", payload: { on: true } };
+      const firstApp = buildApp(undefined, { vendorProvider: provider });
+      const first = await apiInject(firstApp, { method: "POST", url: "/api/commands", payload: raw });
+      expect(first.statusCode).toBe(500);
+      expect(first.json()).toEqual({ code: "COMMAND_EXECUTION_FAILED" });
+      expect(first.body).not.toContain("secret provider detail");
+      await firstApp.close();
+      closeDatabase();
+      initDatabase(path);
+      const restartedApp = buildApp(undefined, { vendorProvider: provider });
+      const replay = await apiInject(restartedApp, { method: "POST", url: "/api/commands", payload: raw });
+      expect(replay.statusCode).toBe(500);
+      expect(replay.json()).toEqual({ code: "COMMAND_EXECUTION_FAILED" });
+      expect(executionCount).toBe(1);
+      await restartedApp.close();
+    } finally {
+      closeDatabase();
+      rmSync(directory, { recursive: true, force: true });
+      initDatabase(":memory:");
+    }
+  });
+
+  it("fails safely when a completed idempotency result is corrupted", async () => {
+    const app = buildApp();
+    const raw = { requestId: "corrupt-route", timestamp: Date.now(), deviceId: "light-living-room", name: "switch", payload: { on: true } };
+    getDb().prepare(`
+      INSERT INTO command_idempotency
+        (subject, request_id, content_hash, owner_token, state, result_json, created_at, completed_at, expires_at)
+      VALUES ('app', ?, ?, NULL, 'completed', ?, ?, ?, ?)
+    `).run(raw.requestId, canonicalCommandHash(raw as never), '{"statusCode":999,"body":"unsafe"}', Date.now(), Date.now(), Date.now() + 10000);
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: raw });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "IDEMPOTENCY_DATA_INVALID" });
+  });
+
+  it("rejects signed envelopes on production commands and executes them on the demo-only route", async () => {
+    const app = buildApp();
+    const raw = {
+      requestId: "trust-model-command",
+      timestamp: Date.now(),
+      deviceId: "light-living-room",
+      name: "switch",
+      payload: { on: true },
+    };
+    const signed = await demoInject(app, { method: "POST", url: "/api/demo/sign-command", payload: raw });
+    expect(signed.statusCode).toBe(200);
+    const production = await apiInject(app, { method: "POST", url: "/api/commands", payload: signed.json() });
+    expect(production.statusCode).toBe(400);
+    const demo = await demoInject(app, { method: "POST", url: "/api/demo/commands", payload: signed.json() });
+    expect(demo.statusCode).toBe(200);
+  });
+
   it("keeps POST /api/commands behavior stable through the extracted service boundary", async () => {
     const app = buildApp();
     const envelope = await sign(app, {
@@ -134,7 +276,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -162,7 +304,7 @@ describe("secure device commands", () => {
       payload: { brightness: 72 },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -178,7 +320,7 @@ describe("secure device commands", () => {
 
   it("can control a newly created template-backed light device", async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/devices",
       payload: {
@@ -197,7 +339,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -221,7 +363,7 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -235,9 +377,9 @@ describe("secure device commands", () => {
     });
   });
 
-  it("rejects unsigned commands", async () => {
+  it("accepts raw commands from the API-authenticated principal", async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: {
@@ -249,14 +391,11 @@ describe("secure device commands", () => {
       },
     });
 
-    expect(response.statusCode).toBe(401);
-    expect(response.json()).toMatchObject({
-      code: "COMMAND_UNAUTHORIZED",
-      status: "COMMAND_UNAUTHORIZED",
-    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: "SUCCESS" });
   });
 
-  it("rejects replayed command envelopes", async () => {
+  it("replays repeated raw commands", async () => {
     const app = buildApp();
     const envelope = await sign(app, {
       requestId: "cmd-replay",
@@ -266,20 +405,20 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    const first = await app.inject({
+    const first = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
     });
-    const second = await app.inject({
+    const second = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
     });
 
     expect(first.statusCode).toBe(200);
-    expect(second.statusCode).toBe(401);
-    expect(second.json()).toMatchObject({ code: "COMMAND_UNAUTHORIZED" });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual(first.json());
   });
 
   it("records command history newest first", async () => {
@@ -299,9 +438,9 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    await app.inject({ method: "POST", url: "/api/commands", payload: light });
-    await app.inject({ method: "POST", url: "/api/commands", payload: door });
-    const history = await app.inject({
+    await apiInject(app, { method: "POST", url: "/api/commands", payload: light });
+    await apiInject(app, { method: "POST", url: "/api/commands", payload: door });
+    const history = await apiInject(app, {
       method: "GET",
       url: "/api/commands/history?limit=2",
     });
@@ -328,7 +467,7 @@ describe("secure device commands", () => {
         payload: { on: true },
       });
 
-      const commandResponse = await firstApp.inject({
+      const commandResponse = await apiInject(firstApp, {
         method: "POST",
         url: "/api/commands",
         payload: envelope,
@@ -339,7 +478,7 @@ describe("secure device commands", () => {
 
       initDatabase(dbPath);
       const secondApp = buildApp();
-      const history = await secondApp.inject({
+      const history = await apiInject(secondApp, {
         method: "GET",
         url: "/api/commands/history?limit=5",
       });
@@ -356,7 +495,7 @@ describe("secure device commands", () => {
 
   it("returns offline command status when the target is unavailable", async () => {
     const app = buildApp();
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/offline",
       payload: { deviceId: "light-living-room", offline: true },
@@ -369,7 +508,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -385,7 +524,7 @@ describe("secure device commands", () => {
 
   it("can force visible security command failures for demos", async () => {
     const app = buildApp();
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/security",
       payload: { forceUnauthorizedCommands: true },
@@ -398,7 +537,7 @@ describe("secure device commands", () => {
       payload: { locked: false },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -413,7 +552,7 @@ describe("secure device commands", () => {
 
   it("preserves signed envelope metadata when security faults short-circuit commands", async () => {
     const app = buildApp();
-    await app.inject({
+    await demoInject(app, {
       method: "POST",
       url: "/api/demo/faults/security",
       payload: { forceUnauthorizedCommands: true },
@@ -426,7 +565,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,
@@ -444,7 +583,7 @@ describe("secure device commands", () => {
     });
   });
 
-  it("logs side-effect failures without changing successful command execution", async () => {
+  it("reports persistence failure and rolls back when database persistence fails", async () => {
     const logger = { error: vi.fn() };
     const registry = new DeviceRegistry();
     const history = new CommandHistory();
@@ -454,6 +593,7 @@ describe("secure device commands", () => {
       history,
       new ReplayGuard(),
       "demo-shared-key",
+      createTestEncryptedRepositories(),
       logger,
     );
 
@@ -463,38 +603,88 @@ describe("secure device commands", () => {
       timestamp: Date.now(),
       deviceId: "light-living-room",
       name: "switch",
-      payload: { on: true },
+      payload: { on: false },
     }, "demo-shared-key");
 
     const result = await service.executeSignedCommand(envelope);
 
-    expect(result.ok).toBe(true);
-    expect(result.body).toMatchObject({
-      status: "SUCCESS",
-      deviceId: "light-living-room",
-      state: expect.objectContaining({ power: true }),
-      historyEntry: expect.objectContaining({
-        requestId: "cmd-side-effect-log",
-        status: "SUCCESS",
-      }),
-    });
-    expect(result.ok && result.body.syncedDevice).toBeUndefined();
+    expect(result).toMatchObject({ ok: false, statusCode: 500, body: { code: "PERSISTENCE_FAILED" } });
+    expect(registry.find("light-living-room")?.state.power).toBe(true);
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Failed to update database or broadcast after command:"),
     );
   });
 
+  it("does not return success when encrypted idempotency result persistence fails", async () => {
+    const app = buildApp();
+    getDb().exec(`
+      CREATE TRIGGER fail_command_result_persistence
+      BEFORE UPDATE OF result_json ON command_idempotency
+      BEGIN SELECT RAISE(ABORT, 'sensitive sqlite detail'); END;
+    `);
+    const envelope = await sign(app, {
+      requestId: "cmd-result-persist-fail", timestamp: Date.now(), deviceId: "light-living-room",
+      name: "switch", payload: { on: false },
+    });
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: envelope });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "PERSISTENCE_FAILED" });
+    expect(JSON.stringify(response.json())).not.toContain("sqlite");
+  });
+
+  it("marks external commands for reconciliation when result persistence fails", async () => {
+    const provider: VendorDeviceProvider = {
+      ...fakeVendorProvider(),
+      executeCommand: async () => ({
+        ok: true, status: CommandStatus.Success, deviceId: "tuya-light-1",
+        state: { power: true, online: true, updatedAt: 10 },
+      }),
+    };
+    const app = buildApp(undefined, { vendorProvider: provider });
+    insertActiveProviderDevice("tuya-light-1");
+    getDb().exec(`
+      CREATE TRIGGER fail_vendor_result_persistence
+      BEFORE UPDATE OF result_json ON command_idempotency
+      BEGIN SELECT RAISE(ABORT, 'sensitive vendor detail'); END;
+    `);
+    const envelope = await sign(app, {
+      requestId: "cmd-vendor-reconcile", timestamp: Date.now(), deviceId: "tuya-light-1",
+      name: "switch", payload: { on: true },
+    });
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: envelope });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "PERSISTENCE_FAILED" });
+    expect(getDb().prepare("SELECT device_id, reason FROM command_reconciliation WHERE request_id=?").get("cmd-vendor-reconcile"))
+      .toEqual({ device_id: "tuya-light-1", reason: "RESULT_PERSISTENCE_FAILED" });
+  });
+
+  it("marks external commands for reconciliation when result completion loses ownership", async () => {
+    const provider: VendorDeviceProvider = {
+      ...fakeVendorProvider(),
+      executeCommand: async () => ({
+        ok: true, status: CommandStatus.Success, deviceId: "tuya-light-1",
+        state: { power: true, online: true, updatedAt: 10 },
+      }),
+    };
+    vi.spyOn(CommandIdempotencyStore.prototype, "complete").mockReturnValue(false);
+    const app = buildApp(undefined, { vendorProvider: provider });
+    insertActiveProviderDevice("tuya-light-1");
+    const envelope = await sign(app, {
+      requestId: "cmd-vendor-incomplete", timestamp: Date.now(), deviceId: "tuya-light-1",
+      name: "switch", payload: { on: true },
+    });
+    const response = await apiInject(app, { method: "POST", url: "/api/commands", payload: envelope });
+    expect(response.statusCode).toBe(202);
+    expect(getDb().prepare("SELECT device_id, reason FROM command_reconciliation WHERE request_id=?").get("cmd-vendor-incomplete"))
+      .toEqual({ device_id: "tuya-light-1", reason: "RESULT_PERSISTENCE_INCOMPLETE" });
+  });
+
   it("rejects commands for read-only Tuya sensor devices", async () => {
-    getDb().prepare(`
-      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'active')
-    `).run(
-      "tuya-sensor-1", "Living Sensor", "environment-sensor", "living-room",
-      JSON.stringify({ temperature: 23.5, humidity: 48, online: true, updatedAt: 60 }),
-      60, 1,
-    );
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
+    insertActiveProviderDevice("tuya-sensor-1", "environment-sensor", {
+      temperature: 23.5, humidity: 48, online: true, updatedAt: 60,
+    });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
     const envelope = await sign(app, {
       requestId: "cmd-sensor",
       timestamp: Date.now(),
@@ -503,7 +693,7 @@ describe("secure device commands", () => {
       payload: { on: true },
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
       payload: envelope,

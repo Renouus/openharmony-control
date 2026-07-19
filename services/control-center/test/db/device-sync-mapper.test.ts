@@ -3,6 +3,8 @@ import {
   mapDeviceRowToSyncDto,
   type DeviceSyncRow,
 } from "../../src/db/device-sync-mapper";
+import { EncryptedFieldCodec } from "../../src/security/encrypted-field-codec";
+import { EncryptedRepositories } from "../../src/db/encrypted-repositories";
 
 describe("device sync mapper", () => {
   it("maps sqlite device rows to the shared camelCase sync dto", () => {
@@ -14,18 +16,17 @@ describe("device sync mapper", () => {
       custom_icon: "outlet",
       type: "light",
       room_id: "study",
-      state_json: JSON.stringify({
-        power: true,
-        brightness: 42,
-        updatedAt: 1718600000000,
-        online: true,
-      }),
+      state_json: "",
       updated_at: 1718600000000,
       version: 7,
       is_deleted: 1,
     };
+    const encrypted = new EncryptedRepositories(new EncryptedFieldCodec(new Map([["test", Buffer.alloc(32, 2)]]), "test"));
+    row.state_json = encrypted.devices.encodeState(row.id, {
+      power: true, brightness: 42, updatedAt: 1718600000000, online: true,
+    });
 
-    expect(mapDeviceRowToSyncDto(row)).toEqual({
+    expect(mapDeviceRowToSyncDto(row, encrypted.devices)).toEqual({
       id: "dev-1",
       name: "Desk Light",
       customName: "Reading Light",

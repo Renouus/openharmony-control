@@ -7,6 +7,8 @@ import {
 } from "../db/device-sync-mapper";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
 import { ProviderDeviceStore } from "./provider-device-store";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 type ActiveVendorRow = DeviceSyncRow & {
   note: string | null;
@@ -16,6 +18,7 @@ type ActiveVendorRow = DeviceSyncRow & {
 
 export async function listManagedVendorDevices(
   db: Database.Database,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor[]> {
   if (!vendorProvider) {
@@ -30,7 +33,7 @@ export async function listManagedVendorDevices(
   const liveDevices = await vendorProvider.listDevices();
   const liveById = new Map(liveDevices.map((device) => [device.id, device]));
   const fallbackById = new Map(
-    new ProviderDeviceStore(db)
+    new ProviderDeviceStore(db, encryptedRepositories)
       .listActiveDevices()
       .filter((device) => vendorProvider.ownsDevice(device.id))
       .map((device) => [device.id, device]),
@@ -50,6 +53,7 @@ export async function listManagedVendorDevices(
 export async function loadManagedVendorDevice(
   db: Database.Database,
   deviceId: string,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<EnhancedDeviceDescriptor | undefined> {
   if (!vendorProvider || !vendorProvider.ownsDevice(deviceId)) {
@@ -66,13 +70,14 @@ export async function loadManagedVendorDevice(
     return applyVendorOverlay(liveDevice, row);
   }
 
-  return new ProviderDeviceStore(db)
+  return new ProviderDeviceStore(db, encryptedRepositories)
     .listActiveDevices()
     .find((device) => device.id === deviceId);
 }
 
 export async function listManagedVendorSyncDevices(
   db: Database.Database,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider?: VendorDeviceProvider,
 ): Promise<DeviceSyncDto[]> {
   if (!vendorProvider) {
@@ -83,17 +88,17 @@ export async function listManagedVendorSyncDevices(
   const liveDevices = await vendorProvider.listDevices();
   const liveById = new Map(liveDevices.map((device) => [device.id, device]));
   const storedVendorIds = loadStoredVendorIds(db, vendorProvider);
-  const store = new ProviderDeviceStore(db);
+  const store = new ProviderDeviceStore(db, encryptedRepositories);
 
   const managedDevices = rows.map((row) => {
     const liveDevice = liveById.get(row.id);
     if (!liveDevice) {
-      return mapDeviceRowToSyncDto(row);
+      return mapDeviceRowToSyncDto(row, encryptedRepositories.devices);
     }
 
     store.updateActiveDeviceStateDetailed(row.id, liveDevice.state);
     const refreshedRow = loadActiveVendorRowById(db, vendorProvider, row.id) ?? row;
-    const persisted = mapDeviceRowToSyncDto(refreshedRow);
+    const persisted = mapDeviceRowToSyncDto(refreshedRow, encryptedRepositories.devices);
     const customName = refreshedRow.custom_name ?? liveDevice.customName;
     return {
       ...persisted,
@@ -107,7 +112,7 @@ export async function listManagedVendorSyncDevices(
   });
   const legacyConfiguredDevices = liveDevices
     .filter((device) => vendorProvider.ownsDevice(device.id) && !storedVendorIds.has(device.id))
-    .map((device) => persistLegacyConfiguredDevice(db, vendorProvider, device))
+    .map((device) => persistLegacyConfiguredDevice(db, encryptedRepositories, vendorProvider, device))
     .filter((device): device is DeviceSyncDto => device !== undefined);
 
   return [...managedDevices, ...legacyConfiguredDevices];
@@ -115,6 +120,7 @@ export async function listManagedVendorSyncDevices(
 
 function persistLegacyConfiguredDevice(
   db: Database.Database,
+  encryptedRepositories: EncryptedRepositories,
   vendorProvider: VendorDeviceProvider,
   device: EnhancedDeviceDescriptor,
 ): DeviceSyncDto | undefined {
@@ -144,7 +150,7 @@ function persistLegacyConfiguredDevice(
       device.customIcon ?? null,
       device.kind,
       device.room,
-      JSON.stringify(device.state),
+      encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
       device.state.updatedAt,
       version,
       device.displayOrder,
@@ -153,7 +159,7 @@ function persistLegacyConfiguredDevice(
   })();
 
   const row = loadActiveVendorRowById(db, vendorProvider, device.id);
-  return row ? mapDeviceRowToSyncDto(row) : undefined;
+  return row ? mapDeviceRowToSyncDto(row, encryptedRepositories.devices) : undefined;
 }
 
 function loadStoredVendorIds(

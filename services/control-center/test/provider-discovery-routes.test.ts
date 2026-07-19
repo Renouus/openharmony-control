@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DeviceCapability } from "@smart-home/device-contract";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 
 function createDiscoveryProvider(): VendorDeviceProvider {
@@ -55,11 +55,11 @@ describe("provider discovery routes", () => {
   afterEach(() => closeDatabase());
 
   it("discovers provider devices and upserts them as pending", async () => {
-    const app = buildApp(undefined, undefined, {
+    const app = buildApp(undefined, {
       vendorProvider: createDiscoveryProvider(),
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/providers/tuya/discover",
     });
@@ -93,11 +93,11 @@ describe("provider discovery routes", () => {
   });
 
   it("returns PROVIDER_NOT_FOUND when the requested provider is not registered", async () => {
-    const app = buildApp(undefined, undefined, {
+    const app = buildApp(undefined, {
       vendorProvider: createDiscoveryProvider(),
     });
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/providers/acme/discover",
     });

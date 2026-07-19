@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../../src/app";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { apiInject, buildApp, demoInject } from "../helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 
 /**
  * 端到端集成测试：验证设备状态的自动创建流程及条件触发机制。
@@ -22,17 +22,17 @@ async function signAndRun(
   name: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const signResponse = await app.inject({
+  const signResponse = await demoInject(app, {
     method: "POST",
     url: "/api/demo/sign-command",
     payload: { requestId, timestamp: Date.now(), deviceId, name, payload },
   });
   expect(signResponse.statusCode).toBe(200);
 
-  const executeResponse = await app.inject({
+  const executeResponse = await apiInject(app, {
     method: "POST",
     url: "/api/commands",
-    payload: signResponse.json(),
+    payload: signResponse.json().command,
   });
   expect(executeResponse.statusCode).toBe(200);
 }
@@ -41,7 +41,7 @@ async function getDeviceState(
   app: ReturnType<typeof buildApp>,
   deviceId: string,
 ): Promise<DeviceState> {
-  const response = await app.inject({ method: "GET", url: "/api/devices" });
+  const response = await apiInject(app, { method: "GET", url: "/api/devices" });
   expect(response.statusCode).toBe(200);
   const device = response
     .json()
@@ -53,7 +53,7 @@ async function createAutomation(
   app: ReturnType<typeof buildApp>,
   payload: Record<string, unknown>,
 ): Promise<string> {
-  const response = await app.inject({
+  const response = await apiInject(app, {
     method: "POST",
     url: "/api/automations",
     payload,

@@ -3,7 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeDatabase, getDb, initDatabase } from '../../src/db/database';
+import { closeDatabase, getDb, initDatabase } from '../helpers/test-database';
+import { createTestEncryptedRepositories } from '../helpers/build-test-app';
+import { migrateEncryptedFields } from '../../src/db/encryption-migration';
 
 describe('database init migrations', () => {
   afterEach(() => {
@@ -114,7 +116,12 @@ describe('database init migrations', () => {
       expect(providerSourceColumns.some((column) => column.name === 'source_capabilities_json')).toBe(true);
       const automationColumns = db.prepare('PRAGMA table_info(automations)').all() as Array<{ name: string }>;
       expect(automationColumns.some((column) => column.name === 'cooldown_ms')).toBe(true);
-      expect(schemaVersion.value).toBe('8');
+      expect(schemaVersion.value).toBe('9');
+      const idempotencyColumns = db.prepare("PRAGMA table_info(command_idempotency)").all() as Array<{ name: string; pk: number }>;
+      expect(idempotencyColumns.map((column) => column.name)).toEqual([
+        "subject", "request_id", "content_hash", "owner_token", "state", "result_json", "created_at", "completed_at", "expires_at",
+      ]);
+      expect(idempotencyColumns.filter((column) => column.pk > 0).map((column) => column.name)).toEqual(["subject", "request_id"]);
     } finally {
       if (!legacyClosed) {
         legacyDb.close();
@@ -220,6 +227,32 @@ describe('database init migrations', () => {
     }
   });
 
+  it('reconciles owner_token for an intermediate schema version 9 table', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'control-center-db-v9-'));
+    const dbPath = join(tempDir, 'partial-v9.db');
+    const legacyDb = new Database(dbPath);
+    try {
+      legacyDb.exec(`
+        CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO metadata VALUES ('schema_version', '9');
+        INSERT INTO metadata VALUES ('global_version', '0');
+        CREATE TABLE command_idempotency (
+          subject TEXT NOT NULL, request_id TEXT NOT NULL, content_hash TEXT NOT NULL,
+          state TEXT NOT NULL, result_json TEXT, created_at INTEGER NOT NULL,
+          completed_at INTEGER, expires_at INTEGER NOT NULL, PRIMARY KEY(subject, request_id)
+        );
+      `);
+      legacyDb.close();
+      const db = initDatabase(dbPath);
+      const columns = db.prepare('PRAGMA table_info(command_idempotency)').all() as Array<{ name: string }>;
+      expect(columns.some((column) => column.name === 'owner_token')).toBe(true);
+    } finally {
+      if (legacyDb.open) legacyDb.close();
+      closeDatabase();
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('backfills scene ordering metadata for legacy rows during migration', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'control-center-db-init-'));
     const dbPath = join(tempDir, 'legacy-scenes.db');
@@ -304,6 +337,13 @@ describe('database init migrations', () => {
       legacyDb.close();
       legacyClosed = true;
 
+      expect(() => initDatabase(dbPath)).toThrow(/migration/i);
+      migrateEncryptedFields({
+        dbPath,
+        backupPath: `${dbPath}.plaintext-backup`,
+        write: true,
+        encryptedRepositories: createTestEncryptedRepositories(),
+      });
       initDatabase(dbPath);
       const db = getDb();
       const rows = db.prepare(`
@@ -334,6 +374,7 @@ describe('database init migrations', () => {
       initDatabase(dbPath);
       const db = getDb();
       const deletedAt = Date.now();
+      const repositories = createTestEncryptedRepositories();
       db.prepare(`
         INSERT OR REPLACE INTO scenes (
           id, name, icon, description, enabled, created_at, updated_at, sort_order, version, is_deleted,
@@ -350,10 +391,10 @@ describe('database init migrations', () => {
         0,
         99,
         1,
-        JSON.stringify({ type: 'manual', label: 'Run now' }),
+        repositories.scenes.encodeTrigger('home', { type: 'manual', label: 'Run now' }),
         JSON.stringify([]),
         JSON.stringify([]),
-        JSON.stringify([]),
+        repositories.scenes.encodeCommands('home', []),
       );
       closeDatabase();
 

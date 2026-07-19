@@ -6,7 +6,9 @@
     "dev": "tsx watch src/server.ts",
     "test": "vitest --run --fileParallelism=false --exclude test/mqtt-docker.integration.test.ts",
     "test:mqtt:integration": "vitest --run test/mqtt-docker.integration.test.ts --fileParallelism=false",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "security:migrate:check": "tsx scripts/migrate-encrypted-fields.ts",
+    "security:migrate": "tsx scripts/migrate-encrypted-fields.ts --write"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",

@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { apiInject, buildApp, demoInject, createTestEncryptedRepositories } from './helpers/build-test-app';
 import { ProviderDeviceStore } from '../src/devices/provider-device-store';
-import { closeDatabase, getDb, initDatabase } from '../src/db/database';
+import { closeDatabase, getDb, initDatabase } from './helpers/test-database';
 
 describe('automation routes', () => {
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe('automation routes', () => {
 
   it('lists db-backed automation rules', async () => {
     const app = buildApp();
-    const response = await app.inject({ method: 'GET', url: '/api/automations' });
+    const response = await apiInject(app, { method: 'GET', url: '/api/automations' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().automations).toEqual(
@@ -32,7 +32,7 @@ describe('automation routes', () => {
   it('creates, updates, and deletes automation rules', async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -54,7 +54,7 @@ describe('automation routes', () => {
     });
     expect(created.actionJson).toContain('"type":"device_command"');
 
-    const updateResponse = await app.inject({
+    const updateResponse = await apiInject(app, {
       method: 'PUT',
       url: `/api/automations/${created.id}`,
       payload: {
@@ -70,7 +70,7 @@ describe('automation routes', () => {
     expect(updateResponse.json().automation.triggerJson).toContain('"deviceId":"door-front"');
     expect(updateResponse.json().automation.actionJson).toContain('"command":"lock:true"');
 
-    const listResponse = await app.inject({ method: 'GET', url: '/api/automations' });
+    const listResponse = await apiInject(app, { method: 'GET', url: '/api/automations' });
     expect(listResponse.json().automations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -83,20 +83,20 @@ describe('automation routes', () => {
       ]),
     );
 
-    const deleteResponse = await app.inject({
+    const deleteResponse = await apiInject(app, {
       method: 'DELETE',
       url: `/api/automations/${created.id}`,
     });
     expect(deleteResponse.statusCode).toBe(204);
 
-    const finalList = await app.inject({ method: 'GET', url: '/api/automations' });
+    const finalList = await apiInject(app, { method: 'GET', url: '/api/automations' });
     expect(finalList.json().automations.find((automation: { id: string }) => automation.id === created.id)).toBeUndefined();
   });
 
   it('executes an all-condition device command and records success after a matching event', async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -117,7 +117,7 @@ describe('automation routes', () => {
 
     expect(createResponse.statusCode).toBe(201);
 
-    const signResponse = await app.inject({
+    const signResponse = await demoInject(app, {
       method: 'POST',
       url: '/api/demo/sign-command',
       payload: {
@@ -130,15 +130,15 @@ describe('automation routes', () => {
     });
     expect(signResponse.statusCode).toBe(200);
 
-    const executeResponse = await app.inject({
+    const executeResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/commands',
-      payload: signResponse.json(),
+      payload: signResponse.json().command,
     });
 
     expect(executeResponse.statusCode).toBe(200);
 
-    const devicesResponse = await app.inject({ method: 'GET', url: '/api/devices' });
+    const devicesResponse = await apiInject(app, { method: 'GET', url: '/api/devices' });
     const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');
     expect(door.state.locked).toBe(false);
 
@@ -153,7 +153,7 @@ describe('automation routes', () => {
   });
 
   it('rejects pending devices when creating automations', async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const store = new ProviderDeviceStore(getDb(), createTestEncryptedRepositories());
     store.upsertDiscoveredDevices([
       {
         provider: 'tuya',
@@ -176,7 +176,7 @@ describe('automation routes', () => {
     ]);
 
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -198,7 +198,7 @@ describe('automation routes', () => {
 
   it('does not execute an all-condition action when another device condition is false', async () => {
     const app = buildApp();
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -215,14 +215,14 @@ describe('automation routes', () => {
         enabled: true,
       },
     });
-    const signResponse = await app.inject({
+    const signResponse = await demoInject(app, {
       method: 'POST',
       url: '/api/demo/sign-command',
       payload: { requestId: 'blocked-light-on', timestamp: Date.now(), deviceId: 'light-living-room', name: 'switch', payload: { on: true } },
     });
-    await app.inject({ method: 'POST', url: '/api/commands', payload: signResponse.json() });
+    await apiInject(app, { method: 'POST', url: '/api/commands', payload: signResponse.json().command });
 
-    const devicesResponse = await app.inject({ method: 'GET', url: '/api/devices' });
+    const devicesResponse = await apiInject(app, { method: 'GET', url: '/api/devices' });
     const door = devicesResponse.json().devices.find((device: { id: string }) => device.id === 'door-front');
     expect(door.state.locked).toBe(true);
     const successCount = getDb().prepare(`
@@ -234,7 +234,7 @@ describe('automation routes', () => {
 
   it('rejects an invalid boolean condition group', async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -252,7 +252,7 @@ describe('automation routes', () => {
 
   it('rejects malformed legacy condition arrays', async () => {
     const app = buildApp();
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: 'POST',
       url: '/api/automations',
       payload: {
@@ -266,5 +266,63 @@ describe('automation routes', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ code: 'AUTOMATION_CONDITION_GROUP_INVALID' });
+  });
+
+  it('rejects invalid actions before writing even when the rule is disabled', async () => {
+    const app = buildApp();
+    const before = (getDb().prepare("SELECT COUNT(*) AS total FROM automations").get() as { total: number }).total;
+    const response = await apiInject(app, {
+      method: 'POST', url: '/api/automations',
+      payload: { name: 'Invalid disabled', triggerType: 'time', triggerJson: '[{"type":"time","time":"22:00"}]', actionJson: '[{"type":"device"}]', enabled: false },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_PAYLOAD_INVALID' });
+    expect((getDb().prepare("SELECT COUNT(*) AS total FROM automations").get() as { total: number }).total).toBe(before);
+  });
+
+  it('returns a safe 500 when listing a corrupted encrypted automation', async () => {
+    const app = buildApp();
+    await app.ready();
+    getDb().prepare("UPDATE automations SET action_json='ENC1:corrupt' WHERE id='night-routine'").run();
+    const response = await apiInject(app, { method: 'GET', url: '/api/automations' });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: 'ENCRYPTED_DATA_INVALID' });
+    expect(response.body).not.toContain('night-routine');
+  });
+
+  it('compensates the inserted row when runtime reload fails', async () => {
+    const runtime = {
+      dispatch: async () => {}, hasRule: () => false, loadEnabledAutomations: async () => {},
+      reload: async () => { throw new Error('runtime reload secret'); }, unload: () => {},
+    };
+    const app = buildApp(undefined, { automationRuntime: runtime as never });
+    const versionBefore = (getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
+    const response = await apiInject(app, {
+      method: 'POST', url: '/api/automations',
+      payload: { name: 'Rollback rule', triggerType: 'time', triggerJson: '[{"type":"time","time":"22:00"}]', actionJson: '[{"type":"scene_run","sceneId":"away"}]', enabled: true },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+    expect((getDb().prepare("SELECT COUNT(*) AS total FROM automations WHERE name='Rollback rule'").get() as { total: number }).total).toBe(0);
+    expect((getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value).toBe(versionBefore);
+  });
+
+  it('restores the prior row when an update runtime reload fails', async () => {
+    const unload = vi.fn();
+    const runtime = {
+      dispatch: async () => {}, hasRule: () => true, loadEnabledAutomations: async () => {},
+      reload: async () => { throw new Error('runtime reload secret'); }, unload,
+    };
+    const app = buildApp(undefined, { automationRuntime: runtime as never });
+    const before = getDb().prepare("SELECT * FROM automations WHERE id='night-routine'").get();
+    const versionBefore = (getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value;
+    const response = await apiInject(app, {
+      method: 'PUT', url: '/api/automations/night-routine', payload: { name: 'Changed name' },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: 'AUTOMATION_RUNTIME_RELOAD_FAILED' });
+    expect(getDb().prepare("SELECT * FROM automations WHERE id='night-routine'").get()).toEqual(before);
+    expect((getDb().prepare("SELECT value FROM metadata WHERE key='global_version'").get() as { value: string }).value).toBe(versionBefore);
+    expect(unload).toHaveBeenCalledWith('night-routine');
   });
 });

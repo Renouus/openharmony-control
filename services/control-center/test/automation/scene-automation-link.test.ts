@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../../src/app";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { apiInject, buildApp } from "../helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 
 describe("scene to automation state-change link", () => {
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe("scene to automation state-change link", () => {
   it("scene execution dispatches device_state_changed events that trigger automations", async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/automations",
       payload: {
@@ -41,7 +41,7 @@ describe("scene to automation state-change link", () => {
     expect(createResponse.statusCode).toBe(201);
     const automationId = createResponse.json().automation.id as string;
 
-    const runResponse = await app.inject({
+    const runResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/away/run",
     });
@@ -61,7 +61,7 @@ describe("scene to automation state-change link", () => {
   it("scene state-change dispatch is awaited before runScene resolves", async () => {
     const app = buildApp();
 
-    const createResponse = await app.inject({
+    const createResponse = await apiInject(app, {
       method: "POST",
       url: "/api/automations",
       payload: {
@@ -88,7 +88,7 @@ describe("scene to automation state-change link", () => {
     expect(createResponse.statusCode).toBe(201);
     const automationId = createResponse.json().automation.id as string;
 
-    const runResponse = await app.inject({
+    const runResponse = await apiInject(app, {
       method: "POST",
       url: "/api/scenes/away/run",
     });

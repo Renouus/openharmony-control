@@ -34,6 +34,7 @@ import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
 import { DomainEventAdapter } from './domain-event-adapter';
 import { shouldBootstrapRooms } from './room-cache-policy';
 import { DevicePreferenceService } from './device-preference-service';
+import { SERVICE_API_BASE_URL } from '../config/ServiceEndpointConfig';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -105,7 +106,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     this.sceneDao = new SceneDao();
     this.syncDao = new SyncDao();
 
-    this.wsClient = new WebSocketClient('ws://10.0.2.2:3443/ws/events');
+    this.wsClient = new WebSocketClient(SERVICE_API_BASE_URL);
     this.wsClient.onMessageCallback = (event, payload) => {
       this.handleWebSocketEvent(event, payload as Object);
     };

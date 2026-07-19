@@ -1,13 +1,22 @@
 import Database from 'better-sqlite3';
+import type { EncryptedRepositories } from './encrypted-repositories';
 import { SceneRegistry } from '../scenes/scene-registry';
+import type { ControlCenterMode } from '../config/security-config';
+import type { DeviceRegistry } from '../registry/device-registry';
+import { assertEncryptedDatabaseReady, establishEmptyEncryptedDatabase } from './encryption-migration';
+import type { JsonValue } from '../security/encrypted-field-codec';
 
 let dbInstance: Database.Database | null = null;
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
-export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database {
-  dbInstance = new Database(dbPath);
-
-  dbInstance.exec(`
+export function initDatabase(
+  dbPath: string,
+  encryptedRepositories: EncryptedRepositories,
+  options: { mode?: ControlCenterMode } = {},
+): Database.Database {
+  const db = new Database(dbPath);
+  try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -112,13 +121,82 @@ export function initDatabase(dbPath: string = 'smarthome.db'): Database.Database
       action_type TEXT,
       created_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS command_idempotency (
+      subject TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      owner_token TEXT,
+      state TEXT NOT NULL,
+      result_json TEXT,
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      PRIMARY KEY(subject, request_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS command_reconciliation (
+      request_id TEXT PRIMARY KEY,
+      device_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
   `);
 
-  const currentVersion = ensureSchemaVersion(dbInstance);
-  applyMigrations(dbInstance, currentVersion);
-  reconcileCriticalSchema(dbInstance);
-  seedDefaultAutomations(dbInstance);
-  return dbInstance;
+    const currentVersion = ensureSchemaVersion(db);
+    applyMigrations(db, currentVersion);
+    reconcileCriticalSchema(db);
+    establishEmptyEncryptedDatabase(db, encryptedRepositories);
+    assertEncryptedDatabaseReady(db, encryptedRepositories);
+    dbInstance = db;
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+}
+
+export function seedDemoData(
+  db: Database.Database,
+  registry: DeviceRegistry,
+  encryptedRepositories: EncryptedRepositories,
+): number {
+  const seed = db.transaction(() => {
+    const populated = [
+      "devices", "device_provider_sources", "rooms", "scenes", "automations", "history",
+      "automation_execution_logs", "command_idempotency", "command_reconciliation",
+    ].some((table) => Number(db.prepare(`SELECT count(*) FROM ${table}`).pluck().get()) > 0);
+    if (populated) return 0;
+    let version = Number(db.prepare("SELECT value FROM metadata WHERE key='global_version'").pluck().get() ?? 0);
+    const insertDevice = db.prepare(`
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    `);
+    const now = Date.now();
+    const devices = registry.list();
+    for (const device of devices) {
+      version += 1;
+      insertDevice.run(
+        device.id, device.name, device.kind, device.room || 'living-room',
+        encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
+        now, version,
+      );
+    }
+    version += 1;
+    db.prepare(`
+      INSERT INTO automations (
+        id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(
+      'night-routine', 'auto_awesome', 'Night Routine', 'time',
+      encryptedRepositories.automations.encodeTriggerJson('night-routine', 'time', JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }])),
+      encryptedRepositories.automations.encodeActionJson('night-routine', JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }])),
+      1, now, version,
+    );
+    db.prepare("UPDATE metadata SET value=? WHERE key='global_version'").run(String(version));
+    return devices.length + 1;
+  });
+  return seed.immediate();
 }
 
 export function getDb(): Database.Database {
@@ -254,6 +332,30 @@ function applyMigrations(db: Database.Database, currentVersion: number): void {
     nextVersion = 8;
     setSchemaVersion(db, nextVersion);
   }
+
+  if (nextVersion < 9) {
+    createCommandIdempotencyTable(db);
+    nextVersion = 9;
+    setSchemaVersion(db, nextVersion);
+  }
+}
+function createCommandIdempotencyTable(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS command_idempotency (
+      subject TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      owner_token TEXT,
+      state TEXT NOT NULL,
+      result_json TEXT,
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      PRIMARY KEY(subject, request_id)
+    );
+    CREATE INDEX IF NOT EXISTS command_idempotency_expires_at_idx
+      ON command_idempotency(expires_at);
+  `);
 }
 
 function reconcileCriticalSchema(db: Database.Database): void {
@@ -266,6 +368,8 @@ function reconcileCriticalSchema(db: Database.Database): void {
   ensureColumn(db, "scenes", "room_id", "ALTER TABLE scenes ADD COLUMN room_id TEXT");
   ensureColumn(db, "scenes", "created_at", "ALTER TABLE scenes ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scenes", "sort_order", "ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "scenes", "trigger_json", "ALTER TABLE scenes ADD COLUMN trigger_json TEXT");
+  ensureColumn(db, "scenes", "commands_json", "ALTER TABLE scenes ADD COLUMN commands_json TEXT");
   ensureColumn(db, "devices", "custom_name", "ALTER TABLE devices ADD COLUMN custom_name TEXT");
   ensureColumn(db, "devices", "note", "ALTER TABLE devices ADD COLUMN note TEXT");
   ensureColumn(db, "devices", "custom_icon", "ALTER TABLE devices ADD COLUMN custom_icon TEXT");
@@ -313,6 +417,8 @@ function reconcileCriticalSchema(db: Database.Database): void {
       created_at INTEGER NOT NULL
     );
   `);
+  createCommandIdempotencyTable(db);
+  ensureColumn(db, "command_idempotency", "owner_token", "ALTER TABLE command_idempotency ADD COLUMN owner_token TEXT");
   db.prepare("UPDATE devices SET device_type = type WHERE device_type IS NULL").run();
 }
 
@@ -371,23 +477,4 @@ function backfillLegacySceneOrdering(db: Database.Database): void {
   });
 
   updateOrdering();
-}
-
-function seedDefaultAutomations(db: Database.Database): void {
-  db.prepare(`
-    INSERT OR IGNORE INTO automations (
-      id, icon, name, trigger_type, trigger_json, action_json, enabled, updated_at, version, is_deleted
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-  `).run(
-    'night-routine',
-    'auto_awesome',
-    'Night Routine',
-    'time',
-    JSON.stringify([{ id: 'seed-time', type: 'time', time: '22:00' }]),
-    JSON.stringify([{ id: 'seed-lock', type: 'device', deviceId: 'door-front', command: 'lock:true' }]),
-    1,
-    Date.now(),
-    1,
-  );
 }

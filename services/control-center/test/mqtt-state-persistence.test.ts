@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildGatewayTopics } from "@smart-home/device-contract/mqtt";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, createTestEncryptedRepositories, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
 import {
   createMqttProvider,
@@ -83,7 +83,8 @@ describe("MQTT state persistence chain", () => {
       gatewayId: "home-gateway-1", deviceId: "living-room-light",
       state: { power: false, online: true, updatedAt: 100 },
     });
-    const store = new ProviderDeviceStore(getDb());
+    const encryptedRepositories = createTestEncryptedRepositories();
+    const store = new ProviderDeviceStore(getDb(), encryptedRepositories);
     store.upsertDiscoveredDevices(await provider.discoverDevices());
     store.joinHome("mqtt-home-gateway-1-living-room-light", {
       displayName: "Living Room Light", roomId: "living-room", deviceType: "light",
@@ -91,14 +92,19 @@ describe("MQTT state persistence chain", () => {
     const versionBefore = Number(
       (getDb().prepare("SELECT value FROM metadata WHERE key = 'global_version'").get() as { value: string }).value,
     );
-    const app = buildApp(undefined, "demo-shared-key", { vendorProvider: provider });
+    const app = buildApp(undefined, { vendorProvider: provider });
     await app.ready();
-    const socket = await app.injectWS("/ws/events?clientId=mqtt-state-chain");
+    const ticketResponse = await apiInject(app, {
+      method: "POST", url: "/api/auth/websocket-ticket", payload: { clientId: "mqtt-state-chain" },
+    });
+    const socket = await app.injectWS(
+      `/ws/events?ticket=${ticketResponse.json().ticket}&clientId=mqtt-state-chain`,
+    );
     const messages: unknown[] = [];
     socket.on("message", (raw: Buffer) => messages.push(JSON.parse(raw.toString())));
 
     try {
-      const signed = await app.inject({
+      const signed = await demoInject(app, {
         method: "POST", url: "/api/demo/sign-command",
         payload: {
           requestId: "cmd-state-ack", timestamp: Date.now(),
@@ -106,8 +112,8 @@ describe("MQTT state persistence chain", () => {
           name: "switch", payload: { on: true },
         },
       });
-      const responsePromise = app.inject({
-        method: "POST", url: "/api/commands", payload: signed.json(),
+      const responsePromise = apiInject(app, {
+        method: "POST", url: "/api/commands", payload: signed.json().command,
       });
       await waitFor(() => transport.published.length === 1);
       expect(transport.published).toHaveLength(1);

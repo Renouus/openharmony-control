@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AutomationRepository } from "../../src/automation/automation-repository";
+import { createTestEncryptedRepositories } from "../helpers/build-test-app";
 import { AutomationRuntime } from "../../src/automation/automation-runtime";
 import { ExecutionLogService } from "../../src/automation/execution-log-service";
 import { RuleEvaluator } from "../../src/automation/rule-evaluator";
-import { closeDatabase, getDb, initDatabase } from "../../src/db/database";
+import { closeDatabase, getDb, initDatabase } from "../helpers/test-database";
 
 describe("automation runtime guards", () => {
   beforeEach(() => {
@@ -38,6 +39,7 @@ describe("automation runtime guards", () => {
   });
 
   it("records guarded skips but not plain trigger mismatches", async () => {
+    const encryptedRepositories = createTestEncryptedRepositories();
     getDb().prepare("DELETE FROM automations").run();
 
     getDb().prepare(`
@@ -59,8 +61,8 @@ describe("automation runtime guards", () => {
       null,
       "Guarded rule",
       "sensor_event",
-      JSON.stringify({ sensorType: "motion" }),
-      JSON.stringify({ type: "scene_run", config: { sceneId: "away" } }),
+      encryptedRepositories.automations.encodeTriggerJson("auto-guarded", "sensor_event", JSON.stringify({ sensorType: "motion" })),
+      encryptedRepositories.automations.encodeActionJson("auto-guarded", JSON.stringify({ type: "scene_run", sceneId: "away" })),
       1,
       Date.now(),
       1,
@@ -68,7 +70,7 @@ describe("automation runtime guards", () => {
     );
 
     const runtime = new AutomationRuntime(
-      new AutomationRepository(getDb()),
+      new AutomationRepository(getDb(), encryptedRepositories),
       new RuleEvaluator(),
       undefined,
       new ExecutionLogService(getDb()),
@@ -95,6 +97,7 @@ describe("automation runtime guards", () => {
   });
 
   it("skips repeated executions while a rule cooldown is active", async () => {
+    const encryptedRepositories = createTestEncryptedRepositories();
     getDb().prepare("DELETE FROM automations").run();
 
     getDb().prepare(`
@@ -117,8 +120,8 @@ describe("automation runtime guards", () => {
       null,
       "Cooldown rule",
       "sensor_event",
-      JSON.stringify({ sensorType: "motion" }),
-      JSON.stringify({ type: "scene_run", config: { sceneId: "away" } }),
+      encryptedRepositories.automations.encodeTriggerJson("auto-cooldown", "sensor_event", JSON.stringify({ sensorType: "motion" })),
+      encryptedRepositories.automations.encodeActionJson("auto-cooldown", JSON.stringify({ type: "scene_run", sceneId: "away" })),
       1,
       Date.now(),
       1,
@@ -127,7 +130,7 @@ describe("automation runtime guards", () => {
     );
 
     const runtime = new AutomationRuntime(
-      new AutomationRepository(getDb()),
+      new AutomationRepository(getDb(), encryptedRepositories),
       new RuleEvaluator(),
       undefined,
       new ExecutionLogService(getDb()),
@@ -163,6 +166,7 @@ describe("automation runtime guards", () => {
   });
 
   it("allows re-execution after the cooldown window elapses", async () => {
+    const encryptedRepositories = createTestEncryptedRepositories();
     getDb().prepare("DELETE FROM automations").run();
 
     getDb().prepare(`
@@ -176,8 +180,8 @@ describe("automation runtime guards", () => {
       null,
       "Cooldown window rule",
       "sensor_event",
-      JSON.stringify({ sensorType: "motion" }),
-      JSON.stringify({ type: "scene_run", config: { sceneId: "away" } }),
+      encryptedRepositories.automations.encodeTriggerJson("auto-cooldown-window", "sensor_event", JSON.stringify({ sensorType: "motion" })),
+      encryptedRepositories.automations.encodeActionJson("auto-cooldown-window", JSON.stringify({ type: "scene_run", sceneId: "away" })),
       1,
       Date.now(),
       1,
@@ -186,7 +190,7 @@ describe("automation runtime guards", () => {
     );
 
     const runtime = new AutomationRuntime(
-      new AutomationRepository(getDb()),
+      new AutomationRepository(getDb(), encryptedRepositories),
       new RuleEvaluator(),
       undefined,
       new ExecutionLogService(getDb()),

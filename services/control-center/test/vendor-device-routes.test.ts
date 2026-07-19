@@ -5,9 +5,10 @@ import {
   DeviceHealth,
   DeviceKind,
 } from "@smart-home/device-contract";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, createTestEncryptedRepositories } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
+import type { JsonValue } from "../src/security/encrypted-field-codec";
 
 function createVendorDevices() {
   return [
@@ -143,7 +144,10 @@ function seedManagedVendorDevices(): void {
       device.name,
       device.kind,
       device.room,
-      JSON.stringify(device.state),
+      createTestEncryptedRepositories().devices.encodeState(
+        device.id,
+        device.state as unknown as Record<string, JsonValue>,
+      ),
       device.state.updatedAt,
       device.state.updatedAt,
       device.displayOrder,
@@ -157,8 +161,8 @@ describe("vendor device routes", () => {
 
   it("includes multiple vendor device kinds in the device list", async () => {
     seedManagedVendorDevices();
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const response = await app.inject({ method: "GET", url: "/api/devices" });
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+    const response = await apiInject(app, { method: "GET", url: "/api/devices" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().devices).toEqual(
@@ -173,8 +177,8 @@ describe("vendor device routes", () => {
 
   it("returns vendor device detail responses for non-light kinds", async () => {
     seedManagedVendorDevices();
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const response = await app.inject({
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+    const response = await apiInject(app, {
       method: "GET",
       url: "/api/devices/tuya-ac-1",
     });

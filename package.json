@@ -12,7 +12,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev:control-center": "npm run dev --workspace @smart-home/control-center",
     "dev:mqtt-gateway": "npm run dev --workspace @smart-home/mqtt-gateway",
-    "test:mqtt:integration": "npm run test:mqtt:integration --workspace @smart-home/control-center"
+    "test:mqtt:integration": "npm run test:mqtt:integration --workspace @smart-home/control-center",
+    "security:migrate:check": "npm run security:migrate:check --workspace @smart-home/control-center --",
+    "security:migrate": "npm run security:migrate --workspace @smart-home/control-center --"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

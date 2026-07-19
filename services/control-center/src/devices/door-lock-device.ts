@@ -45,4 +45,8 @@ export class DoorLockDevice implements DeviceSimulator {
       state: this.current,
     };
   }
+
+  restoreState(state: DeviceState): void {
+    this.current = { ...state };
+  }
 }

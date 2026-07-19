@@ -15,13 +15,15 @@ import type { DeviceState } from "@smart-home/device-contract";
 import { ProviderDeviceStore } from "../devices/provider-device-store";
 import { ReplayGuard, verifyEnvelope } from "../security/envelope";
 import { broadcastEvent } from "../routes/websocket";
+import type { EncryptedRepositories } from "../db/encrypted-repositories";
+import type { JsonValue } from "../security/encrypted-field-codec";
 
 export type ServiceLogger = {
   error: (message: string) => void;
 };
 
 type CommandErrorBody = {
-  code: "COMMAND_UNAUTHORIZED" | "DEVICE_NOT_FOUND" | "DEVICE_OFFLINE" | "COMMAND_INVALID" | "COMMAND_TIMEOUT";
+  code: "COMMAND_UNAUTHORIZED" | "DEVICE_NOT_FOUND" | "DEVICE_OFFLINE" | "COMMAND_INVALID" | "COMMAND_TIMEOUT" | "PERSISTENCE_FAILED";
   status?: string;
   historyEntry?: ReturnType<CommandHistory["add"]>;
 };
@@ -36,7 +38,14 @@ type CommandSuccessBody = {
 
 export type DeviceCommandExecutionResult =
   | { ok: true; statusCode: 200; body: CommandSuccessBody }
-  | { ok: false; statusCode: 400 | 401 | 404 | 409 | 504; body: CommandErrorBody };
+  | { ok: false; statusCode: 400 | 401 | 404 | 409 | 500 | 504; body: CommandErrorBody };
+
+export class PersistenceFailedError extends Error {
+  constructor() {
+    super("Protected persistence failed");
+    this.name = "PersistenceFailedError";
+  }
+}
 
 const noopLogger: ServiceLogger = {
   error: () => {},
@@ -48,6 +57,8 @@ type PersistDeviceStateInput = {
   logger?: ServiceLogger;
   failurePrefix: string;
   mode?: "update" | "upsert";
+  encryptedRepositories: EncryptedRepositories;
+  registry?: DeviceRegistry;
 };
 
 export function persistDeviceStateUpdate(input: PersistDeviceStateInput): DeviceSyncDto | undefined {
@@ -64,6 +75,20 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
     let syncedDevice: DeviceSyncDto | undefined;
 
     db.transaction(() => {
+      if (mode === "upsert" && input.registry) {
+        const count = (db.prepare("SELECT COUNT(*) AS total FROM devices").get() as { total: number }).total;
+        if (count === 0) {
+          const insert = db.prepare(`
+            INSERT INTO devices (id,name,type,room_id,state_json,updated_at,version,is_deleted,lifecycle_state)
+            VALUES (?,?,?,?,?,?,0,0,'active')
+          `);
+          input.registry.list().forEach((device) => insert.run(
+            device.id, device.name, device.kind, device.room,
+            input.encryptedRepositories.devices.encodeState(device.id, device.state as Record<string, JsonValue>),
+            device.state.updatedAt,
+          ));
+        }
+      }
       db.prepare(`
         UPDATE metadata
         SET value = CAST(value AS INTEGER) + 1
@@ -94,16 +119,17 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
           updated.name,
           updated.kind,
           updated.room ?? "living-room",
-          JSON.stringify(updated.state),
+          input.encryptedRepositories.devices.encodeState(updated.id, updated.state as Record<string, JsonValue>),
           updatedAt,
           newVersion,
         );
       } else {
-        db.prepare(`
+        const result = db.prepare(`
           UPDATE devices
           SET state_json = ?, updated_at = ?, version = ?
           WHERE id = ?
-        `).run(JSON.stringify(updated.state), updatedAt, newVersion, deviceId);
+        `).run(input.encryptedRepositories.devices.encodeState(deviceId, updated.state as Record<string, JsonValue>), updatedAt, newVersion, deviceId);
+        if (result.changes !== 1) throw new PersistenceFailedError();
       }
 
       const syncedDeviceRaw = db.prepare(`
@@ -113,7 +139,7 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
       `).get(deviceId) as DeviceSyncRow | undefined;
 
       if (syncedDeviceRaw) {
-        syncedDevice = mapDeviceRowToSyncDto(syncedDeviceRaw);
+        syncedDevice = mapDeviceRowToSyncDto(syncedDeviceRaw, input.encryptedRepositories.devices);
       }
     })();
 
@@ -123,19 +149,21 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
 
     return syncedDevice;
   } catch (error) {
-    logger.error(`${failurePrefix}${String(error)}`);
-    return undefined;
+    logger.error(`${failurePrefix}protected persistence failed`);
+    if (error instanceof PersistenceFailedError) throw error;
+    throw new PersistenceFailedError();
   }
 }
 
 export function persistActiveProviderStateUpdate(
   deviceId: string,
   state: DeviceState,
+  encryptedRepositories: EncryptedRepositories,
   logger: ServiceLogger = noopLogger,
 ): DeviceSyncDto | undefined {
   try {
     const db = getDb();
-    const store = new ProviderDeviceStore(db);
+    const store = new ProviderDeviceStore(db, encryptedRepositories);
     const update = store.updateActiveDeviceStateDetailed(deviceId, state);
     if (!update) {
       return undefined;
@@ -145,7 +173,7 @@ export function persistActiveProviderStateUpdate(
     if (!row) {
       return undefined;
     }
-    const syncedDevice = mapDeviceRowToSyncDto(row);
+    const syncedDevice = mapDeviceRowToSyncDto(row, encryptedRepositories.devices);
     if (update.applied) {
       broadcastEvent("DeviceStateUpdated", syncedDevice);
     }
@@ -163,6 +191,7 @@ export class DeviceCommandService {
     private readonly history: CommandHistory,
     private readonly replayGuard: ReplayGuard,
     private readonly secret: string,
+    private readonly encryptedRepositories: EncryptedRepositories,
     private readonly logger: ServiceLogger = noopLogger,
     private readonly deviceStateTriggerAdapter?: DeviceStateTriggerAdapter,
     private readonly vendorProvider?: VendorDeviceProvider,
@@ -194,6 +223,14 @@ export class DeviceCommandService {
     }
 
     return this.executeVerifiedCommand(envelope);
+  }
+
+  async executeUserCommand(command: DeviceCommand): Promise<DeviceCommandExecutionResult> {
+    return this.executeCommand(command, "user", {
+      executionId: command.requestId,
+      chainDepth: 0,
+      routeOrigin: "commands",
+    });
   }
 
   async executeAutomationCommand(
@@ -233,7 +270,7 @@ export class DeviceCommandService {
     if (this.vendorProvider?.ownsDevice(command.deviceId)) {
       let active = false;
       try {
-        active = new ProviderDeviceStore(getDb())
+        active = new ProviderDeviceStore(getDb(), this.encryptedRepositories)
           .listActiveDevices()
           .some((device) => device.id === command.deviceId);
       } catch (error) {
@@ -299,16 +336,27 @@ export class DeviceCommandService {
       };
     }
 
+    const beforeState = { ...device.state };
+    let result: ReturnType<DeviceSimulator["execute"]>;
     try {
-      const beforeState = { ...device.state } as Record<string, unknown>;
-      const result = simulator.execute(command);
-      const updated = this.registry.update(command.deviceId, result.state);
+      result = simulator.execute(command);
+    } catch {
+      const historyEntry = this.history.add({
+        requestId: command.requestId, deviceId: command.deviceId, commandName: command.name,
+        status: CommandStatus.CommandInvalid, message: "鍛戒护鍙傛暟鏃犳晥",
+      });
+      return { ok: false, statusCode: 400, body: { code: "COMMAND_INVALID", status: CommandStatus.CommandInvalid, historyEntry } };
+    }
+    const updated = this.registry.update(command.deviceId, result.state);
+    try {
       const syncedDevice = persistDeviceStateUpdate({
         deviceId: command.deviceId,
         updated,
         logger: this.logger,
         failurePrefix: "Failed to update database or broadcast after command:",
-        mode: "update",
+        mode: "upsert",
+        encryptedRepositories: this.encryptedRepositories,
+        registry: this.registry,
       });
 
       const historyEntry = this.history.add({
@@ -344,7 +392,16 @@ export class DeviceCommandService {
           historyEntry,
         },
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof PersistenceFailedError) {
+        this.registry.restoreState(command.deviceId, beforeState);
+        simulator.restoreState?.(beforeState);
+        const historyEntry = this.history.add({
+          requestId: command.requestId, deviceId: command.deviceId, commandName: command.name,
+          status: CommandStatus.CommandInvalid, message: "Command result could not be persisted",
+        });
+        return { ok: false, statusCode: 500, body: { code: "PERSISTENCE_FAILED", status: CommandStatus.CommandInvalid, historyEntry } };
+      }
       const historyEntry = this.history.add({
         requestId: command.requestId,
         deviceId: command.deviceId,
@@ -416,6 +473,7 @@ export class DeviceCommandService {
     const syncedDevice = persistActiveProviderStateUpdate(
       command.deviceId,
       result.state,
+      this.encryptedRepositories,
       this.logger,
     );
 

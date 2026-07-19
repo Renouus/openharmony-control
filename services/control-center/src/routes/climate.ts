@@ -6,10 +6,11 @@
  */
 import type { FastifyInstance } from "fastify";
 import {
-  isClimateMode,
   type ClimateMode,
   type ClimateOverview,
 } from "@smart-home/device-contract";
+import { climateMutationSchema } from "@smart-home/device-contract/schemas";
+import { parseRequest } from "./parse-request";
 import type { DeviceRegistry } from "../registry/device-registry";
 
 /** 演示用周用量数据（小时） */
@@ -44,15 +45,9 @@ export async function registerClimateRoutes(
   app.get("/api/climate", async () => readOverview());
 
   app.patch("/api/climate", async (request, reply) => {
-    const body = request.body as unknown;
-    if (typeof body !== "object" || body === null) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
-
-    const requestedMode = (body as { mode?: unknown }).mode;
-    if (!isClimateMode(requestedMode)) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
+    const parsed = parseRequest(climateMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const requestedMode = parsed.value.mode;
 
     mode = requestedMode;
     registry.update("ac-living-room", { mode: requestedMode });
@@ -60,15 +55,9 @@ export async function registerClimateRoutes(
   });
 
   app.put("/api/climate", async (request, reply) => {
-    const body = request.body as unknown;
-    if (typeof body !== "object" || body === null) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
-
-    const requestedMode = (body as { mode?: unknown }).mode;
-    if (!isClimateMode(requestedMode)) {
-      return reply.code(400).send({ code: "CLIMATE_MODE_INVALID" });
-    }
+    const parsed = parseRequest(climateMutationSchema, request.body, reply);
+    if (!parsed.ok) return;
+    const requestedMode = parsed.value.mode;
 
     mode = requestedMode;
     registry.update("ac-living-room", { mode: requestedMode });

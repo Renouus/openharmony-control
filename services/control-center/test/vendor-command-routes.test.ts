@@ -5,8 +5,8 @@ import {
   DeviceHealth,
   DeviceKind,
 } from "@smart-home/device-contract";
-import { buildApp } from "../src/app";
-import { closeDatabase, getDb, initDatabase } from "../src/db/database";
+import { apiInject, buildApp, createTestEncryptedRepositories, demoInject } from "./helpers/build-test-app";
+import { closeDatabase, getDb, initDatabase } from "./helpers/test-database";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
 import type { DeviceState } from "@smart-home/device-contract";
 import { ProviderDeviceStore } from "../src/devices/provider-device-store";
@@ -52,7 +52,7 @@ function insertActiveDevice(deviceId: string, type = "light"): void {
     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'active')
   `).run(
     deviceId, "Test Device", type, "living-room",
-    JSON.stringify({ online: true, updatedAt: 100 }), 100, 1,
+    createTestEncryptedRepositories().devices.encodeState(deviceId, { online: true, updatedAt: 100 }), 100, 1,
   );
 }
 
@@ -62,8 +62,8 @@ describe("vendor command routes", () => {
 
   it("rejects commands for read-only Tuya sensor devices", async () => {
     insertActiveDevice("tuya-sensor-1", "environment-sensor");
-    const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
-    const signResponse = await app.inject({
+    const app = buildApp(undefined, { vendorProvider: fakeVendorProvider() });
+    const signResponse = await demoInject(app, {
       method: "POST",
       url: "/api/demo/sign-command",
       payload: {
@@ -77,10 +77,10 @@ describe("vendor command routes", () => {
 
     expect(signResponse.statusCode).toBe(200);
 
-    const response = await app.inject({
+    const response = await apiInject(app, {
       method: "POST",
       url: "/api/commands",
-      payload: signResponse.json(),
+      payload: signResponse.json().command,
     });
 
     expect(response.statusCode).toBe(400);
@@ -102,9 +102,9 @@ describe("vendor command routes", () => {
       }),
     };
     insertActiveDevice("mqtt-home-gateway-1-living-room-light");
-    const app = buildApp(undefined, undefined, { vendorProvider: provider });
+    const app = buildApp(undefined, { vendorProvider: provider });
     const requestId = "cmd-mqtt-timeout";
-    const signResponse = await app.inject({
+    const signResponse = await demoInject(app, {
       method: "POST", url: "/api/demo/sign-command",
       payload: {
         requestId, timestamp: Date.now(),
@@ -112,8 +112,8 @@ describe("vendor command routes", () => {
         name: "switch", payload: { on: true },
       },
     });
-    const response = await app.inject({
-      method: "POST", url: "/api/commands", payload: signResponse.json(),
+    const response = await apiInject(app, {
+      method: "POST", url: "/api/commands", payload: signResponse.json().command,
     });
 
     expect(response.statusCode).toBe(504);
@@ -126,7 +126,8 @@ describe("vendor command routes", () => {
   });
 
   it("persists and broadcasts passive provider state only for a joined device", async () => {
-    const store = new ProviderDeviceStore(getDb());
+    const encryptedRepositories = createTestEncryptedRepositories();
+    const store = new ProviderDeviceStore(getDb(), encryptedRepositories);
     store.upsertDiscoveredDevices([{
       provider: "mqtt",
       externalDeviceId: "home-gateway-1-living-room-light",
@@ -147,9 +148,16 @@ describe("vendor command routes", () => {
         return () => { listener = undefined; };
       },
     };
-    const app = buildApp(undefined, undefined, { vendorProvider: provider });
+    const app = buildApp(undefined, { vendorProvider: provider });
     await app.ready();
-    const socket = await app.injectWS("/ws/events?clientId=passive-provider-state");
+    const ticketResponse = await apiInject(app, {
+      method: "POST",
+      url: "/api/auth/websocket-ticket",
+      payload: { clientId: "passive-provider-state" },
+    });
+    const socket = await app.injectWS(
+      `/ws/events?ticket=${ticketResponse.json().ticket}&clientId=passive-provider-state`,
+    );
     const received = new Promise<{ event: string; payload: { id: string; payload: { power: boolean } } }>((resolve) => {
       socket.on("message", (raw: Buffer) => resolve(JSON.parse(raw.toString())));
     });
@@ -166,8 +174,11 @@ describe("vendor command routes", () => {
         payload: { power: true },
       },
     });
-    expect(JSON.parse((getDb().prepare("SELECT state_json FROM devices WHERE id = ?")
-      .get("mqtt-home-gateway-1-living-room-light") as { state_json: string }).state_json))
+    expect(encryptedRepositories.devices.decodeState(
+      "mqtt-home-gateway-1-living-room-light",
+      (getDb().prepare("SELECT state_json FROM devices WHERE id = ?")
+        .get("mqtt-home-gateway-1-living-room-light") as { state_json: string }).state_json,
+    ))
       .toMatchObject({ power: true });
 
     socket.terminate();

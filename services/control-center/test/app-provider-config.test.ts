@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VendorDeviceProvider } from "../src/integrations/vendor-provider";
-import { buildApp, createVendorProviderFromEnv } from "../src/app";
+import { createVendorProviderFromEnv } from "../src/app";
+import { buildApp } from "./helpers/build-test-app";
+import { closeDatabase, initDatabase } from "./helpers/test-database";
 
 const mqttEnv = {
   DEVICE_PROVIDER: "mqtt",
@@ -59,6 +61,8 @@ describe("app provider configuration", () => {
 });
 
 describe("app provider lifecycle", () => {
+  beforeEach(() => initDatabase(":memory:"));
+  afterEach(() => closeDatabase());
   it("awaits ready once and closes the provider once", async () => {
     const ready = vi.fn(async () => {});
     const close = vi.fn(async () => {});
@@ -69,7 +73,7 @@ describe("app provider lifecycle", () => {
       close,
       onStateChange: vi.fn(() => unsubscribe),
     } as unknown as VendorDeviceProvider;
-    const app = buildApp(undefined, "test-key", { vendorProvider: provider });
+    const app = buildApp(undefined, { vendorProvider: provider });
 
     await app.ready();
     await app.ready();
@@ -89,7 +93,7 @@ describe("app provider lifecycle", () => {
       ready,
       close,
     } as unknown as VendorDeviceProvider;
-    const app = buildApp(undefined, "test-key", { vendorProvider: provider });
+    const app = buildApp(undefined, { vendorProvider: provider });
 
     await expect(app.ready()).rejects.toThrow("MQTT connection timed out");
     await app.close();
