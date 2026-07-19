@@ -1,0 +1,13 @@
+user control-center
+topic read omnihome/gateways/home-gateway-1/status
+topic read omnihome/gateways/home-gateway-1/inventory
+topic read omnihome/gateways/home-gateway-1/devices/+/state
+topic read omnihome/gateways/home-gateway-1/commands/+/ack
+topic write omnihome/gateways/home-gateway-1/devices/+/commands
+
+user gateway
+topic write omnihome/gateways/home-gateway-1/status
+topic write omnihome/gateways/home-gateway-1/inventory
+topic write omnihome/gateways/home-gateway-1/devices/+/state
+topic write omnihome/gateways/home-gateway-1/commands/+/ack
+topic read omnihome/gateways/home-gateway-1/devices/+/commands

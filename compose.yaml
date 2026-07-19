@@ -1,0 +1,30 @@
+services:
+  mqtt-credentials:
+    image: eclipse-mosquitto:2
+    env_file:
+      - deploy/mqtt/.env
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        rm -f /mosquitto/secrets/passwords &&
+        mosquitto_passwd -b -c /mosquitto/secrets/passwords "$${MQTT_CONTROL_CENTER_USERNAME}" "$${MQTT_CONTROL_CENTER_PASSWORD}" &&
+        mosquitto_passwd -b /mosquitto/secrets/passwords "$${MQTT_GATEWAY_USERNAME}" "$${MQTT_GATEWAY_PASSWORD}"
+    volumes:
+      - mqtt-secrets:/mosquitto/secrets
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    depends_on:
+      mqtt-credentials:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./deploy/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./deploy/mqtt/acl:/mosquitto/config/acl:ro
+      - mqtt-secrets:/mosquitto/secrets:ro
+      - mqtt-data:/mosquitto/data
+
+volumes:
+  mqtt-secrets:
+  mqtt-data:

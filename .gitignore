@@ -18,3 +18,4 @@ apps/openharmony-control/.idea/openharmony-control.iml
 .preview/
 *.cjs
 services/control-center/.env
+deploy/mqtt/.env
