@@ -9,6 +9,7 @@ import {
   parseGatewayInventory,
   parseGatewayStatus,
 } from "../src/mqtt";
+import type { GatewayAck, GatewayAckStatus } from "../src/mqtt";
 
 const validState = { power: true, online: true, updatedAt: 101 };
 
@@ -321,6 +322,38 @@ describe("MQTT device contract", () => {
   });
 
   it("rejects non-terminal acknowledgement statuses", () => {
+    expect(
+      parseGatewayAck(
+        JSON.stringify({
+          requestId: "cmd-1",
+          deviceId: "living-room-light",
+          status: "PENDING",
+          message: "Not acknowledged yet",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("represents DEVICE_NOT_FOUND as a terminal acknowledgement", () => {
+    const status: GatewayAckStatus = "DEVICE_NOT_FOUND";
+    const acknowledgement: GatewayAck = {
+      requestId: "cmd-1",
+      deviceId: "missing-light",
+      status,
+      message: "Device is not in the gateway inventory",
+    };
+    // @ts-expect-error SUCCESS acknowledgements must include the resulting state.
+    const missingSuccessState: GatewayAck = {
+      requestId: "cmd-1",
+      deviceId: "living-room-light",
+      status: "SUCCESS",
+      message: "Missing state",
+    };
+    void missingSuccessState;
+
+    expect(
+      parseGatewayAck(JSON.stringify(acknowledgement)),
+    ).toEqual(acknowledgement);
     expect(
       parseGatewayAck(
         JSON.stringify({

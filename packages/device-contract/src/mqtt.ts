@@ -43,22 +43,35 @@ export type GatewayCommand = {
   payload: Record<string, unknown>;
 };
 
-export type GatewayAck = {
+export type GatewayAckStatus =
+  | Exclude<CommandStatusName, "PENDING">
+  | "DEVICE_NOT_FOUND";
+
+type GatewayAckBase = {
   requestId: string;
   deviceId: string;
-  status: CommandStatusName;
-  state?: DeviceState;
   message: string;
 };
+
+export type GatewayAck =
+  | (GatewayAckBase & {
+      status: typeof CommandStatus.Success;
+      state: DeviceState;
+    })
+  | (GatewayAckBase & {
+      status: Exclude<GatewayAckStatus, typeof CommandStatus.Success>;
+      state?: DeviceState;
+    });
 
 const segment = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const kinds = new Set<string>(Object.values(DeviceKind));
 const capabilities = new Set<string>(Object.values(DeviceCapability));
-const terminalStatuses = new Set<CommandStatusName>(
-  Object.values(CommandStatus).filter(
+const terminalStatuses = new Set<GatewayAckStatus>([
+  ...Object.values(CommandStatus).filter(
     (status) => status !== CommandStatus.Pending,
   ),
-);
+  "DEVICE_NOT_FOUND",
+]);
 const commands = new Set<DeviceCommandName>([
   "switch",
   "lock",
@@ -284,7 +297,7 @@ export function parseGatewayAck(raw: string): GatewayAck | null {
     !isTopicSegment(value.requestId) ||
     !isTopicSegment(value.deviceId) ||
     !isNonEmptyText(value.status) ||
-    !terminalStatuses.has(value.status as CommandStatusName) ||
+    !terminalStatuses.has(value.status as GatewayAckStatus) ||
     !isNonEmptyText(value.message)
   ) {
     return null;
@@ -294,14 +307,24 @@ export function parseGatewayAck(raw: string): GatewayAck | null {
   if (state === null) {
     return null;
   }
-  if (value.status === CommandStatus.Success && state === undefined) {
-    return null;
+  const status = value.status as GatewayAckStatus;
+  if (status === CommandStatus.Success) {
+    if (state === undefined) {
+      return null;
+    }
+    return {
+      requestId: value.requestId,
+      deviceId: value.deviceId,
+      status,
+      state,
+      message: value.message,
+    };
   }
 
   return {
     requestId: value.requestId,
     deviceId: value.deviceId,
-    status: value.status as CommandStatusName,
+    status,
     ...(state === undefined ? {} : { state }),
     message: value.message,
   };
