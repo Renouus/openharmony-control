@@ -6,13 +6,14 @@ const STORE_CONFIG: relationalStore.StoreConfig = {
   securityLevel: relationalStore.SecurityLevel.S1
 };
 
-const SQL_CREATE_TABLE_DEVICES = `CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, custom_name TEXT, type TEXT NOT NULL, room_id TEXT, state_json TEXT NOT NULL, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
+const SQL_CREATE_TABLE_DEVICES = `CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, custom_name TEXT, note TEXT, custom_icon TEXT, type TEXT NOT NULL, room_id TEXT, state_json TEXT NOT NULL, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
 const SQL_CREATE_TABLE_ROOMS = `CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL, built_in INTEGER DEFAULT 0, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
-const SQL_CREATE_TABLE_SCENES = `CREATE TABLE IF NOT EXISTS scenes (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT, description TEXT, enabled INTEGER DEFAULT 1, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0, trigger_json TEXT, repeat_json TEXT, actions_label_json TEXT, commands_json TEXT)`;
+const SQL_CREATE_TABLE_SCENES = `CREATE TABLE IF NOT EXISTS scenes (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT, description TEXT, enabled INTEGER DEFAULT 1, room_id TEXT, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0, trigger_json TEXT, repeat_json TEXT, actions_label_json TEXT, commands_json TEXT)`;
 const SQL_CREATE_TABLE_AUTOMATIONS = `CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, icon TEXT, name TEXT NOT NULL, trigger_type TEXT NOT NULL, trigger_json TEXT NOT NULL, action_json TEXT NOT NULL, enabled INTEGER DEFAULT 1, updated_at INTEGER NOT NULL, version INTEGER NOT NULL, is_deleted INTEGER DEFAULT 0)`;
 const SQL_CREATE_TABLE_HISTORY = `CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, command_name TEXT NOT NULL, status TEXT NOT NULL, message TEXT, created_at INTEGER NOT NULL)`;
 const SQL_CREATE_TABLE_SYNC_METADATA = `CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
-const LOCAL_SCHEMA_VERSION = '5';
+const SQL_CREATE_TABLE_DEVICE_PREFERENCES = `CREATE TABLE IF NOT EXISTS device_preferences (device_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (device_id, key))`;
+const LOCAL_SCHEMA_VERSION = '7';
 const BUILT_IN_SCENE_ORDER: string[] = ['home', 'away', 'sleep', 'movie'];
 
 class LegacySceneOrderingRow {
@@ -42,6 +43,7 @@ export class DatabaseHelper {
     await this.rdbStore.executeSql(SQL_CREATE_TABLE_AUTOMATIONS);
     await this.rdbStore.executeSql(SQL_CREATE_TABLE_HISTORY);
     await this.rdbStore.executeSql(SQL_CREATE_TABLE_SYNC_METADATA);
+    await this.rdbStore.executeSql(SQL_CREATE_TABLE_DEVICE_PREFERENCES);
     await this.applyMigrations();
   }
 
@@ -97,8 +99,23 @@ export class DatabaseHelper {
 
     if (schemaVersion < 5) {
       await this.tryExecuteSql('ALTER TABLE devices ADD COLUMN custom_name TEXT');
+      await this.setSchemaVersion('5');
+    }
+
+    if (schemaVersion < 6) {
+      await this.tryExecuteSql('ALTER TABLE devices ADD COLUMN note TEXT');
+      await this.tryExecuteSql('ALTER TABLE devices ADD COLUMN custom_icon TEXT');
+      await this.setSchemaVersion('6');
+    }
+
+    if (schemaVersion < 7) {
+      await this.tryExecuteSql('ALTER TABLE scenes ADD COLUMN room_id TEXT');
       await this.setSchemaVersion(LOCAL_SCHEMA_VERSION);
     }
+
+    await this.tryExecuteSql('ALTER TABLE devices ADD COLUMN note TEXT');
+    await this.tryExecuteSql('ALTER TABLE devices ADD COLUMN custom_icon TEXT');
+    await this.tryExecuteSql('ALTER TABLE scenes ADD COLUMN room_id TEXT');
   }
 
   private async backfillLegacySceneOrdering(): Promise<void> {

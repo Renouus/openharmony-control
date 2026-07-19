@@ -8,6 +8,7 @@ import {
   CommandHistoryEntry,
   DeviceApi,
   DevicePayload,
+  DeviceUpdateRequest,
   FamilyOverview,
   FamilySettingsSnapshot,
   FamilySettingsUpdateRequest,
@@ -31,6 +32,8 @@ import { SyncDao } from './db/SyncDao';
 import { WebSocketClient } from './WebSocketClient';
 import { DatabaseEventProcessor } from './db/DatabaseEventProcessor';
 import { DomainEventAdapter } from './domain-event-adapter';
+import { shouldBootstrapRooms } from './room-cache-policy';
+import { DevicePreferenceService } from './device-preference-service';
 
 export interface DashboardData {
   summary: HomeSummary;
@@ -49,7 +52,8 @@ export interface SmartHomeRepositoryPort {
   createDevice(deviceCode: string, roomId: string): Promise<DeviceSnapshot>;
   joinPendingDevice(deviceId: string, displayName: string, roomId: string, deviceType: string): Promise<DeviceSnapshot>;
   rejectPendingDevice(deviceId: string): Promise<void>;
-  updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot>;
+  updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot>;
+  deleteDevice(deviceId: string): Promise<void>;
   listRooms(): Promise<RoomItem[]>;
   createRoom(name: string, icon: string): Promise<RoomItem>;
   updateRoom(roomId: string, name?: string, icon?: string): Promise<RoomItem>;
@@ -77,6 +81,7 @@ export interface SmartHomeRepositoryPort {
   updateAutomation(automationId: string, payload: AutomationPayloadDraft | AutomationEnablePayload): Promise<AutomationSnapshot>;
   deleteAutomation(automationId: string): Promise<void>;
   sendDeviceCommand(deviceId: string, name: string, payload: DevicePayload): Promise<void>;
+  syncProviderDevices(): Promise<boolean>;
 }
 
 export class SmartHomeRepository implements SmartHomeRepositoryPort {
@@ -87,6 +92,10 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
   private readonly sceneDao: SceneDao;
   private readonly syncDao: SyncDao;
   private readonly wsClient: WebSocketClient;
+
+  // 节流：避免 listDevices 频繁触发后台增量同步
+  private lastDeviceSyncAt: number = 0;
+  private static readonly DEVICE_SYNC_THROTTLE_MS: number = 30000;
 
   constructor(api: DeviceApi) {
     this.api = api;
@@ -103,10 +112,20 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     this.wsClient.connect();
   }
 
-  private handleWebSocketEvent(event: string, payload: Object): void {
+  async handleWebSocketEvent(event: string, payload: Object): Promise<void> {
     const domainEvent = DomainEventAdapter.fromWebSocketEvent(event, payload);
     if (domainEvent) {
       DatabaseEventProcessor.getInstance().pushEvent(domainEvent);
+    }
+  }
+
+  async syncProviderDevices(): Promise<boolean> {
+    try {
+      await this.api.syncProviderDevices('tuya');
+      return true;
+    } catch (e) {
+      console.error('OmniHomeLog', `Failed to sync provider devices: ${e}`);
+      return false;
     }
   }
 
@@ -188,18 +207,30 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async listDevices(): Promise<DeviceSnapshot[]> {
     const store = DatabaseHelper.getInstance().getStore();
-    
-    // 1. Return locally cached data immediately for fast UI
+
+    // 每次重新打开应用如果本地缓存有值，但可能不是最新的情况需要让它先被刷出来
     const localDevices = await this.deviceDao.getAllDevices(store);
 
     if (localDevices.length === 0) {
+      // 本地无数据，必须强同步以获得初始数据
       await this.performBackgroundSync(true);
+      this.lastDeviceSyncAt = Date.now();
       return await this.deviceDao.getAllDevices(store);
     }
 
-    // 2. Trigger background sync asynchronously (fire and forget)
-    this.performBackgroundSync().catch(console.error);
-    
+    // 本地已有数据：先返回缓存让界面快速渲染，后台增量同步只拉取上次同步后的变更。
+    // 节流 30 秒，避免 createDevice → listDevices → listDevices 链式调用引发重复同步。
+    // WebSocket 事件和 sync_completed 回调会独立驱动数据刷新，不依赖此处的后台同步。
+    const now = Date.now();
+    if (now - this.lastDeviceSyncAt > SmartHomeRepository.DEVICE_SYNC_THROTTLE_MS) {
+      this.lastDeviceSyncAt = now;
+      this.performBackgroundSync(false).catch((e: Object) => {
+        console.error('OmniHomeLog', `Incremental device sync failed: ${e}`);
+        // 同步失败时重置时间戳，允许下次 listDevices 立即重试
+        this.lastDeviceSyncAt = 0;
+      });
+    }
+
     return localDevices;
   }
 
@@ -229,23 +260,28 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.performBackgroundSync(true);
   }
 
-  async updateDeviceName(deviceId: string, customName: string): Promise<DeviceSnapshot> {
-    const device = await this.api.updateDevice(deviceId, customName);
+  async updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot> {
+    const device = await this.api.updateDevice(deviceId, update);
     await this.performBackgroundSync(true);
     return device;
+  }
+
+  async deleteDevice(deviceId: string): Promise<void> {
+    await this.api.deleteDevice(deviceId);
+    DevicePreferenceService.deleteAll(deviceId).catch(() => {});
+    await this.performBackgroundSync(true);
   }
 
   async listRooms(): Promise<RoomItem[]> {
     const store = DatabaseHelper.getInstance().getStore();
     const localRooms = await this.roomDao.getAllRooms(store);
 
-    if (localRooms.length === 0) {
+    if (shouldBootstrapRooms(localRooms.length)) {
       const remoteRooms = await this.api.listRooms();
       await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
       return await this.roomDao.getAllRooms(store);
     }
 
-    this.refreshRooms().catch(console.error);
     return localRooms;
   }
 
@@ -279,14 +315,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async listPersistedScenes(): Promise<PersistedScene[]> {
     const store = DatabaseHelper.getInstance().getStore();
-    try {
-      const remoteScenes = await this.api.listScenes();
-      await this.sceneDao.replaceAll(store, remoteScenes.map((scene: PersistedSceneSnapshot) => this.toSceneSyncItem(scene)));
-      return await this.sceneDao.getVisibleScenes(store);
-    } catch (error) {
-      console.error('Failed to refresh scenes from API:', error);
-      return await this.sceneDao.getVisibleScenes(store);
-    }
+    return await this.sceneDao.getVisibleScenes(store);
   }
 
   async listAutomations(): Promise<AutomationSnapshot[]> {
@@ -352,7 +381,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
 
   async runScene(sceneId: string): Promise<void> {
     await this.api.runScene(sceneId);
-    await this.syncDevicesAfterMutation();
+    await this.performBackgroundSync();
   }
 
   async createScene(payload: ScenePayloadDraft): Promise<PersistedScene> {
@@ -407,19 +436,56 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
     await this.syncDevicesAfterMutation();
   }
 
-  private async refreshRooms(): Promise<void> {
-    const store = DatabaseHelper.getInstance().getStore();
-    const remoteRooms = await this.api.listRooms();
-    await this.roomDao.replaceAll(store, remoteRooms.map((room: RoomItem) => this.toRoomSyncItem(room)));
-  }
+  private pendingAutomationRefresh?: Promise<void>;
 
   private async refreshAutomations(): Promise<void> {
+    if (this.pendingAutomationRefresh) {
+      return this.pendingAutomationRefresh;
+    }
+    this.pendingAutomationRefresh = this.doRefreshAutomations();
+    try {
+      await this.pendingAutomationRefresh;
+    } finally {
+      this.pendingAutomationRefresh = undefined;
+    }
+  }
+
+  private async doRefreshAutomations(): Promise<void> {
     const store = DatabaseHelper.getInstance().getStore();
     const remoteAutomations = await this.api.listAutomations();
-    await this.automationDao.replaceAll(
-      store,
-      remoteAutomations.map((automation: AutomationSnapshot) => this.toAutomationSyncItem(automation)),
-    );
+    const remoteIds = new Set<string>();
+
+    const localAutomations = await this.automationDao.getAllSyncItems(store);
+    const localMap = new Map<string, AutomationSyncItem>();
+    localAutomations.forEach((a: AutomationSyncItem) => localMap.set(a.id, a));
+
+    const syncItems: AutomationSyncItem[] = remoteAutomations.map((automation: AutomationSnapshot): AutomationSyncItem => {
+      const local = localMap.get(automation.id);
+      return {
+        id: automation.id,
+        icon: automation.icon,
+        name: automation.name,
+        triggerType: automation.triggerType,
+        triggerJson: automation.triggerJson,
+        actionJson: automation.actionJson,
+        enabled: automation.enabled,
+        updatedAt: local ? local.updatedAt : 0,
+        version: local ? local.version : 0,
+        isDeleted: false,
+      };
+    });
+
+    for (const item of syncItems) {
+      remoteIds.add(item.id);
+    }
+
+    await this.automationDao.upsertAll(store, syncItems);
+
+    for (const local of localAutomations) {
+      if (!remoteIds.has(local.id)) {
+        await this.automationDao.markDeleted(store, local.id, local.version);
+      }
+    }
   }
 
   private toRoomSyncItem(room: RoomItem): RoomSyncItem {
@@ -442,6 +508,7 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       icon: scene.icon,
       description: scene.description,
       enabled: scene.enabled,
+      roomId: scene.roomId,
       trigger: scene.trigger,
       repeat: scene.repeat,
       actionsLabel: scene.actionsLabel,
@@ -463,8 +530,8 @@ export class SmartHomeRepository implements SmartHomeRepositoryPort {
       triggerJson: automation.triggerJson,
       actionJson: automation.actionJson,
       enabled: automation.enabled,
-      updatedAt: Date.now(),
-      version: Date.now(),
+      updatedAt: 0,
+      version: 0,
       isDeleted: false,
     };
   }

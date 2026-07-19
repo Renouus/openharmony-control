@@ -3,6 +3,7 @@ import type { AutomationAction, AutomationEvent, AutomationRule } from "./types"
 import { toAutomationDeviceCommand } from "./automation-normalization";
 import { DeviceCommandService } from "../services/device-command-service";
 import { SceneService } from "../services/scene-service";
+import { broadcastEvent } from "../routes/websocket";
 
 export class ActionExecutor {
   constructor(
@@ -12,12 +13,21 @@ export class ActionExecutor {
   ) {}
 
   async execute(rule: AutomationRule, event: AutomationEvent): Promise<void> {
+    const safeName = rule.trigger.config.name || rule.id;
+
     for (let index = 0; index < rule.actions.length; index += 1) {
       const action: AutomationAction = rule.actions[index];
 
       try {
         if (action.type === "scene_run") {
-          await this.sceneService.runScene(String(action.config.sceneId));
+          const sceneResult = await this.sceneService.runScene(String(action.config.sceneId), {
+            parentChainDepth: event.metadata.chainDepth ?? 0,
+            automationId: rule.id,
+            executionId: event.metadata.executionId ?? `${rule.id}-${event.eventId}`,
+          });
+          if (!sceneResult.ok) {
+            throw new Error(sceneResult.body.code);
+          }
         } else if (action.type === "device_command") {
           if (!this.deviceCommandService) {
             throw new Error("DEVICE_COMMAND_NOT_YET_WIRED");
@@ -53,6 +63,13 @@ export class ActionExecutor {
         return;
       }
     }
+
+    broadcastEvent("family_activity", {
+        id: `auto-${Date.now()}`,
+        type: "automation_run",
+        message: `自动化【${safeName}】已经被触发!`,
+        createdAt: Date.now()
+    });
 
     this.logService.record({
       executionId: event.metadata.executionId ?? `${rule.id}-${event.eventId}`,

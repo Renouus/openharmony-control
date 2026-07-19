@@ -2,6 +2,72 @@ import { describe, expect, it } from "vitest";
 import { RuleEvaluator } from "../../src/automation/rule-evaluator";
 
 describe("RuleEvaluator", () => {
+  it("requires every condition in an all group using current cross-device state", () => {
+    const evaluator = new RuleEvaluator();
+    const rule = {
+      id: "auto-entry",
+      enabled: true,
+      cooldownMs: 0,
+      trigger: { type: "device_state_changed" as const, config: {} },
+      conditionGroup: {
+        logic: "all" as const,
+        conditions: [
+          { type: "device_state_changed" as const, deviceId: "door-front", property: "locked", operator: "==", threshold: false },
+          { type: "device_state_changed" as const, deviceId: "light-entry", property: "power", operator: "==", threshold: false },
+        ],
+      },
+      actions: [{ type: "device_command" as const, config: { deviceId: "light-entry", command: "power:on" } }],
+    };
+    const reader = {
+      read: (deviceId: string): Record<string, unknown> | undefined => ({
+        "door-front": { locked: true },
+        "light-entry": { power: false },
+      }[deviceId]),
+    };
+
+    const decision = evaluator.shouldExecute(rule, {
+      eventId: "door-unlocked",
+      type: "device_state_changed",
+      source: "user",
+      timestamp: 1,
+      deviceId: "door-front",
+      after: { locked: false },
+      metadata: {},
+    }, reader);
+
+    expect(decision.ok).toBe(true);
+  });
+
+  it("allows one matching condition in an any group", () => {
+    const evaluator = new RuleEvaluator();
+    const rule = {
+      id: "auto-any",
+      enabled: true,
+      cooldownMs: 0,
+      trigger: { type: "device_state_changed" as const, config: { deviceId: "door-front", property: "locked", operator: "==", threshold: true } },
+      conditionGroup: {
+        logic: "any" as const,
+        conditions: [
+          { type: "device_state_changed" as const, deviceId: "door-front", property: "locked", operator: "==", threshold: true },
+          { type: "device_state_changed" as const, deviceId: "light-entry", property: "power", operator: "==", threshold: false },
+        ],
+      },
+      actions: [{ type: "scene_run" as const, config: { sceneId: "away" } }],
+    };
+    const reader = { read: (deviceId: string) => deviceId === "light-entry" ? { power: false } : { locked: false } };
+
+    const decision = evaluator.shouldExecute(rule, {
+      eventId: "door-locked",
+      type: "device_state_changed",
+      source: "user",
+      timestamp: 1,
+      deviceId: "door-front",
+      after: { locked: false },
+      metadata: {},
+    }, reader);
+
+    expect(decision.ok).toBe(true);
+  });
   it("matches device_state_changed rules against the configured property and threshold", () => {
     const evaluator = new RuleEvaluator();
     const decision = evaluator.shouldExecute(
@@ -144,10 +210,41 @@ describe("RuleEvaluator", () => {
           automationId: "auto-night",
           chainDepth: 0,
           routeOrigin: "timer",
+          time: "22:00",
         },
       },
     );
 
     expect(decision.ok).toBe(true);
+  });
+
+  it("does not cross-trigger a different time rule when one time fires", () => {
+    const evaluator = new RuleEvaluator();
+    const ruleAt22 = {
+      id: "auto-night",
+      enabled: true,
+      cooldownMs: 0,
+      trigger: { type: "time" as const, config: { time: "22:00" } },
+      actions: [{ type: "scene_run" as const, config: { sceneId: "sleep" } }],
+    };
+    const ruleAt23 = {
+      id: "auto-late",
+      enabled: true,
+      cooldownMs: 0,
+      trigger: { type: "time" as const, config: { time: "23:00" } },
+      actions: [{ type: "scene_run" as const, config: { sceneId: "away" } }],
+    };
+
+    const event22 = {
+      eventId: "event-22",
+      type: "time" as const,
+      source: "system" as const,
+      timestamp: 1,
+      metadata: { chainDepth: 0, routeOrigin: "timer", time: "22:00" },
+    };
+
+    expect(evaluator.shouldExecute(ruleAt22, event22).ok).toBe(true);
+    expect(evaluator.shouldExecute(ruleAt23, event22).ok).toBe(false);
+    expect(evaluator.shouldExecute(ruleAt23, event22).reason).toBe("TRIGGER_CONDITION_NOT_MET");
   });
 });

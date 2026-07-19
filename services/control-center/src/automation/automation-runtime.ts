@@ -4,10 +4,11 @@ import { ExecutionLogService } from "./execution-log-service";
 import { RuleEvaluator } from "./rule-evaluator";
 import { TimeTriggerAdapter } from "./triggers/time-trigger-adapter";
 import type { AutomationEvent, AutomationRule } from "./types";
+import type { DeviceStateReader } from "./device-state-reader";
 
 export class AutomationRuntime {
   private readonly loadedRules = new Map<string, AutomationRule>();
-  private readonly recentExecutions = new Map<string, { timestamp: number }>();
+  private readonly lastExecutionByRule = new Map<string, number>();
   private readonly timeTriggerAdapter: TimeTriggerAdapter;
 
   constructor(
@@ -15,6 +16,7 @@ export class AutomationRuntime {
     private readonly ruleEvaluator = new RuleEvaluator(),
     private readonly actionExecutor?: ActionExecutor,
     private readonly logService?: ExecutionLogService,
+    private readonly stateReader?: DeviceStateReader,
   ) {
     this.timeTriggerAdapter = new TimeTriggerAdapter((event) => this.dispatch(event));
   }
@@ -50,48 +52,78 @@ export class AutomationRuntime {
   }
 
   async dispatch(_event: AutomationEvent): Promise<void> {
+    const now = _event.timestamp ?? Date.now();
     for (const rule of this.loadedRules.values()) {
-      const decision = this.ruleEvaluator.shouldExecute(rule, _event);
+      const decision = this.ruleEvaluator.shouldExecute(rule, _event, this.stateReader);
       if (!decision.ok) {
         if (decision.reason && decision.reason !== "TRIGGER_TYPE_MISMATCH" && this.logService) {
           const executionId = _event.metadata.executionId ?? `${rule.id}-${_event.eventId}`;
-          this.rememberExecution(executionId, _event.timestamp);
           this.logService.record({
             executionId,
             automationId: rule.id,
             eventId: _event.eventId,
             status: "skipped",
             reason: decision.reason,
-            timestamp: Date.now(),
+            timestamp: now,
+          });
+        }
+        continue;
+      }
+
+      const cooldownReason = this.checkCooldown(rule, now);
+      if (cooldownReason) {
+        if (this.logService) {
+          const executionId = _event.metadata.executionId ?? `${rule.id}-${_event.eventId}`;
+          this.logService.record({
+            executionId,
+            automationId: rule.id,
+            eventId: _event.eventId,
+            status: "skipped",
+            reason: cooldownReason,
+            timestamp: now,
           });
         }
         continue;
       }
 
       if (this.actionExecutor) {
-        this.rememberExecution(_event.metadata.executionId ?? `${rule.id}-${_event.eventId}`, _event.timestamp);
+        this.recordRuleExecution(rule.id, now);
         await this.actionExecutor.execute(rule, _event);
       } else if (this.logService) {
         const executionId = _event.metadata.executionId ?? `${rule.id}-${_event.eventId}`;
-        this.rememberExecution(executionId, _event.timestamp);
+        this.recordRuleExecution(rule.id, now);
         this.logService.record({
           executionId,
           automationId: rule.id,
           eventId: _event.eventId,
           status: "invalid",
           reason: "ACTION_EXECUTOR_NOT_CONFIGURED",
-          timestamp: Date.now(),
+          timestamp: now,
         });
       }
     }
   }
 
-  private rememberExecution(executionId: string, timestamp: number): void {
-    this.recentExecutions.set(executionId, { timestamp });
-    if (this.recentExecutions.size > 500) {
-      const firstKey = this.recentExecutions.keys().next().value as string | undefined;
+  private checkCooldown(rule: AutomationRule, now: number): string | undefined {
+    if (rule.cooldownMs <= 0) {
+      return undefined;
+    }
+    const last = this.lastExecutionByRule.get(rule.id);
+    if (last === undefined) {
+      return undefined;
+    }
+    if (now - last < rule.cooldownMs) {
+      return "COOLDOWN_ACTIVE";
+    }
+    return undefined;
+  }
+
+  private recordRuleExecution(ruleId: string, timestamp: number): void {
+    this.lastExecutionByRule.set(ruleId, timestamp);
+    if (this.lastExecutionByRule.size > 500) {
+      const firstKey = this.lastExecutionByRule.keys().next().value as string | undefined;
       if (firstKey) {
-        this.recentExecutions.delete(firstKey);
+        this.lastExecutionByRule.delete(firstKey);
       }
     }
   }

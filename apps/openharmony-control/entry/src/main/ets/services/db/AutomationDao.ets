@@ -9,9 +9,29 @@ export interface AutomationSyncItem extends AutomationSnapshot {
 
 export class AutomationDao {
   public async replaceAll(store: relationalStore.RdbStore, automations: AutomationSyncItem[]): Promise<void> {
-    await store.executeSql('DELETE FROM automations');
-    for (const automation of automations) {
-      await this.insertOrUpdate(store, automation);
+    store.beginTransaction();
+    try {
+      await store.executeSql('DELETE FROM automations');
+      for (const automation of automations) {
+        await this.insertOrUpdate(store, automation);
+      }
+      store.commit();
+    } catch (e) {
+      store.rollBack();
+      throw new Error(`replaceAll failed: ${e}`);
+    }
+  }
+
+  public async upsertAll(store: relationalStore.RdbStore, automations: AutomationSyncItem[]): Promise<void> {
+    store.beginTransaction();
+    try {
+      for (const automation of automations) {
+        await this.insertOrUpdate(store, automation);
+      }
+      store.commit();
+    } catch (e) {
+      store.rollBack();
+      throw new Error(`upsertAll failed: ${e}`);
     }
   }
 

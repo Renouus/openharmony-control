@@ -1,6 +1,7 @@
 export interface DeviceState {
   power?: boolean;
   locked?: boolean;
+  mode?: string;
   temperature?: number;
   humidity?: number;
   targetTemperature?: number;
@@ -17,6 +18,8 @@ export interface DeviceSnapshot {
   id: string;
   name: string;
   customName?: string;
+  note?: string;
+  customIcon?: string;
   kind: string;
   brand?: string;
   capabilities: string[];

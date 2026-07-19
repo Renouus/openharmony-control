@@ -9,6 +9,8 @@ export interface SyncDevicePayload {
   id: string;
   name: string;
   customName?: string | null;
+  note?: string | null;
+  customIcon?: string | null;
   type: string;
   roomId?: string | null;
   payload: Object;
@@ -33,6 +35,7 @@ export interface SyncScenePayload {
   icon?: string;
   description: string;
   enabled: boolean;
+  roomId?: string;
   trigger: SceneTrigger;
   repeat: string[];
   actionsLabel: string[];
@@ -102,8 +105,11 @@ export interface PendingDeviceListResponse {
   devices: PendingDeviceSnapshot[];
 }
 
-export class UpdateDeviceRequest {
-  customName?: string;
+export interface DeviceUpdateRequest {
+  customName: string;
+  note: string;
+  customIcon: string;
+  roomId: string;
 }
 
 export class JoinPendingDeviceRequest {
@@ -188,6 +194,7 @@ export interface SceneSnapshot {
   id: string;
   name: string;
   icon?: string;
+  roomId?: string;
   description: string;
   enabled: boolean;
   trigger: SceneTrigger;
@@ -230,6 +237,7 @@ export class SceneTriggerDraft {
 export class ScenePayloadDraft {
   name: string = '';
   icon?: string;
+  roomId?: string;
   enabled: boolean = true;
   description: string = '';
   trigger: SceneTriggerDraft = new SceneTriggerDraft();
@@ -275,6 +283,11 @@ export class AutomationTriggerDraftItem {
   operator?: string;
   threshold?: string;
   label: string = '';
+}
+
+export class AutomationTriggerGroupDraft {
+  logic: 'all' | 'any' = 'all';
+  conditions: AutomationTriggerDraftItem[] = [];
 }
 
 export class AutomationActionDraftItem {
@@ -469,6 +482,24 @@ export class DeviceApi {
     this.baseUrl = baseUrl;
   }
 
+  async syncProviderDevices(providerId: string = 'tuya'): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/providers/${providerId}/discover`, {
+        method: http.RequestMethod.POST,
+        header: { 'content-type': 'application/json' },
+        extraData: '{}',
+        readTimeout: 10000,
+        connectTimeout: 10000
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
+    } finally {
+      client.destroy();
+    }
+  }
+
   async fetchSyncUpdates(lastVersion: number): Promise<SyncResponse> {
     const client = http.createHttp();
     try {
@@ -542,7 +573,7 @@ export class DeviceApi {
       const payload: Record<string, string> = {};
       if (name !== undefined) payload.name = name;
       if (icon !== undefined) payload.icon = icon;
-      
+
       const response = await client.request(`${this.baseUrl}/api/rooms/${id}`, {
         method: http.RequestMethod.PUT,
         header: { 'Content-Type': 'application/json' },
@@ -579,15 +610,13 @@ export class DeviceApi {
     }
   }
 
-  async updateDevice(deviceId: string, customName?: string): Promise<DeviceSnapshot> {
+  async updateDevice(deviceId: string, update: DeviceUpdateRequest): Promise<DeviceSnapshot> {
     const client = http.createHttp();
     try {
-      const payload: UpdateDeviceRequest = {};
-      payload.customName = customName;
       const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
         method: http.RequestMethod.PUT,
         header: { 'Content-Type': 'application/json' },
-        extraData: JSON.stringify(payload),
+        extraData: JSON.stringify(update),
         expectDataType: http.HttpDataType.STRING,
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {
@@ -595,6 +624,21 @@ export class DeviceApi {
       }
       const body = JSON.parse(response.result as string) as DeviceMutationResponse;
       return body.device;
+    } finally {
+      client.destroy();
+    }
+  }
+
+  async deleteDevice(deviceId: string): Promise<void> {
+    const client = http.createHttp();
+    try {
+      const response = await client.request(`${this.baseUrl}/api/devices/${deviceId}`, {
+        method: http.RequestMethod.DELETE,
+        expectDataType: http.HttpDataType.STRING,
+      });
+      if (response.responseCode < 200 || response.responseCode >= 300) {
+        throw new Error(response.result as string);
+      }
     } finally {
       client.destroy();
     }

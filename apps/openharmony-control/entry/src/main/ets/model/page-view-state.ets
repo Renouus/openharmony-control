@@ -22,6 +22,7 @@ export type AppPageId =
   | 'emergencyContactEditor'
   | 'scenesList'
   | 'lightControl'
+  | 'deviceEditor'
   | 'room';
 
 // ── Shared leaf types (plain interfaces – used in ForEach / @Prop) ────────────
@@ -45,13 +46,110 @@ export interface SceneChipState {
   active: boolean;
 }
 
+export interface SceneEditorCreateContext {
+  mode: 'create';
+  scope: 'global' | 'room';
+  roomId?: string;
+}
+
+export interface SceneEditorEditContext {
+  mode: 'edit';
+  sceneId: string;
+}
+
+export type SceneEditorContext =
+  | SceneEditorCreateContext
+  | SceneEditorEditContext;
+
+export interface SceneEditorRouteTarget {
+  page: 'sceneEditor';
+  param: SceneEditorContext;
+}
+
+export interface DeviceEditorContext {
+  deviceId: string;
+}
+
+export interface DeviceEditorRouteTarget {
+  page: 'deviceEditor';
+  param: DeviceEditorContext;
+  valid: boolean;
+}
+
+export function createDeviceEditorRoute(deviceId: string): DeviceEditorRouteTarget {
+  const normalized = deviceId.trim();
+  return {
+    page: 'deviceEditor',
+    param: { deviceId: normalized },
+    valid: normalized.length > 0,
+  };
+}
+
+export function createGlobalSceneEditorContext(): SceneEditorCreateContext {
+  const context: SceneEditorCreateContext = {
+    mode: 'create',
+    scope: 'global',
+  };
+  return context;
+}
+
+export function createRoomSceneEditorContext(roomId: string): SceneEditorCreateContext {
+  const context: SceneEditorCreateContext = {
+    mode: 'create',
+    scope: 'room',
+    roomId,
+  };
+  return context;
+}
+
+export function createEditSceneEditorContext(sceneId: string): SceneEditorEditContext {
+  const context: SceneEditorEditContext = {
+    mode: 'edit',
+    sceneId,
+  };
+  return context;
+}
+
+export function createGlobalSceneEditorRoute(): SceneEditorRouteTarget {
+  const route: SceneEditorRouteTarget = {
+    page: 'sceneEditor',
+    param: createGlobalSceneEditorContext(),
+  };
+  return route;
+}
+
+export function createRoomSceneEditorRoute(roomId: string): SceneEditorRouteTarget {
+  const route: SceneEditorRouteTarget = {
+    page: 'sceneEditor',
+    param: createRoomSceneEditorContext(roomId),
+  };
+  return route;
+}
+
+export function createEditSceneEditorRoute(sceneId: string): SceneEditorRouteTarget {
+  const route: SceneEditorRouteTarget = {
+    page: 'sceneEditor',
+    param: createEditSceneEditorContext(sceneId),
+  };
+  return route;
+}
+
+export function sceneEditorEditingSceneId(context: SceneEditorContext | null): string {
+  if (context && context.mode === 'edit') {
+    return context.sceneId;
+  }
+  return '';
+}
+
 export interface HomeDeviceCardState {
   id: string;
   name: string;
+  icon: string;
   kind: string;       // 'door-lock' | 'light' | 'air-conditioner' | 'fan' | 'other'
   statusLabel: string;
   power: boolean;
   locked: boolean;
+  mode?: string;
   temperature?: number;       // current temp for AC
   targetTemperature?: number; // target for AC
   brightness?: number;
@@ -67,12 +165,17 @@ export interface HomeRoomSectionState {
 export interface DevicePanelState {
   id: string;
   name: string;
+  originalName: string;
+  roomId: string;
   roomName: string;
+  note: string;
+  icon: string;
   kind: string;
   statusLabel: string;
   online: boolean;
   power: boolean;
   locked: boolean;
+  mode?: string;
   brightness: number;
   targetTemperature: number;
 }
@@ -172,6 +275,7 @@ export interface SceneCardState {
   id: string;
   name: string;
   icon?: string;
+  roomId?: string;
   description: string;
   enabled: boolean;
   triggerLabel: string;
@@ -349,6 +453,25 @@ export class ClimateViewState {
 @Observed
 export class RoomListState {
   rooms: RoomItemState[] = [];
+}
+
+export interface RoomViewStateData {
+  roomId: string;
+  name: string;
+  deviceCountLabel: string;
+  overviewChips: StatusChipState[];
+  roomScenes: SceneChipState[];
+  devices: HomeDeviceCardState[];
+}
+
+@Observed
+export class RoomViewState {
+  roomId: string = '';
+  name: string = '';
+  deviceCountLabel: string = '';
+  overviewChips: StatusChipState[] = [];
+  roomScenes: SceneChipState[] = [];
+  devices: HomeDeviceCardState[] = [];
 }
 
 // ── Plain-object factory helpers (still used by ViewModels & tests) ───────────
@@ -575,6 +698,17 @@ export function createEmptyRoomListState(): RoomListState {
   return new RoomListState();
 }
 
+export function createEmptyRoomViewStateData(roomId: string): RoomViewStateData {
+  return {
+    roomId,
+    name: 'Unknown Room',
+    deviceCountLabel: '0 个设备',
+    overviewChips: [],
+    roomScenes: [],
+    devices: [],
+  };
+}
+
 // ── Legacy aliases kept for backward compatibility with ViewModels & tests ────
 // ViewModels return *Data types; callers that previously used the old names
 // still compile cleanly via these aliases.
@@ -592,6 +726,7 @@ export { createEmptyClimateViewStateData as createEmptyClimateViewState };
 export class RoutineDraft {
   name: string = '';
   icon?: string;
+  conditionLogic: 'all' | 'any' = 'all';
   conditions: ConditionDraft[] = [];
   actions: ActionDraft[] = [];
 }

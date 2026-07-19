@@ -3,8 +3,6 @@ import { mapClimateViewState } from '../model/smart-home-mappers';
 import { TemperaturePayload } from '../services/device-api';
 import { SmartHomeRepositoryPort, normalizeRepositoryError } from '../services/smart-home-repository';
 
-const CLIMATE_DEVICE_ID: string = 'ac-living-room';
-
 export class ClimateViewModel {
   private readonly repository: SmartHomeRepositoryPort;
 
@@ -26,10 +24,10 @@ export class ClimateViewModel {
     }
   }
 
-  async updateTargetTemperature(targetTemperature: number): Promise<string> {
+  async updateTargetTemperature(deviceId: string, targetTemperature: number): Promise<string> {
     try {
       await this.repository.sendDeviceCommand(
-        CLIMATE_DEVICE_ID,
+        deviceId,
         'set-target-temperature',
         { targetTemperature } as TemperaturePayload,
       );

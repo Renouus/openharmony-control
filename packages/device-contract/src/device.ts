@@ -37,6 +37,19 @@ export type DeviceKindName = (typeof DeviceKind)[keyof typeof DeviceKind];
 export type DeviceCapabilityName =
   (typeof DeviceCapability)[keyof typeof DeviceCapability];
 
+export const DeviceIcon = {
+  Lightbulb: "lightbulb",
+  Lock: "lock",
+  Thermostat: "thermostat",
+  Sensors: "sensors",
+  Videocam: "videocam",
+  Outlet: "outlet",
+  Air: "air",
+  Other: "devices_other",
+} as const;
+
+export type DeviceIconName = (typeof DeviceIcon)[keyof typeof DeviceIcon];
+
 /**
  * 设备运行时状态快照。
  * 各字段根据设备种类选择性存在（门锁有 locked，灯光有 brightness 等）。
@@ -44,6 +57,7 @@ export type DeviceCapabilityName =
 export type DeviceState = {
   power?: boolean;
   locked?: boolean;
+  mode?: ClimateMode;
   temperature?: number;
   humidity?: number;
   targetTemperature?: number;
@@ -62,6 +76,8 @@ export type DeviceDescriptor = {
   id: string;
   name: string;
   customName?: string;
+  note?: string;
+  customIcon?: DeviceIconName;
   kind: DeviceKindName;
   brand?: string;
   capabilities: DeviceCapabilityName[];
@@ -209,6 +225,8 @@ export type SceneDescriptor = {
   icon?: string;
   description: string;
   enabled: boolean;
+  /** 场景归属房间 ID（可选）。设置后场景仅显示在对应房间视图中。 */
+  roomId?: string;
   trigger: {
     type: "time" | "location" | "manual";
     label: string;
@@ -267,6 +285,11 @@ export function isTemperatureTarget(
 /** 类型守卫：验证值是否为合法命令状态 */
 export function isCommandStatus(value: unknown): value is CommandStatusName {
   return Object.values(CommandStatus).includes(value as CommandStatusName);
+}
+
+export function isDeviceIcon(value: unknown): value is DeviceIconName {
+  return typeof value === "string" &&
+    Object.values(DeviceIcon).includes(value as DeviceIconName);
 }
 
 /** 类型守卫：验证值是否为合法场景 ID */

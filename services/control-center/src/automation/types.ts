@@ -11,10 +11,28 @@ export type AutomationTrigger = {
   config: Record<string, unknown>;
 };
 
+export type AutomationConditionLogic = "all" | "any";
+
+export type AutomationCondition = {
+  type: AutomationTriggerType;
+  deviceId?: string;
+  time?: string;
+  at?: string;
+  property?: string;
+  operator?: string;
+  threshold?: unknown;
+};
+
+export type AutomationConditionGroup = {
+  logic: AutomationConditionLogic;
+  conditions: AutomationCondition[];
+};
+
 export type AutomationRule = {
   id: string;
   enabled: boolean;
   trigger: AutomationTrigger;
+  conditionGroup?: AutomationConditionGroup;
   actions: AutomationAction[];
   cooldownMs: number;
 };
@@ -34,5 +52,6 @@ export type AutomationEvent = {
     parentExecutionId?: string;
     automationId?: string;
     routeOrigin?: string;
+    time?: string;
   };
 };

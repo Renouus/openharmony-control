@@ -1,5 +1,7 @@
+import promptAction from '@ohos.promptAction';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import {
+  COLOR_ERROR,
   COLOR_ON_SURFACE,
   COLOR_PRIMARY,
   COLOR_SURFACE,
@@ -22,11 +24,41 @@ export struct HomeInfoEditorView {
   @State homeName: string = '';
   @State address: string = '';
   @State timezone: string = '';
+  @State initialHomeName: string = '';
+  @State initialAddress: string = '';
+  @State initialTimezone: string = '';
 
   aboutToAppear() {
     this.homeName = this.appState.familySettings.homeName;
     this.address = this.appState.familySettings.address;
     this.timezone = this.appState.familySettings.timezone;
+    this.initialHomeName = this.homeName;
+    this.initialAddress = this.address;
+    this.initialTimezone = this.timezone;
+  }
+
+  private isDirty(): boolean {
+    return this.homeName !== this.initialHomeName
+      || this.address !== this.initialAddress
+      || this.timezone !== this.initialTimezone;
+  }
+
+  private async requestCancel(): Promise<void> {
+    if (!this.isDirty()) {
+      this.onCancel();
+      return;
+    }
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      title: '放弃修改？',
+      message: '尚未保存的家庭信息将丢失。',
+      buttons: [
+        { text: '继续编辑', color: COLOR_TEXT_MUTED },
+        { text: '放弃修改', color: COLOR_ERROR },
+      ],
+    });
+    if (result.index === 1) {
+      this.onCancel();
+    }
   }
 
   build() {
@@ -35,7 +67,7 @@ export struct HomeInfoEditorView {
         Text('Cancel')
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
-          .onClick(() => this.onCancel())
+          .onClick(() => this.requestCancel())
         Text('Home Info')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)

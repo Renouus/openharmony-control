@@ -30,6 +30,7 @@ class SceneEventPayload implements SceneSyncItem {
   icon?: string = undefined;
   description: string = '';
   enabled: boolean = false;
+  roomId?: string = undefined;
   trigger: SceneTrigger = { type: '', label: '' };
   repeat: string[] = [];
   actionsLabel: string[] = [];
@@ -196,6 +197,7 @@ export class DatabaseEventProcessor {
     applyPayload.icon = payload.icon;
     applyPayload.description = payload.description;
     applyPayload.enabled = payload.enabled;
+    applyPayload.roomId = payload.roomId;
     applyPayload.trigger = payload.trigger;
     applyPayload.repeat = payload.repeat;
     applyPayload.actionsLabel = payload.actionsLabel;

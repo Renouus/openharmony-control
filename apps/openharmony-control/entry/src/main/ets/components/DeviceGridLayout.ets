@@ -17,6 +17,8 @@ export struct SmallDeviceCard {
   @Prop device: HomeDeviceCardState;
   @Prop fillHeight: boolean = false;
   onTap: () => void = () => {};
+  onEdit: () => void = () => {};
+  onDelete: () => void = () => {};
 
   private isOn(): boolean {
     if (this.device.kind === 'door-lock') {
@@ -29,13 +31,22 @@ export struct SmallDeviceCard {
     if (this.device.kind === 'door-lock') {
       return this.device.locked ? 'lock' : 'lock_open';
     }
-    if (this.device.kind === 'air-conditioner') {
-      return 'ac_unit';
+    return this.device.icon;
+  }
+
+  @Builder
+  private EditMenu() {
+    Menu() {
+      MenuItem({ content: '编辑设备' }).onClick(() => this.onEdit())
+      MenuItem({ content: '删除设备' }).onClick(() => {
+        AlertDialog.show({
+          title: '确认删除设备',
+          message: `确定要删除「${this.device.name}」吗？此操作不可撤销。`,
+          primaryButton: { value: '取消', action: () => {} },
+          secondaryButton: { value: '确认删除', fontColor: '#D32F2F', action: () => this.onDelete() },
+        });
+      })
     }
-    if (this.device.kind === 'environment-sensor') {
-      return 'thermostat';
-    }
-    return 'lightbulb';
   }
 
   build() {
@@ -87,6 +98,7 @@ export struct SmallDeviceCard {
       }
     })
     .onClick(() => this.onTap())
+    .bindContextMenu(this.EditMenu(), ResponseType.LongPress)
     .animation({ duration: 250, curve: Curve.Friction })
   }
 }
@@ -95,6 +107,8 @@ export struct SmallDeviceCard {
 export struct LargeDeviceCard {
   @Prop device: HomeDeviceCardState;
   onTap: () => void = () => {};
+  onEdit: () => void = () => {};
+  onDelete: () => void = () => {};
 
   private usesPrimaryShell(): boolean {
     return this.device.kind === 'door-lock' || (this.device.kind !== 'air-conditioner' && this.device.power);
@@ -104,10 +118,22 @@ export struct LargeDeviceCard {
     if (this.device.kind === 'door-lock') {
       return this.device.locked ? 'lock' : 'lock_open';
     }
-    if (this.device.kind === 'air-conditioner') {
-      return 'ac_unit';
+    return this.device.icon;
+  }
+
+  @Builder
+  private EditMenu() {
+    Menu() {
+      MenuItem({ content: '编辑设备' }).onClick(() => this.onEdit())
+      MenuItem({ content: '删除设备' }).onClick(() => {
+        AlertDialog.show({
+          title: '确认删除设备',
+          message: `确定要删除「${this.device.name}」吗？此操作不可撤销。`,
+          primaryButton: { value: '取消', action: () => {} },
+          secondaryButton: { value: '确认删除', fontColor: '#D32F2F', action: () => this.onDelete() },
+        });
+      })
     }
-    return 'lightbulb';
   }
 
   private isAc(): boolean {
@@ -184,6 +210,7 @@ export struct LargeDeviceCard {
       }
     })
     .onClick(() => this.onTap())
+    .bindContextMenu(this.EditMenu(), ResponseType.LongPress)
     .animation({ duration: 250, curve: Curve.Friction })
   }
 }
@@ -199,15 +226,17 @@ interface DeviceChunk {
 export struct DeviceGridLayout {
   @Prop devices: HomeDeviceCardState[];
   onDeviceTap: (deviceId: string, kind: string) => void = () => {};
+  onDeviceEdit: (deviceId: string) => void = () => {};
+  onDeviceDelete: (deviceId: string) => void = () => {};
 
   private getChunks(): DeviceChunk[] {
     const chunks: DeviceChunk[] = [];
     for (let i = 0; i < this.devices.length; i += 3) {
       let reversed = (i / 3) % 2 === 1;
-      
+
       let large: HomeDeviceCardState | undefined = undefined;
       const smalls: HomeDeviceCardState[] = [];
-      
+
       if (!reversed) {
         // 大卡片在左，小卡片在右。填充顺序：0 -> 大，1 -> 小，2 -> 小
         large = this.devices[i];
@@ -245,7 +274,9 @@ export struct DeviceGridLayout {
             if (chunk.large) {
               LargeDeviceCard({
                 device: chunk.large,
-                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind)
+                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind),
+                onEdit: () => this.onDeviceEdit(chunk.large!.id),
+                onDelete: () => this.onDeviceDelete(chunk.large!.id)
               })
               .layoutWeight(1)
             } else {
@@ -259,7 +290,9 @@ export struct DeviceGridLayout {
                   SmallDeviceCard({
                     device: smallDev,
                     fillHeight: !!chunk.large && chunk.smalls.length === 2,
-                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind)
+                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind),
+                    onEdit: () => this.onDeviceEdit(smallDev.id),
+                    onDelete: () => this.onDeviceDelete(smallDev.id)
                   })
                   .layoutWeight(!!chunk.large && chunk.smalls.length === 2 ? 1 : 0)
                 }, (dev: HomeDeviceCardState) => dev.id)
@@ -278,7 +311,9 @@ export struct DeviceGridLayout {
                   SmallDeviceCard({
                     device: smallDev,
                     fillHeight: !!chunk.large && chunk.smalls.length === 2,
-                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind)
+                    onTap: () => this.onDeviceTap(smallDev.id, smallDev.kind),
+                    onEdit: () => this.onDeviceEdit(smallDev.id),
+                    onDelete: () => this.onDeviceDelete(smallDev.id)
                   })
                   .layoutWeight(!!chunk.large && chunk.smalls.length === 2 ? 1 : 0)
                 }, (dev: HomeDeviceCardState) => dev.id)
@@ -294,7 +329,9 @@ export struct DeviceGridLayout {
             if (chunk.large) {
               LargeDeviceCard({
                 device: chunk.large,
-                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind)
+                onTap: () => this.onDeviceTap(chunk.large!.id, chunk.large!.kind),
+                onEdit: () => this.onDeviceEdit(chunk.large!.id),
+                onDelete: () => this.onDeviceDelete(chunk.large!.id)
               })
               .layoutWeight(1)
             } else {

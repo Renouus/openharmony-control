@@ -31,11 +31,29 @@ export class TimeTriggerAdapter {
   }
 
   private async maybeDispatch(rule: AutomationRule): Promise<void> {
-    const targetTime = String(rule.trigger.config.time ?? rule.trigger.config.at ?? "");
     const now = new Date();
     const currentMinute = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
-    if (targetTime !== currentMinute) {
+    const targetTime = String(rule.trigger.config.time ?? rule.trigger.config.at ?? "");
+    let timesMatch = false;
+
+    if (targetTime !== "undefined" && targetTime !== "") {
+      timesMatch = targetTime === currentMinute;
+    }
+
+    if (!timesMatch && rule.conditionGroup && Array.isArray(rule.conditionGroup.conditions)) {
+      for (const condition of rule.conditionGroup.conditions) {
+        if (condition.type === "time") {
+          const conditionTime = String(condition.time ?? condition.at ?? "");
+          if (conditionTime === currentMinute) {
+            timesMatch = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!timesMatch) {
       return;
     }
 
@@ -53,6 +71,7 @@ export class TimeTriggerAdapter {
       metadata: {
         chainDepth: 0,
         routeOrigin: "timer",
+        time: currentMinute,
       },
     });
   }

@@ -51,6 +51,7 @@ export class SceneRegistry {
       name: "睡眠",
       description: "锁门并降低灯光，维持夜间舒适温度",
       enabled: true,
+      roomId: "bedroom",
       trigger: { type: "time", label: "晚上 22:30", value: "22:30" },
       repeat: ["一", "二", "三", "四", "五"],
       actionsLabel: ["锁定前门", "灯光调暗至 10%", "空调设为 26°C"],
@@ -68,6 +69,7 @@ export class SceneRegistry {
       name: "电影之夜",
       description: "调暗灯光，营造观影氛围",
       enabled: false,
+      roomId: "living-room",
       trigger: { type: "manual", label: "手动运行" },
       repeat: ["六", "日"],
       actionsLabel: ["客厅灯调暗至 20%", "空调静音模式"],
@@ -110,11 +112,12 @@ export class SceneRegistry {
     if (!scene) {
       return undefined;
     }
-    
+
     if (patch.name !== undefined) scene.name = patch.name;
     if (patch.icon !== undefined) scene.icon = patch.icon;
     if (patch.description !== undefined) scene.description = patch.description;
     if (patch.enabled !== undefined) scene.enabled = patch.enabled;
+    if (patch.roomId !== undefined) scene.roomId = patch.roomId;
     if (patch.trigger !== undefined) scene.trigger = patch.trigger;
     if (patch.repeat !== undefined) scene.repeat = patch.repeat;
     if (patch.actionsLabel !== undefined) scene.actionsLabel = patch.actionsLabel;

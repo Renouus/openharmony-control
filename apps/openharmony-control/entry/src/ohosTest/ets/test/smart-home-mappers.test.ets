@@ -10,6 +10,7 @@ function createDevice(id: string): HomeDeviceCardState {
     name: id,
     kind: 'light',
     statusLabel: 'On',
+    icon: 'lightbulb',
     power: true,
     locked: false,
     brightness: 80,
@@ -69,6 +70,8 @@ export default function smartHomeMappersTest() {
         id: 'light-1',
         name: 'Reading Lamp',
         customName: 'Bedside Lamp',
+        note: 'Near the window',
+        customIcon: 'outlet',
         kind: 'light',
         capabilities: ['switch', 'brightness'],
         room: 'bedroom',
@@ -85,7 +88,26 @@ export default function smartHomeMappersTest() {
       const panel = mapDevicePanel(device);
 
       expect(homeCard.name).assertEqual('Bedside Lamp');
+      expect(homeCard.icon).assertEqual('outlet');
       expect(panel.name).assertEqual('Bedside Lamp');
+      expect(panel.originalName).assertEqual('Reading Lamp');
+      expect(panel.roomId).assertEqual('bedroom');
+      expect(panel.note).assertEqual('Near the window');
+      expect(panel.icon).assertEqual('outlet');
+    });
+
+    it('falls back to the device kind icon', () => {
+      const device: DeviceSnapshot = {
+        id: 'light-2',
+        name: 'Ceiling Light',
+        kind: 'light',
+        capabilities: ['switch'],
+        room: 'study',
+        state: { power: false, online: true, updatedAt: 1 },
+      };
+
+      expect(mapHomeDeviceCard(device, false).icon).assertEqual('lightbulb');
+      expect(mapDevicePanel(device).icon).assertEqual('lightbulb');
     });
   });
 }

@@ -1,4 +1,5 @@
-import { ActionDraft, DevicePanelState, SceneChipState } from '../model/page-view-state';
+import promptAction from '@ohos.promptAction';
+import { ActionDraft, DevicePanelState, RoomItemState, SceneChipState, SceneEditorContext } from '../model/page-view-state';
 import {
   buildScenePayloadDraft,
   createEmptySceneDraft,
@@ -8,6 +9,7 @@ import {
 import { AppSymbol } from '../components/AppSymbol';
 import { ActionPickerSheet } from '../components/ActionPickerSheet';
 import {
+  COLOR_ERROR,
   COLOR_ON_SURFACE,
   COLOR_OUTLINE_VARIANT,
   COLOR_PRIMARY,
@@ -23,10 +25,14 @@ import { ScenePayloadDraft } from '../services/device-api';
 export struct SceneEditorView {
   @Prop appState: AppStateSnapshot;
   @Prop editingSceneId: string;
+  @Prop editorContext: SceneEditorContext | null = null;
   @State draft: SceneDraftData = createEmptySceneDraft();
   @State showActionSheet: boolean = false;
   @State showIconPicker: boolean = false;
   @State isLoading: boolean = false;
+  private initialName: string = '';
+  private initialIcon: string = 'movie';
+  private initialActionsJson: string = '[]';
 
   onCancel: () => void = () => {};
   onSave: (payload: ScenePayloadDraft) => Promise<void> | void = () => {};
@@ -35,15 +41,76 @@ export struct SceneEditorView {
     if (this.editingSceneId) {
       this.loadScene();
     }
+    this.captureInitial();
   }
 
   loadScene() {
     this.isLoading = true;
-    const scene = this.appState.scenes.items.find((item) => item.id === this.editingSceneId);
+    const scene = this.findEditingScene();
     if (scene) {
       this.draft = mapSceneCardToDraft(scene);
     }
     this.isLoading = false;
+    this.captureInitial();
+  }
+
+  private captureInitial(): void {
+    this.initialName = this.draft.name;
+    this.initialIcon = this.draft.icon ?? 'movie';
+    this.initialActionsJson = JSON.stringify(this.draft.actions);
+  }
+
+  private findEditingScene() {
+    return this.appState.scenes.items.find((item) => item.id === this.editingSceneId);
+  }
+
+  private forcedRoomId(): string | undefined {
+    if (this.editorContext && this.editorContext.mode === 'create') {
+      return this.editorContext.scope === 'room' ? this.editorContext.roomId : undefined;
+    }
+    const scene = this.findEditingScene();
+    return scene ? scene.roomId : undefined;
+  }
+
+  private roomNameFor(roomId: string): string {
+    const room = this.appState.roomList.rooms.find((item: RoomItemState) => item.id === roomId);
+    if (room) {
+      return room.name;
+    }
+    return roomId;
+  }
+
+  private ownershipLabel(): string {
+    const roomId = this.forcedRoomId();
+    if (!roomId) {
+      return 'Ownership: Global';
+    }
+    return `Ownership: ${this.roomNameFor(roomId)}`;
+  }
+
+  private isDirty(): boolean {
+    if (this.draft.name !== this.initialName) return true;
+    if (this.draft.icon !== this.initialIcon) return true;
+    if (JSON.stringify(this.draft.actions) !== this.initialActionsJson) return true;
+    return false;
+  }
+
+  private async requestCancel(): Promise<void> {
+    if (!this.isDirty()) {
+      this.onCancel();
+      return;
+    }
+    const result: promptAction.ShowDialogSuccessResponse = await promptAction.showDialog({
+      title: '放弃修改？',
+      message: '尚未保存的场景信息将丢失。',
+      buttons: [
+        { text: '继续编辑', color: COLOR_TEXT_MUTED },
+        { text: '放弃修改', color: COLOR_ERROR },
+      ],
+    });
+    if (result.index === 1) {
+      this.onCancel();
+    }
   }
 
   getActionLabel(action: ActionDraft): string {
@@ -75,7 +142,7 @@ export struct SceneEditorView {
   @Builder
   IconPickerSheet() {
     Column() {
-      Text('Select icon')
+      Text('选择图标')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(COLOR_ON_SURFACE)
@@ -119,33 +186,38 @@ export struct SceneEditorView {
           .fontSize(16)
           .fontColor(COLOR_TEXT_MUTED)
           .onClick(() => {
-            this.onCancel();
+            this.requestCancel();
           })
-        Text(this.editingSceneId ? 'Edit Scene' : 'New Scene')
+        Text(this.editingSceneId ? '编辑场景' : '新增场景')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor(COLOR_ON_SURFACE)
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Text('Save')
-          .fontSize(16)
-          .fontColor(COLOR_PRIMARY)
-          .onClick(() => {
-            if (!this.draft.name) {
-              console.error('Validation: Name is required');
-              return;
-            }
-            if (this.draft.actions.length === 0) {
-              console.error('Validation: Must have at least 1 action');
-              return;
-            }
+          Text('保存')
+            .fontSize(16)
+            .fontColor(COLOR_PRIMARY)
+            .onClick(() => {
+              if (!this.draft.name) {
+                console.error('Validation: Name is required');
+                return;
+              }
+              if (this.draft.actions.length === 0) {
+                console.error('Validation: Must have at least 1 action');
+                return;
+              }
 
-            const payload = buildScenePayloadDraft(
-              this.draft,
-              this.draft.actions.map((action: ActionDraft) => this.getActionLabel(action)),
-            );
-            this.onSave(payload);
-          })
+              const forcedId = this.forcedRoomId();
+              console.info('DEBUG: SceneEditorView.onSave forcedRoomId is: ' + forcedId);
+
+              const payload = buildScenePayloadDraft(
+                this.draft,
+                this.draft.actions.map((action: ActionDraft) => this.getActionLabel(action)),
+                forcedId,
+              );
+              console.info('DEBUG: SceneEditorView.onSave payload to send is: ' + JSON.stringify(payload));
+              this.onSave(payload);
+            })
       }
       .width('100%')
       .height(56)
@@ -189,7 +261,13 @@ export struct SceneEditorView {
             .shadow({ radius: 12, color: '#08000000', offsetY: 4 })
 
             Column({ space: 12 }) {
-              Text('Actions')
+              Text(this.ownershipLabel())
+                .fontSize(13)
+                .fontColor(COLOR_TEXT_MUTED)
+                .width('100%')
+                .padding({ left: 4 })
+
+              Text('动作')
                 .fontSize(16)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(COLOR_ON_SURFACE)

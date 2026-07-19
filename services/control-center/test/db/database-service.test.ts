@@ -71,6 +71,24 @@ function insertVendorDeviceRow(
   );
 }
 
+function insertActiveVendorDevice(version = 1): void {
+  getDb().prepare(`
+    INSERT INTO devices (
+      id, name, custom_name, type, room_id, state_json, updated_at, version,
+      is_deleted, lifecycle_state, sort_order
+    ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0, 'active', ?)
+  `).run(
+    'tuya-vdevo178318782505115',
+    'Ceiling lighting',
+    'light',
+    'living-room',
+    JSON.stringify({ power: true, online: true, updatedAt: version }),
+    version,
+    version,
+    80,
+  );
+}
+
 describe('DatabaseService', () => {
   beforeEach(() => {
     initDatabase(':memory:');
@@ -83,7 +101,7 @@ describe('DatabaseService', () => {
   it('should return changes since a given version and correctly read global_version', async () => {
     const db = getDb();
     const service = new DatabaseService(db);
-    
+
     // Simulate updating global version and inserting a deleted device
     db.prepare("UPDATE metadata SET value = '10' WHERE key = 'global_version'").run();
     db.prepare(
@@ -91,7 +109,7 @@ describe('DatabaseService', () => {
     ).run('dev-1', 'Light 1', 'light', 'room-1', '{}', Date.now(), 10, 1);
 
     const syncResult = await service.getSyncData(5);
-    
+
     expect(syncResult.currentVersion).toBe(10);
     expect(syncResult.devices).toHaveLength(1);
     expect(syncResult.devices[0].isDeleted).toBe(true); // Validates deletion sync semantics
@@ -157,6 +175,7 @@ describe('DatabaseService', () => {
 
   it('should include vendor devices in sync data when their version is newer than lastVersion', async () => {
     const db = getDb();
+    insertActiveVendorDevice();
     const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
 
     const syncResult = await service.getSyncData(0);
@@ -184,6 +203,7 @@ describe('DatabaseService', () => {
 
   it('should exclude vendor devices from incremental sync when lastVersion already covers them', async () => {
     const db = getDb();
+    insertActiveVendorDevice();
     const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
 
     const syncResult = await service.getSyncData(1720100000000);

@@ -19,3 +19,16 @@ apps/openharmony-control/.idea/openharmony-control.iml
 *.cjs
 services/control-center/.env
 deploy/mqtt/.env
+
+# Local recovery, diagnostics, and runtime state
+.codex-backups/
+.workbuddy/
+.superpowers/sdd/
+services/control-center/smarthome.db
+services/control-center/*.log
+apps/openharmony-control/*.log
+tmp_docx/
+tmp_docx.zip
+docx_render/
+device_logs.txt
+启动后端.txt

@@ -5,12 +5,14 @@ import {
   ClimateMode,
   createCommand,
   DeviceCapability,
+  DeviceIcon,
   DeviceHealthName,
   DeviceKind,
   isAccessPointId,
   isCameraId,
   isClimateMode,
   isCommandStatus,
+  isDeviceIcon,
   isSceneId,
   isTemperatureTarget,
 } from "../src/device";
@@ -33,6 +35,21 @@ describe("device contract", () => {
   it("names capability and kind constants used across service and app", () => {
     expect(DeviceKind.AirConditioner).toBe("air-conditioner");
     expect(DeviceCapability.EnvironmentReading).toBe("environment-reading");
+  });
+
+  it("accepts only supported editable device icons", () => {
+    expect(Object.values(DeviceIcon)).toEqual([
+      "lightbulb",
+      "lock",
+      "thermostat",
+      "sensors",
+      "videocam",
+      "outlet",
+      "air",
+      "devices_other",
+    ]);
+    expect(isDeviceIcon("outlet")).toBe(true);
+    expect(isDeviceIcon("uploaded-image")).toBe(false);
   });
 
   it("accepts known command statuses", () => {

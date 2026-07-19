@@ -31,3 +31,16 @@ export type TuyaAdapterInput = {
   updatedAt: number;
   displayOrder?: number;
 };
+
+import type { TuyaDeviceDetail } from "./tuya-client";
+
+export interface TuyaResolvedDeviceContext {
+  omniDeviceId: string;
+  tuyaDeviceId: string;
+  detail: TuyaDeviceDetail;
+  category: string;
+  productId?: string;
+  kind: TuyaDeviceKind;
+  status: TuyaStatusItem[];
+  capabilities: string[];
+}
