@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import type { WebSocket } from '@fastify/websocket';
 import { DeviceCapability, DeviceHealth, DeviceKind } from '@smart-home/device-contract';
 import { buildApp } from '../../src/app';
 import { initDatabase, closeDatabase, getDb } from '../../src/db/database';
@@ -277,7 +278,7 @@ describe('GET /api/sync', () => {
       send(data: string) {
         wsMessages.push(JSON.parse(data));
       },
-    };
+    } as unknown as WebSocket;
     clientConnections.set('test-client', fakeClient);
 
     try {
