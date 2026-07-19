@@ -19,7 +19,7 @@ export type ServiceLogger = {
 };
 
 type CommandErrorBody = {
-  code: "COMMAND_UNAUTHORIZED" | "DEVICE_NOT_FOUND" | "DEVICE_OFFLINE" | "COMMAND_INVALID";
+  code: "COMMAND_UNAUTHORIZED" | "DEVICE_NOT_FOUND" | "DEVICE_OFFLINE" | "COMMAND_INVALID" | "COMMAND_TIMEOUT";
   status?: string;
   historyEntry?: ReturnType<CommandHistory["add"]>;
 };
@@ -34,7 +34,7 @@ type CommandSuccessBody = {
 
 export type DeviceCommandExecutionResult =
   | { ok: true; statusCode: 200; body: CommandSuccessBody }
-  | { ok: false; statusCode: 400 | 401 | 404 | 409; body: CommandErrorBody };
+  | { ok: false; statusCode: 400 | 401 | 404 | 409 | 504; body: CommandErrorBody };
 
 const noopLogger: ServiceLogger = {
   error: () => {},
@@ -334,10 +334,12 @@ export class DeviceCommandService {
       const status =
         result.code === "COMMAND_UNAUTHORIZED" ? CommandStatus.CommandUnauthorized :
         result.code === "DEVICE_OFFLINE" ? CommandStatus.DeviceOffline :
+        result.code === "COMMAND_TIMEOUT" ? CommandStatus.CommandTimeout :
         CommandStatus.CommandInvalid;
       const statusCode =
         result.code === "COMMAND_UNAUTHORIZED" ? 401 :
         result.code === "DEVICE_OFFLINE" ? 409 :
+        result.code === "COMMAND_TIMEOUT" ? 504 :
         result.code === "DEVICE_NOT_FOUND" ? 404 :
         400;
       const historyEntry = this.history.add({

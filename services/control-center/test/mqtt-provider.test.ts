@@ -1,0 +1,183 @@
+import { CommandStatus } from "@smart-home/device-contract";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createMqttProvider,
+  createMqttTransport,
+  type ControlCenterMqttTransport,
+} from "../src/integrations/mqtt/mqtt-provider";
+
+type MessageHandler = (topic: string, payload: string) => void;
+
+class FakeTransport implements ControlCenterMqttTransport {
+  public isConnected = true;
+  public readonly published: Array<{ topic: string; payload: string; options: { qos: 1; retain: boolean } }> = [];
+  private readonly subscriptions = new Map<string, MessageHandler>();
+  private readonly connectListeners = new Set<() => void>();
+  private readonly disconnectListeners = new Set<() => void>();
+
+  connected() { return this.isConnected; }
+  async ready() { if (!this.isConnected) throw new Error("not connected"); }
+  async publish(topic: string, payload: string, options: { qos: 1; retain: boolean }) {
+    this.published.push({ topic, payload, options });
+  }
+  async subscribe(topic: string, handler: MessageHandler) {
+    this.subscriptions.set(topic, handler);
+    return () => { this.subscriptions.delete(topic); };
+  }
+  onConnect(listener: () => void) { this.connectListeners.add(listener); return () => this.connectListeners.delete(listener); }
+  onDisconnect(listener: () => void) { this.disconnectListeners.add(listener); return () => this.disconnectListeners.delete(listener); }
+  async close() { this.isConnected = false; }
+  emit(topic: string, value: unknown) {
+    for (const [filter, handler] of this.subscriptions) {
+      if (matches(filter, topic)) handler(topic, JSON.stringify(value));
+    }
+  }
+  connect() { this.isConnected = true; for (const listener of this.connectListeners) listener(); }
+  disconnect() { this.isConnected = false; for (const listener of this.disconnectListeners) listener(); }
+}
+
+function matches(filter: string, topic: string) {
+  const expected = filter.split("/");
+  const actual = topic.split("/");
+  return expected.length === actual.length && expected.every((part, index) => part === "+" || part === actual[index]);
+}
+
+const config = {
+  brokerUrl: "mqtt://broker.example",
+  gatewayId: "gateway-1",
+  clientId: "center-1",
+  username: "user",
+  password: "password",
+  commandTimeoutMs: 100,
+  offlineAfterMs: 1_000,
+};
+
+function seed(transport: FakeTransport) {
+  transport.emit("omnihome/gateways/gateway-1/status", { gatewayId: "gateway-1", online: true, updatedAt: 1 });
+  transport.emit("omnihome/gateways/gateway-1/inventory", {
+    gatewayId: "gateway-1", updatedAt: 2,
+    devices: [
+      { id: "light-1", name: "Desk Light", kind: "light", roomHint: "study", capabilities: ["switch"] },
+      { id: "ac-1", name: "Bedroom AC", kind: "air-conditioner", roomHint: "bedroom", capabilities: ["switch", "target-temperature"] },
+      { id: "lock-1", name: "Front Lock", kind: "door-lock", capabilities: ["lock"] },
+      { id: "sensor-1", name: "Hall Sensor", kind: "environment-sensor", capabilities: ["environment-reading"] },
+    ],
+  });
+  for (const id of ["light-1", "ac-1", "lock-1", "sensor-1"]) {
+    transport.emit(`omnihome/gateways/gateway-1/devices/${id}/state`, {
+      gatewayId: "gateway-1", deviceId: id, state: { online: true, updatedAt: 3, power: id !== "lock-1" },
+    });
+  }
+}
+
+describe("mqtt provider", () => {
+  it("discovers only inventory devices with valid matching states and normalizes ids", async () => {
+    const transport = new FakeTransport();
+    const provider = createMqttProvider({ config, transport, now: () => 10 });
+    await provider.ready(10);
+    seed(transport);
+    transport.emit("omnihome/gateways/other/devices/light-1/state", { gatewayId: "other", deviceId: "light-1", state: { online: true, updatedAt: 4 } });
+    transport.emit("omnihome/gateways/gateway-1/devices/light-1/state", { gatewayId: "gateway-1", deviceId: "other", state: { online: true, updatedAt: 4 } });
+
+    await expect(provider.discoverDevices()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ provider: "mqtt", externalDeviceId: "gateway-1-light-1", originalName: "Desk Light", deviceType: "light", roomHint: "study", online: true }),
+      expect.objectContaining({ externalDeviceId: "gateway-1-ac-1", originalName: "Bedroom AC" }),
+      expect.objectContaining({ externalDeviceId: "gateway-1-lock-1", originalName: "Front Lock" }),
+      expect.objectContaining({ externalDeviceId: "gateway-1-sensor-1", originalName: "Hall Sensor" }),
+    ]));
+    await expect(provider.listDevices()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "mqtt-gateway-1-light-1", name: "Desk Light", brand: "mqtt", health: "online" }),
+    ]));
+    expect(provider.ownsDevice("mqtt-gateway-1-light-1")).toBe(true);
+    expect(provider.ownsDevice("mqtt-gateway-1-unknown")).toBe(false);
+  });
+
+  it("waits for a matching ack after registering pending before synchronous publish delivery", async () => {
+    const transport = new FakeTransport();
+    transport.publish = async (topic, payload, options) => {
+      transport.published.push({ topic, payload, options });
+      const command = JSON.parse(payload);
+      transport.emit(`omnihome/gateways/gateway-1/commands/${command.requestId}/ack`, {
+        requestId: command.requestId, deviceId: "light-1", status: "SUCCESS", message: "ok", state: { online: true, power: true, updatedAt: 20 },
+      });
+    };
+    const provider = createMqttProvider({ config, transport, now: () => 10 });
+    await provider.ready(10); seed(transport);
+    const listener = vi.fn(); provider.onStateChange(listener);
+
+    await expect(provider.executeCommand({ requestId: "request-1", timestamp: 10, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } }))
+      .resolves.toMatchObject({ ok: true, status: CommandStatus.Success, deviceId: "mqtt-gateway-1-light-1", state: { power: true } });
+    expect(transport.published[0]).toMatchObject({ topic: "omnihome/gateways/gateway-1/devices/light-1/commands", options: { qos: 1, retain: false } });
+    expect(listener).toHaveBeenCalledWith("mqtt-gateway-1-light-1", expect.objectContaining({ power: true }));
+  });
+
+  it("fails commands before publishing when disconnected, stale, offline, or unknown", async () => {
+    let now = 1;
+    const transport = new FakeTransport(); const provider = createMqttProvider({ config, transport, now: () => now });
+    await provider.ready(10); seed(transport);
+    const command = { requestId: "request-2", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch" as const, payload: { on: true } };
+    transport.disconnect();
+    await expect(provider.executeCommand(command)).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
+    transport.connect(); now = 2_000;
+    await expect(provider.executeCommand(command)).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
+    await expect(provider.executeCommand({ ...command, deviceId: "mqtt-gateway-1-unknown" })).resolves.toMatchObject({ ok: false, code: "DEVICE_NOT_FOUND" });
+  });
+
+  it("marks cached devices unavailable on disconnect and restores routing after reconnect", async () => {
+    const transport = new FakeTransport(); const provider = createMqttProvider({ config, transport, now: () => 10 });
+    await provider.ready(10); seed(transport);
+    transport.disconnect();
+    await expect(provider.getDevice("mqtt-gateway-1-light-1")).resolves.toMatchObject({ health: "offline" });
+    transport.connect();
+    transport.emit("omnihome/gateways/gateway-1/status", { gatewayId: "gateway-1", online: true, updatedAt: 999 });
+    await expect(provider.getDevice("mqtt-gateway-1-light-1")).resolves.toMatchObject({ health: "online" });
+  });
+
+  it("maps matching ack failures and ignores wrong request or device", async () => {
+    const transport = new FakeTransport(); const provider = createMqttProvider({ config, transport, now: () => 10 });
+    await provider.ready(10); seed(transport);
+    const pending = provider.executeCommand({ requestId: "request-3", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
+    transport.emit("omnihome/gateways/gateway-1/commands/request-3/ack", { requestId: "wrong", deviceId: "light-1", status: "DEVICE_OFFLINE", message: "wrong" });
+    transport.emit("omnihome/gateways/gateway-1/commands/request-3/ack", { requestId: "request-3", deviceId: "ac-1", status: "DEVICE_OFFLINE", message: "wrong" });
+    transport.emit("omnihome/gateways/gateway-1/commands/request-3/ack", { requestId: "request-3", deviceId: "light-1", status: "COMMAND_UNAUTHORIZED", message: "denied" });
+    await expect(pending).resolves.toMatchObject({ ok: false, code: "COMMAND_UNAUTHORIZED" });
+  });
+
+  it("times out, reports broker publish failures as offline, and closes pending work idempotently", async () => {
+    const callbacks: Array<() => void> = [];
+    const transport = new FakeTransport();
+    const provider = createMqttProvider({ config, transport, now: () => 10, setTimeoutFn: (fn) => { callbacks.push(fn); return callbacks.length; }, clearTimeoutFn: () => {} });
+    await provider.ready(10); seed(transport);
+    const timeout = provider.executeCommand({ requestId: "request-4", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
+    callbacks[0]();
+    await expect(timeout).resolves.toMatchObject({ ok: false, code: "COMMAND_TIMEOUT" });
+    transport.publish = async () => { throw new Error("broker gone"); };
+    await expect(provider.executeCommand({ requestId: "request-5", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } })).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
+    transport.publish = async () => {};
+    const closing = provider.executeCommand({ requestId: "request-6", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
+    await provider.close(); await provider.close();
+    await expect(closing).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
+  });
+});
+
+describe("mqtt.js transport", () => {
+  it("passes authenticated durable options and routes wildcard messages without a live broker", async () => {
+    const handlers = new Map<string, (...args: any[]) => void>();
+    const client = {
+      connected: true,
+      on: vi.fn((event: string, handler: (...args: any[]) => void) => { handlers.set(event, handler); return client; }),
+      off: vi.fn(),
+      subscribe: vi.fn((_topic: string, _options: unknown, done: (error?: Error) => void) => done()),
+      publish: vi.fn((_topic: string, _payload: string, _options: unknown, done: (error?: Error) => void) => done()),
+      end: vi.fn((_force: boolean, done: () => void) => done()),
+    };
+    const connect = vi.fn(() => client);
+    const transport = createMqttTransport(config, connect as never);
+    const received = vi.fn(); await transport.subscribe("omnihome/gateways/gateway-1/devices/+/state", received);
+    handlers.get("message")?.("omnihome/gateways/gateway-1/devices/light-1/state", Buffer.from("{}"));
+    await transport.publish("a", "{}", { qos: 1, retain: false }); await transport.close();
+    expect(connect).toHaveBeenCalledWith("mqtt://broker.example", expect.objectContaining({ clientId: "center-1", username: "user", password: "password", clean: false, reconnectPeriod: expect.any(Number) }));
+    expect(received).toHaveBeenCalledWith("omnihome/gateways/gateway-1/devices/light-1/state", "{}");
+    expect(client.publish).toHaveBeenCalledWith("a", "{}", { qos: 1, retain: false }, expect.any(Function));
+  });
+});

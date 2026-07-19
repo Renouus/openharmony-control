@@ -16,7 +16,7 @@ export type VendorExecutionSuccess = {
 
 export type VendorExecutionFailure = {
   ok: false;
-  code: "COMMAND_UNAUTHORIZED" | "DEVICE_NOT_FOUND" | "DEVICE_OFFLINE" | "COMMAND_INVALID";
+  code: "COMMAND_UNAUTHORIZED" | "DEVICE_NOT_FOUND" | "DEVICE_OFFLINE" | "COMMAND_INVALID" | "COMMAND_TIMEOUT";
   status?: string;
   message: string;
 };
