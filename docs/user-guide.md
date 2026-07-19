@@ -65,7 +65,7 @@ Replace both example passwords with different, strong local values. `deploy/mqtt
 ### 2. Start the authenticated broker
 
 ```powershell
-docker compose --env-file deploy/mqtt/.env config
+docker compose --env-file deploy/mqtt/.env config --quiet
 docker compose --env-file deploy/mqtt/.env up -d mqtt
 docker compose ps
 ```

@@ -20,7 +20,7 @@
 ## Current Automated Result
 
 - 2026-07-19 Node verification: device contract 23/23 tests, MQTT gateway 76/76 tests, and Control Center 221/221 tests passed; the root workspace TypeScript check passed for all three workspaces.
-- 2026-07-19 Docker static verification: `docker compose --env-file deploy/mqtt/.env config --quiet` passed. The credential shell test could not run on this Windows host because no Bash runtime is installed.
+- 2026-07-19 Docker static verification: `docker compose --env-file deploy/mqtt/.env config --quiet` passed. `D:\Git\bin\sh.exe deploy/mqtt/init-credentials.test.sh` also passed, covering atomic credential-file replacement without exposing passwords.
 - 2026-07-19 real-Mosquitto integration: **blocked, not passed**. The opt-in test first failed promptly with `Connection closed`, proving the no-broker path is bounded. The single allowed Compose start attempt could not download `eclipse-mosquitto:2` because Docker Desktop could not connect to `registry-1.docker.io:443`. Therefore no real-TCP MQTT success is claimed in this run.
 - 2026-07-19 ArkTS `UnitTestBuild`: **blocked before compilation** because `@ohos/hvigor-ohos-plugin` is missing. This does not invalidate the separate Node/MQTT checks and is not ArkTS compile proof.
 - Normal Node unit suites explicitly exclude `mqtt-docker.integration.test.ts`, so `npm.cmd run test` does not require Docker or a broker.

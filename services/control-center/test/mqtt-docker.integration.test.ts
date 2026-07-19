@@ -75,7 +75,9 @@ describe("MQTT Docker software loop", () => {
       const gatewayConfig = {
         brokerUrl,
         gatewayId,
-        clientId: `omnihome-integration-gateway-${randomUUID()}`,
+        // Stable IDs reuse the same clean:false sessions instead of leaking a new durable
+        // broker session on every opt-in run. This file is deliberately non-parallel.
+        clientId: "omnihome-integration-gateway",
         username: environment.MQTT_GATEWAY_USERNAME,
         password: environment.MQTT_GATEWAY_PASSWORD,
         heartbeatMs: 500,
@@ -85,7 +87,7 @@ describe("MQTT Docker software loop", () => {
         config: {
           brokerUrl,
           gatewayId,
-          clientId: `omnihome-integration-control-${randomUUID()}`,
+          clientId: "omnihome-integration-control-center",
           username: environment.MQTT_CONTROL_CENTER_USERNAME,
           password: environment.MQTT_CONTROL_CENTER_PASSWORD,
           commandTimeoutMs: 3_000,

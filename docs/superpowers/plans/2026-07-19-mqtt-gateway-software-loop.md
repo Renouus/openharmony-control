@@ -539,7 +539,7 @@ git commit -m "feat: wire mqtt provider lifecycle"
 
 - [ ] **Step 1: Add a failing configuration check**
 
-Run `docker compose config` before files exist. Expected: FAIL because no Compose configuration exists.
+Run `docker compose config --quiet` before files exist. Expected: FAIL because no Compose configuration exists.
 
 - [ ] **Step 2: Add Broker files**
 
@@ -624,7 +624,7 @@ Ignore `deploy/mqtt/.env`.
 Copy the example to the ignored `.env`, replace both passwords locally, then run:
 
 ```powershell
-docker compose --env-file deploy/mqtt/.env config
+docker compose --env-file deploy/mqtt/.env config --quiet
 docker compose --env-file deploy/mqtt/.env up -d mqtt
 docker compose ps
 ```
