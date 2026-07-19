@@ -11,7 +11,7 @@ type MessageHandler = (topic: string, payload: string) => void;
 class FakeTransport implements ControlCenterMqttTransport {
   public isConnected = true;
   public readonly published: Array<{ topic: string; payload: string; options: { qos: 1; retain: boolean } }> = [];
-  private readonly subscriptions = new Map<string, MessageHandler>();
+  private readonly subscriptions = new Map<string, { handler: MessageHandler }>();
   private readonly connectListeners = new Set<() => void>();
   private readonly disconnectListeners = new Set<() => void>();
 
@@ -21,17 +21,18 @@ class FakeTransport implements ControlCenterMqttTransport {
     this.published.push({ topic, payload, options });
   }
   async subscribe(topic: string, handler: MessageHandler) {
-    this.subscriptions.set(topic, handler);
+    const registration = { handler };
+    this.subscriptions.set(topic, registration);
     return () => {
-      if (this.subscriptions.get(topic) === handler) this.subscriptions.delete(topic);
+      if (this.subscriptions.get(topic) === registration) this.subscriptions.delete(topic);
     };
   }
   onConnect(listener: () => void) { this.connectListeners.add(listener); return () => this.connectListeners.delete(listener); }
   onDisconnect(listener: () => void) { this.disconnectListeners.add(listener); return () => this.disconnectListeners.delete(listener); }
   async close() { this.isConnected = false; }
   emit(topic: string, value: unknown) {
-    for (const [filter, handler] of this.subscriptions) {
-      if (matches(filter, topic)) handler(topic, JSON.stringify(value));
+    for (const [filter, registration] of this.subscriptions) {
+      if (matches(filter, topic)) registration.handler(topic, JSON.stringify(value));
     }
   }
   connect() { this.isConnected = true; for (const listener of this.connectListeners) listener(); }
@@ -264,12 +265,30 @@ describe("mqtt provider", () => {
     });
     await transport.resolveFirstSubscription();
     await Promise.resolve();
+    transport.disconnect(); transport.connect();
+    transport.emit("omnihome/gateways/gateway-1/status", { gatewayId: "gateway-1", online: true, updatedAt: 3 });
     transport.emit("omnihome/gateways/gateway-1/devices/light-1/state", {
-      gatewayId: "gateway-1", deviceId: "light-1", state: { online: true, power: true, updatedAt: 3 },
+      gatewayId: "gateway-1", deviceId: "light-1", state: { online: true, power: true, updatedAt: 4 },
     });
     await expect(provider.listDevices()).resolves.toEqual([
-      expect.objectContaining({ id: "mqtt-gateway-1-light-1", state: expect.objectContaining({ power: true }) }),
+      expect.objectContaining({ id: "mqtt-gateway-1-light-1", health: "online", state: expect.objectContaining({ power: true }) }),
     ]);
+  });
+
+  it("rejects startup ready when a stalled subscription is disconnected or closed", async () => {
+    const disconnectedTransport = new RecoveringSubscribeTransport();
+    const disconnected = createMqttProvider({ config, transport: disconnectedTransport });
+    const disconnectReady = disconnected.ready(100);
+    await Promise.resolve(); await Promise.resolve();
+    disconnectedTransport.disconnect();
+    await expect(disconnectReady).rejects.toThrow("invalidated");
+
+    const closedTransport = new RecoveringSubscribeTransport();
+    const closed = createMqttProvider({ config, transport: closedTransport });
+    const closeReady = closed.ready(100);
+    await Promise.resolve(); await Promise.resolve();
+    await closed.close();
+    await expect(closeReady).rejects.toThrow("invalidated");
   });
 
   it("maps matching ack failures and ignores wrong request or device", async () => {

@@ -62,16 +62,16 @@ export function createMqttTransport(
     clean: false,
     reconnectPeriod: 1_000,
   });
-  const subscriptions = new Map<string, MessageHandler>();
+  const subscriptions = new Map<string, { handler: MessageHandler }>();
   const connectListeners = new Set<() => void>();
   const disconnectListeners = new Set<() => void>();
   let closed = false;
 
   client.on("message", (topic, payload) => {
     const text = payload.toString();
-    for (const [filter, handler] of subscriptions) {
+    for (const [filter, registration] of subscriptions) {
       if (topicMatches(filter, topic)) {
-        handler(topic, text);
+        registration.handler(topic, text);
       }
     }
   });
@@ -103,12 +103,18 @@ export function createMqttTransport(
     }),
     subscribe: async (topic, handler) => {
       if (closed) throw new Error("MQTT transport is closed");
-      subscriptions.set(topic, handler);
-      await new Promise<void>((resolve, reject) => {
-        client.subscribe(topic, { qos: 1 }, (error) => error ? reject(error) : resolve());
-      });
+      const registration = { handler };
+      subscriptions.set(topic, registration);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          client.subscribe(topic, { qos: 1 }, (error) => error ? reject(error) : resolve());
+        });
+      } catch (error) {
+        if (subscriptions.get(topic) === registration) subscriptions.delete(topic);
+        throw error;
+      }
       return () => {
-        if (subscriptions.get(topic) === handler) subscriptions.delete(topic);
+        if (subscriptions.get(topic) === registration) subscriptions.delete(topic);
       };
     },
     onConnect: (listener) => { connectListeners.add(listener); return () => connectListeners.delete(listener); },
@@ -163,6 +169,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   let unbindDisconnect: Unsubscribe = () => {};
   let subscriptionRefresh: Promise<void> | undefined;
   let subscriptionGeneration = 0;
+  let refreshInvalidation: { generation: number; reject: (error: Error) => void } | undefined;
 
   const base = `omnihome/gateways/${config.gatewayId}`;
   const statusTopic = `${base}/status`;
@@ -285,17 +292,34 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
 
   function invalidateSubscriptionRefresh() {
     subscriptionGeneration++;
+    if (refreshInvalidation) {
+      refreshInvalidation.reject(new Error("MQTT subscription refresh invalidated"));
+      refreshInvalidation = undefined;
+    }
     subscriptionRefresh = undefined;
   }
 
   function refreshSubscriptions(generation = subscriptionGeneration): Promise<void> {
-    if (!isCurrentSubscriptionAttempt(generation)) return Promise.resolve();
+    if (!isCurrentSubscriptionAttempt(generation)) {
+      return Promise.reject(new Error("MQTT subscription refresh invalidated"));
+    }
     if (!subscriptionRefresh) {
-      const attempt = subscribeAll(generation);
+      let rejectInvalidation!: (error: Error) => void;
+      const invalidated = new Promise<void>((_resolve, reject) => {
+        rejectInvalidation = reject;
+      });
+      refreshInvalidation = { generation, reject: rejectInvalidation };
+      const attempt = Promise.race([subscribeAll(generation), invalidated]);
       subscriptionRefresh = attempt;
       void attempt.then(
-        () => { if (subscriptionRefresh === attempt) subscriptionRefresh = undefined; },
-        () => { if (subscriptionRefresh === attempt) subscriptionRefresh = undefined; },
+        () => {
+          if (subscriptionRefresh === attempt) subscriptionRefresh = undefined;
+          if (refreshInvalidation?.generation === generation) refreshInvalidation = undefined;
+        },
+        () => {
+          if (subscriptionRefresh === attempt) subscriptionRefresh = undefined;
+          if (refreshInvalidation?.generation === generation) refreshInvalidation = undefined;
+        },
       );
     }
     return subscriptionRefresh;
