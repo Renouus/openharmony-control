@@ -4,13 +4,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "test": "vitest --run --fileParallelism=false",
+    "test": "vitest --run --fileParallelism=false --exclude test/mqtt-docker.integration.test.ts",
+    "test:mqtt:integration": "vitest --run test/mqtt-docker.integration.test.ts --fileParallelism=false",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
     "@fastify/websocket": "^11.2.0",
     "@smart-home/device-contract": "0.1.0",
+    "@smart-home/mqtt-gateway": "0.1.0",
     "@tuya/tuya-connector-nodejs": "^2.1.2",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^16.6.1",
