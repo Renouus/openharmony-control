@@ -71,6 +71,30 @@ function seed(transport: FakeTransport) {
 }
 
 describe("mqtt provider", () => {
+  it("defers default mqtt client creation until ready and fails commands closed beforehand", async () => {
+    const handlers = new Map<string, (...args: any[]) => void>();
+    const client = {
+      connected: true,
+      on: vi.fn((event: string, handler: (...args: any[]) => void) => { handlers.set(event, handler); return client; }),
+      off: vi.fn(),
+      subscribe: vi.fn((_topic: string, _options: unknown, done: (error?: Error) => void) => done()),
+      publish: vi.fn(), end: vi.fn((_force: boolean, done: () => void) => done()),
+    };
+    const connect = vi.fn(() => client);
+    const provider = createMqttProvider({ config, connectFactory: connect as never });
+    expect(connect).not.toHaveBeenCalled();
+    await expect(provider.executeCommand({ requestId: "before-ready", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } }))
+      .resolves.toMatchObject({ ok: false, code: "DEVICE_NOT_FOUND" });
+    await provider.ready(10);
+    expect(connect).toHaveBeenCalledTimes(1);
+    await provider.close();
+
+    const closedBeforeReady = createMqttProvider({ config, connectFactory: connect as never });
+    await closedBeforeReady.close();
+    expect(connect).toHaveBeenCalledTimes(1);
+    await expect(closedBeforeReady.ready(10)).rejects.toThrow("closed");
+  });
+
   it("discovers only inventory devices with valid matching states and normalizes ids", async () => {
     const transport = new FakeTransport();
     const provider = createMqttProvider({ config, transport, now: () => 10 });
@@ -156,6 +180,26 @@ describe("mqtt provider", () => {
     transport.publish = async () => {};
     const closing = provider.executeCommand({ requestId: "request-6", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
     await provider.close(); await provider.close();
+    await expect(closing).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
+  });
+
+  it("bounds a never-settling publish, rejects invalid request ids before publishing, and ignores late failures", async () => {
+    const callbacks: Array<() => void> = [];
+    let rejectPublish!: (reason?: unknown) => void;
+    const transport = new FakeTransport();
+    transport.publish = async () => await new Promise<void>((_resolve, reject) => { rejectPublish = reject; });
+    const provider = createMqttProvider({ config, transport, now: () => 10, setTimeoutFn: (fn) => { callbacks.push(fn); return callbacks.length; }, clearTimeoutFn: () => {} });
+    await provider.ready(10); seed(transport);
+    await expect(provider.executeCommand({ requestId: "bad/request", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } }))
+      .resolves.toMatchObject({ ok: false, code: "COMMAND_INVALID" });
+    expect(transport.published).toHaveLength(0);
+    const pending = provider.executeCommand({ requestId: "request-7", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
+    callbacks[0]();
+    await expect(pending).resolves.toMatchObject({ ok: false, code: "COMMAND_TIMEOUT" });
+    rejectPublish(new Error("late broker failure"));
+    await Promise.resolve();
+    const closing = provider.executeCommand({ requestId: "request-8", timestamp: 1, deviceId: "mqtt-gateway-1-light-1", name: "switch", payload: { on: true } });
+    await provider.close();
     await expect(closing).resolves.toMatchObject({ ok: false, code: "DEVICE_OFFLINE" });
   });
 });

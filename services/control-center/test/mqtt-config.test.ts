@@ -33,6 +33,9 @@ describe("loadMqttConfig", () => {
   it.each([
     ["MQTT_BROKER_URL", ""],
     ["MQTT_GATEWAY_ID", "   "],
+    ["MQTT_GATEWAY_ID", "gateway/one"],
+    ["MQTT_GATEWAY_ID", "Gateway-One"],
+    ["MQTT_GATEWAY_ID", "gateway-id-that-is-deliberately-longer-than-sixty-four-characters-for-validation"],
     ["MQTT_CLIENT_ID", ""],
     ["MQTT_CONTROL_CENTER_USERNAME", ""],
     ["MQTT_CONTROL_CENTER_PASSWORD", ""],

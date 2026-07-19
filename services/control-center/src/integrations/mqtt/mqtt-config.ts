@@ -34,7 +34,7 @@ export function loadMqttConfig(env: MqttEnvironment = process.env): MqttConfig |
 
   return {
     brokerUrl: required(env, "MQTT_BROKER_URL"),
-    gatewayId: required(env, "MQTT_GATEWAY_ID"),
+    gatewayId: assertTopicSegment(required(env, "MQTT_GATEWAY_ID"), "MQTT_GATEWAY_ID"),
     clientId: required(env, "MQTT_CLIENT_ID"),
     username: required(env, "MQTT_CONTROL_CENTER_USERNAME"),
     password: required(env, "MQTT_CONTROL_CENTER_PASSWORD"),
@@ -42,3 +42,4 @@ export function loadMqttConfig(env: MqttEnvironment = process.env): MqttConfig |
     offlineAfterMs: positiveSafeInteger(env, "MQTT_GATEWAY_OFFLINE_AFTER_MS"),
   };
 }
+import { assertTopicSegment } from "@smart-home/device-contract/mqtt";

@@ -136,6 +136,7 @@ type PendingCommand = {
 export type CreateMqttProviderInput = {
   config: MqttConfig;
   transport?: ControlCenterMqttTransport;
+  connectFactory?: MqttConnectFactory;
   now?: () => number;
   setTimeoutFn?: (callback: () => void, timeoutMs: number) => unknown;
   clearTimeoutFn?: (timer: unknown) => void;
@@ -144,7 +145,7 @@ export type CreateMqttProviderInput = {
 
 export function createMqttProvider(input: CreateMqttProviderInput): MqttDeviceProvider {
   const { config } = input;
-  const transport = input.transport ?? createMqttTransport(config);
+  let transport = input.transport;
   const now = input.now ?? Date.now;
   const setTimeoutFn = input.setTimeoutFn ?? ((callback, timeoutMs) => setTimeout(callback, timeoutMs));
   const clearTimeoutFn = input.clearTimeoutFn ?? ((timer) => clearTimeout(timer as Timer));
@@ -156,6 +157,8 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   let gatewayOnline = false;
   let lastHeartbeatReceivedAt: number | undefined;
   let closed = false;
+  let unbindConnect: Unsubscribe = () => {};
+  let unbindDisconnect: Unsubscribe = () => {};
 
   const base = `omnihome/gateways/${config.gatewayId}`;
   const statusTopic = `${base}/status`;
@@ -190,7 +193,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   }
 
   function gatewayAvailable(): boolean {
-    return !closed && transport.connected() && gatewayOnline &&
+    return !closed && (transport?.connected() ?? false) && gatewayOnline &&
       lastHeartbeatReceivedAt !== undefined &&
       now() - lastHeartbeatReceivedAt <= config.offlineAfterMs;
   }
@@ -239,22 +242,37 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
   }
 
   async function subscribeAll() {
+    const activeTransport = ensureTransport();
     const topics = [statusTopic, inventoryTopic, stateTopic, ackTopic];
     for (const topic of topics) {
       const previous = subscriptions.get(topic);
       if (previous) previous();
-      subscriptions.set(topic, await transport.subscribe(topic, routeMessage));
+      subscriptions.set(topic, await activeTransport.subscribe(topic, routeMessage));
     }
   }
 
-  const unbindConnect = transport.onConnect(() => { void subscribeAll().catch(() => input.logger?.warn("MQTT subscription refresh failed")); });
-  const unbindDisconnect = transport.onDisconnect(() => { gatewayOnline = false; });
+  function bindTransport(activeTransport: ControlCenterMqttTransport) {
+    transport = activeTransport;
+    unbindConnect = activeTransport.onConnect(() => { void subscribeAll().catch(() => input.logger?.warn("MQTT subscription refresh failed")); });
+    unbindDisconnect = activeTransport.onDisconnect(() => { gatewayOnline = false; });
+  }
+
+  function ensureTransport(): ControlCenterMqttTransport {
+    if (!transport) {
+      const created = createMqttTransport(config, input.connectFactory);
+      bindTransport(created);
+      return created;
+    }
+    return transport;
+  }
+
+  if (transport) bindTransport(transport);
 
   return {
     providerId: "mqtt",
     ready: async (timeoutMs) => {
       if (closed) throw new Error("MQTT provider is closed");
-      await transport.ready(timeoutMs);
+      await ensureTransport().ready(timeoutMs);
       await subscribeAll();
     },
     close: async () => {
@@ -267,7 +285,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
         pending.delete(requestId); clearTimeoutFn(request.timer);
         request.resolve(failure("DEVICE_OFFLINE", "MQTT provider is closed"));
       }
-      await transport.close();
+      await transport?.close();
     },
     onStateChange: (listener) => { stateListeners.add(listener); return () => stateListeners.delete(listener); },
     discoverDevices: async (): Promise<DiscoveredProviderDevice[]> => [...inventory.values()].flatMap((device) => {
@@ -302,6 +320,14 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     executeCommand: async (command: DeviceCommand): Promise<VendorExecutionResult> => {
       const wireId = deviceWireId(command.deviceId);
       if (!wireId) return failure("DEVICE_NOT_FOUND", "MQTT device is not in the current inventory");
+      let commandTopic: string;
+      let payload: string;
+      try {
+        commandTopic = buildGatewayTopics(config.gatewayId, wireId, command.requestId).command;
+        payload = JSON.stringify({ ...command, deviceId: wireId });
+      } catch {
+        return failure("COMMAND_INVALID", "MQTT command request is invalid");
+      }
       const state = states.get(wireId);
       if (!gatewayAvailable() || !state?.online) return failure("DEVICE_OFFLINE", "MQTT gateway or device is offline");
       if (pending.has(command.requestId)) return failure("COMMAND_INVALID", "Duplicate MQTT requestId");
@@ -314,13 +340,17 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
       }, config.commandTimeoutMs);
       pending.set(command.requestId, { wireId, deviceId: command.deviceId, timer, resolve: resolveResult });
       try {
-        const topics = buildGatewayTopics(config.gatewayId, wireId, command.requestId);
-        await transport.publish(topics.command, JSON.stringify({ ...command, deviceId: wireId }), { qos: 1, retain: false });
+        void Promise.resolve(transport!.publish(commandTopic, payload, { qos: 1, retain: false })).catch(() => {
+          const request = pending.get(command.requestId);
+          if (!request) return;
+          pending.delete(command.requestId); clearTimeoutFn(request.timer);
+          request.resolve(failure("DEVICE_OFFLINE", "MQTT publish failed"));
+        });
       } catch {
         const request = pending.get(command.requestId);
         if (request) { pending.delete(command.requestId); clearTimeoutFn(request.timer); request.resolve(failure("DEVICE_OFFLINE", "MQTT publish failed")); }
       }
-      return await result;
+      return result;
     },
   };
 }
