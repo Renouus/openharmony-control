@@ -256,7 +256,12 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
     if (topicMatches(stateTopic, topic)) {
       const wireId = topic.split("/")[4];
       const parsed = parseGatewayDeviceState(raw);
-      if (wireId && parsed?.gatewayId === config.gatewayId && parsed.deviceId === wireId) {
+      if (
+        wireId &&
+        inventory.has(wireId) &&
+        parsed?.gatewayId === config.gatewayId &&
+        parsed.deviceId === wireId
+      ) {
         states.set(wireId, parsed.state); notify(wireId, parsed.state);
       }
       return;

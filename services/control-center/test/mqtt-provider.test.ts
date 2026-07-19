@@ -163,6 +163,60 @@ describe("mqtt provider", () => {
     expect(provider.ownsDevice("mqtt-gateway-1-unknown")).toBe(false);
   });
 
+  it("ignores valid state messages for devices absent from the current inventory", async () => {
+    const transport = new FakeTransport();
+    const provider = createMqttProvider({ config, transport, now: () => 10 });
+    const listener = vi.fn();
+    provider.onStateChange(listener);
+    await provider.ready(10);
+
+    const unknownState = {
+      gatewayId: "gateway-1", deviceId: "stray-1",
+      state: { online: true, power: true, updatedAt: 3 },
+    };
+    transport.emit("omnihome/gateways/gateway-1/devices/stray-1/state", unknownState);
+    transport.emit("omnihome/gateways/gateway-1/inventory", {
+      gatewayId: "gateway-1", updatedAt: 4,
+      devices: [{ id: "light-1", name: "Desk Light", kind: "light", capabilities: ["switch"] }],
+    });
+    transport.emit("omnihome/gateways/gateway-1/devices/stray-1/state", unknownState);
+
+    expect(listener).not.toHaveBeenCalled();
+    await expect(provider.discoverDevices()).resolves.toEqual([]);
+    await expect(provider.getDevice("mqtt-gateway-1-stray-1")).resolves.toBeUndefined();
+  });
+
+  it("ignores late state after a newer inventory removes the device", async () => {
+    const transport = new FakeTransport();
+    const provider = createMqttProvider({ config, transport, now: () => 10 });
+    const listener = vi.fn();
+    provider.onStateChange(listener);
+    await provider.ready(10);
+    transport.emit("omnihome/gateways/gateway-1/inventory", {
+      gatewayId: "gateway-1", updatedAt: 1,
+      devices: [{ id: "light-1", name: "Desk Light", kind: "light", capabilities: ["switch"] }],
+    });
+    transport.emit("omnihome/gateways/gateway-1/devices/light-1/state", {
+      gatewayId: "gateway-1", deviceId: "light-1",
+      state: { online: true, power: true, updatedAt: 2 },
+    });
+    expect(listener).toHaveBeenCalledOnce();
+    await expect(provider.discoverDevices()).resolves.toHaveLength(1);
+
+    transport.emit("omnihome/gateways/gateway-1/inventory", {
+      gatewayId: "gateway-1", updatedAt: 3, devices: [],
+    });
+    listener.mockClear();
+    transport.emit("omnihome/gateways/gateway-1/devices/light-1/state", {
+      gatewayId: "gateway-1", deviceId: "light-1",
+      state: { online: true, power: false, updatedAt: 4 },
+    });
+
+    expect(listener).not.toHaveBeenCalled();
+    await expect(provider.discoverDevices()).resolves.toEqual([]);
+    expect(provider.ownsDevice("mqtt-gateway-1-light-1")).toBe(false);
+  });
+
   it("waits for a matching ack after registering pending before synchronous publish delivery", async () => {
     const transport = new FakeTransport();
     transport.publish = async (topic, payload, options) => {
