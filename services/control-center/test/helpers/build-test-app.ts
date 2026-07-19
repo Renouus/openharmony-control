@@ -54,6 +54,7 @@ export function createTestSecurityConfig(
     apiToken: "test-api-token".padEnd(32, "a"),
     demoToken: "test-demo-token".padEnd(32, "d"),
     demoHmacKey: "test-demo-hmac".padEnd(32, "h"),
+    demoAutoAuth: false,
     corsOrigins: [],
     trustProxy: false,
     dataKeys: new Map([["test", Buffer.alloc(32, 1)]]),

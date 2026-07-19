@@ -12,10 +12,11 @@ import { closeDatabase, initDatabase } from "../helpers/test-database";
 beforeEach(() => initDatabase(":memory:"));
 afterEach(() => closeDatabase());
 
-function createApp(mode: "production" | "demo" = "demo", corsOrigins: string[] = []) {
+function createApp(mode: "production" | "demo" = "demo", corsOrigins: string[] = [], demoAutoAuth = false) {
   return buildApp(undefined, {
     securityConfig: createTestSecurityConfig({
       mode,
+      demoAutoAuth,
       demoToken: mode === "demo" ? "test-demo-token".padEnd(32, "d") : undefined,
       demoHmacKey: mode === "demo" ? "test-demo-hmac".padEnd(32, "h") : undefined,
       corsOrigins,
@@ -54,6 +55,17 @@ describe("API authentication", () => {
     const app = createApp();
     const response = await app.inject({ method: "GET", url: "/api/devices", headers: API_AUTHORIZATION_HEADER });
     expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it("auto-authenticates normal API routes only in an explicitly enabled demo", async () => {
+    const app = createApp("demo", [], true);
+    const devices = await app.inject({ method: "GET", url: "/api/devices" });
+    const demoRoute = await app.inject({ method: "POST", url: "/api/demo/environment", payload: {} });
+
+    expect(devices.statusCode).toBe(200);
+    expect(demoRoute.statusCode).toBe(401);
+    expect(demoRoute.json()).toEqual({ code: "AUTHENTICATION_REQUIRED" });
     await app.close();
   });
 

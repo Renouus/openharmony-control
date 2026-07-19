@@ -13,6 +13,7 @@ export type SecurityConfig = {
   apiToken: string;
   demoToken?: string;
   demoHmacKey?: string;
+  demoAutoAuth: boolean;
   corsOrigins: readonly string[];
   trustProxy: boolean | string[];
   tls?: { cert: Buffer; key: Buffer };
@@ -75,6 +76,12 @@ function parsePort(value: string | undefined): number {
     throw new Error("CONTROL_CENTER_PORT must be an integer from 1 to 65535");
   }
   return port;
+}
+
+function parseBoolean(value: string | undefined, name: string): boolean {
+  if (value === undefined || value === "false") return false;
+  if (value === "true") return true;
+  throw new Error(`${name} must be true or false`);
 }
 
 function isLoopback(address: string): boolean {
@@ -159,6 +166,10 @@ export async function loadSecurityConfig(
     throw new Error("CONTROL_CENTER_MODE must be production or demo");
   }
   const mode: ControlCenterMode = modeValue;
+  const demoAutoAuth = parseBoolean(env.CONTROL_CENTER_DEMO_AUTO_AUTH, "CONTROL_CENTER_DEMO_AUTO_AUTH");
+  if (demoAutoAuth && mode !== "demo") {
+    throw new Error("CONTROL_CENTER_DEMO_AUTO_AUTH is allowed only in demo mode");
+  }
   const configuredHost = env.CONTROL_CENTER_HOST ?? "127.0.0.1";
   const apiToken = requiredCredential(env, "CONTROL_CENTER_API_TOKEN");
   const demoToken = mode === "demo" ? requiredCredential(env, "CONTROL_CENTER_DEMO_TOKEN") : undefined;
@@ -182,8 +193,12 @@ export async function loadSecurityConfig(
     }
     host = addresses.includes("127.0.0.1") ? "127.0.0.1" : "::1";
   }
-  if (!tls && (mode === "production" || !await isLoopbackListenHost(host, resolveHost))) {
+  const loopbackListenHost = await isLoopbackListenHost(host, resolveHost);
+  if (!tls && (mode === "production" || !loopbackListenHost)) {
     throw new Error("TLS is required in production and for non-loopback listen addresses");
+  }
+  if (demoAutoAuth && !loopbackListenHost) {
+    throw new Error("CONTROL_CENTER_DEMO_AUTO_AUTH requires a loopback listen address");
   }
 
   const inlineKeys = env.CONTROL_CENTER_DATA_KEYS;
@@ -217,6 +232,7 @@ export async function loadSecurityConfig(
     apiToken,
     demoToken,
     demoHmacKey,
+    demoAutoAuth,
     corsOrigins: parseOrigins(env.CONTROL_CENTER_CORS_ORIGINS),
     trustProxy: parseTrustProxy(env.CONTROL_CENTER_TRUST_PROXY),
     tls,

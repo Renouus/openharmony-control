@@ -48,3 +48,9 @@ export function createAuthenticationHook(
     };
   };
 }
+
+export function createDemoAutoAuthenticationHook(): onRequestHookHandler {
+  return async (request: FastifyRequest) => {
+    request.principal = { subject: "app", permissions: ["api"] };
+  };
+}

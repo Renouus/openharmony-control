@@ -56,8 +56,38 @@ describe("loadSecurityConfig", () => {
     await expect(loadSecurityConfig(validDemoEnv)).resolves.toMatchObject({
       mode: "demo",
       host: "127.0.0.1",
+      demoAutoAuth: false,
       tls: undefined,
     });
+  });
+
+  it("enables explicit automatic API authentication only for a loopback demo", async () => {
+    await expect(loadSecurityConfig({
+      ...validDemoEnv,
+      CONTROL_CENTER_DEMO_AUTO_AUTH: "true",
+    })).resolves.toMatchObject({ demoAutoAuth: true });
+
+    await expect(loadSecurityConfig({
+      ...validDemoEnv,
+      CONTROL_CENTER_DEMO_AUTO_AUTH: "yes",
+    })).rejects.toThrow(/DEMO_AUTO_AUTH.*true or false/);
+
+    await expect(loadSecurityConfig({
+      ...validDemoEnv,
+      CONTROL_CENTER_MODE: "production",
+      CONTROL_CENTER_DEMO_AUTO_AUTH: "true",
+    })).rejects.toThrow(/DEMO_AUTO_AUTH.*demo mode/);
+
+    await expect(loadSecurityConfig({
+      ...validDemoEnv,
+      CONTROL_CENTER_HOST: "0.0.0.0",
+      CONTROL_CENTER_DEMO_AUTO_AUTH: "true",
+      TLS_CERT_PATH: "cert.pem",
+      TLS_KEY_PATH: "key.pem",
+    }, {
+      readFile: () => Buffer.from("tls"),
+      validateTls: () => {},
+    })).rejects.toThrow(/DEMO_AUTO_AUTH.*loopback/);
   });
 
   it("rejects localhost HTTP when any resolved address is non-loopback", async () => {

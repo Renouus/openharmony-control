@@ -54,7 +54,7 @@ import { loadTuyaConfig, type EnvLike } from "./integrations/tuya/tuya-config";
 import { loadMqttConfig } from "./integrations/mqtt/mqtt-config";
 import { createMqttProvider } from "./integrations/mqtt/mqtt-provider";
 import type { SecurityConfig } from "./config/security-config";
-import { createAuthenticationHook } from "./security/authentication";
+import { createAuthenticationHook, createDemoAutoAuthenticationHook } from "./security/authentication";
 import { createRateLimitHook, createSelectedRateLimitHook } from "./security/rate-limit-hook";
 import { InMemoryRateLimiter, RATE_LIMIT_POLICIES, type RateLimiter, type RateLimitPolicies } from "./security/rate-limiter";
 import { WebSocketTicketStore } from "./security/websocket-ticket-store";
@@ -228,9 +228,11 @@ export function buildApp(
 
   // 在 scope 内批量注册所有功能路由
   void app.register(async (scope) => {
-    scope.addHook("onRequest", createAuthenticationHook([
-      { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
-    ], "api"));
+    scope.addHook("onRequest", securityConfig.demoAutoAuth
+      ? createDemoAutoAuthenticationHook()
+      : createAuthenticationHook([
+        { subject: "app", permissions: ["api"], token: securityConfig.apiToken },
+      ], "api"));
     scope.addHook("onRequest", createSelectedRateLimitHook(rateLimiter, (request) => {
       const path = request.url.split("?", 1)[0];
       const isCommandExecution = request.method === "POST" && path === "/api/commands";
