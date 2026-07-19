@@ -3,6 +3,7 @@ import huks from '@ohos.security.huks';
 import cryptoFramework from '@ohos.security.cryptoFramework';
 import preferences from '@ohos.data.preferences';
 import common from '@ohos.app.ability.common';
+import util from '@ohos.util';
 
 export interface EncryptedCredentialMetadata {
   version: number;
@@ -24,6 +25,14 @@ export interface CiphertextPreferences {
   clear(): Promise<void>;
 }
 
+export function encodeCredentialUtf8(value: string): Uint8Array {
+  return util.TextEncoder.create('utf-8').encodeInto(value);
+}
+
+export function decodeCredentialUtf8(value: Uint8Array): string {
+  return util.TextDecoder.create('utf-8').decodeToString(value);
+}
+
 // HUKS operations are isolated behind HuksAeadAdapter so the target-SDK API can
 // be supplied by the Ability layer and policy can be tested without exporting
 // key material. Preferences receive ciphertext metadata only.
@@ -43,13 +52,13 @@ export class HuksTokenStore implements AuthCredentialProvider {
     const metadata = await this.preferences.read();
     if (metadata === undefined) return undefined;
     const plaintext = await this.huks.decrypt(this.alias, metadata);
-    this.cached = new TextDecoder().decode(plaintext);
+    this.cached = decodeCredentialUtf8(plaintext);
     return this.cached;
   }
 
   async setCredential(value: string): Promise<void> {
     await this.huks.ensureNonExportableAesKey(this.alias);
-    const metadata = await this.huks.encrypt(this.alias, new TextEncoder().encode(value));
+    const metadata = await this.huks.encrypt(this.alias, encodeCredentialUtf8(value));
     await this.preferences.write(metadata);
     this.cached = value;
   }

@@ -25,6 +25,11 @@ export function mapHttpFailure(statusCode: number, retryAfter?: string): Authent
   return undefined;
 }
 
+export function readStringHeader(headers: Object, name: string): string | undefined {
+  const stringHeaders = headers as Record<string, string>;
+  return stringHeaders[name];
+}
+
 export class AuthenticatedHttpClient {
   private readonly credentials: AuthCredentialProvider;
 
@@ -53,7 +58,7 @@ export class AuthenticatedHttpClient {
     const client = http.createHttp();
     try {
       const response = await client.request(url, authenticatedOptions);
-      const rawRetryAfter = response.header['retry-after'];
+      const rawRetryAfter: string | undefined = readStringHeader(response.header, 'retry-after');
       const failure = mapHttpFailure(response.responseCode, rawRetryAfter);
       if (failure !== undefined) throw failure;
       return response;
