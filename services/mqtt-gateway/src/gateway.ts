@@ -130,6 +130,7 @@ export async function startMqttGateway(input: {
   const completedResults = new Map<string, CommandEntry>();
   const activeDeliveries = new Map<string, CommandEntry>();
   const deliveries = new Map<string, Promise<boolean>>();
+  const acknowledgementReplays = new Map<string, Promise<boolean>>();
   const inFlight = new Set<Promise<unknown>>();
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
@@ -214,6 +215,37 @@ export async function startMqttGateway(input: {
     return delivery;
   };
 
+  const ensureDelivery = (entry: CommandEntry): void => {
+    if (deliveries.has(entry.acknowledgement.requestId)) {
+      return;
+    }
+    void track(getOrStartDelivery(entry)).catch(() => undefined);
+  };
+
+  const replayAcknowledgement = (entry: CommandEntry): void => {
+    const requestId = entry.acknowledgement.requestId;
+    if (acknowledgementReplays.has(requestId) || acknowledgementReplays.size === 256) {
+      return;
+    }
+    const replay = publishAcknowledgement(entry);
+    acknowledgementReplays.set(requestId, replay);
+    void track(replay).then((published) => {
+      if (published || stopped || activeDeliveries.has(requestId)) {
+        return;
+      }
+      if (activeDeliveries.size === 256) {
+        input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
+        return;
+      }
+      activeDeliveries.set(requestId, entry);
+      ensureDelivery(entry);
+    }).catch(() => undefined).finally(() => {
+      if (acknowledgementReplays.get(requestId) === replay) {
+        acknowledgementReplays.delete(requestId);
+      }
+    });
+  };
+
   const executeAndCache = (command: GatewayCommand): CommandEntry | undefined => {
     if (activeDeliveries.size === 256) {
       input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
@@ -239,7 +271,7 @@ export async function startMqttGateway(input: {
 
   const retryActiveDeliveries = (): void => {
     for (const entry of activeDeliveries.values()) {
-      void track(getOrStartDelivery(entry)).catch(() => undefined);
+      ensureDelivery(entry);
     }
   };
 
@@ -252,37 +284,20 @@ export async function startMqttGateway(input: {
       return;
     }
     const activeEntry = activeDeliveries.get(command.requestId);
-    const entry = activeEntry
-      ?? completedResults.get(command.requestId)
-      ?? executeAndCache(command);
+    if (activeEntry) {
+      ensureDelivery(activeEntry);
+      return;
+    }
+    const completedEntry = completedResults.get(command.requestId);
+    if (completedEntry) {
+      replayAcknowledgement(completedEntry);
+      return;
+    }
+    const entry = executeAndCache(command);
     if (!entry) {
       return;
     }
-    const pending = deliveries.get(command.requestId);
-    if (pending) {
-      const delivered = await pending;
-      if (stopped) {
-        return;
-      }
-      if (delivered) {
-        await publishAcknowledgement(entry);
-      } else {
-        await getOrStartDelivery(entry);
-      }
-      return;
-    }
-    if (activeDeliveries.get(command.requestId) === entry) {
-      await getOrStartDelivery(entry);
-      return;
-    }
-    if (!await publishAcknowledgement(entry)) {
-      if (activeDeliveries.size === 256) {
-        input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
-        return;
-      }
-      activeDeliveries.set(command.requestId, entry);
-      await getOrStartDelivery(entry);
-    }
+    await getOrStartDelivery(entry);
   };
 
   const runSnapshot = async (): Promise<void> => {

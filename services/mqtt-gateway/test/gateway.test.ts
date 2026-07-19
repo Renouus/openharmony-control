@@ -270,7 +270,7 @@ describe("MQTT gateway runtime", () => {
     expect(parse(transport.publications[2])).toEqual(parse(transport.publications[1]));
   });
 
-  it("serializes concurrent conflicting duplicate requests behind the first state publish", async () => {
+  it("coalesces concurrent conflicting duplicate requests behind the first state publish", async () => {
     const transport = new FakeTransport();
     const devices = (await import("../src/devices")).createGatewayDevices(1_700_000_000_000);
     await startMqttGateway({ config, transport, devices, now: () => 1_700_000_001_000 });
@@ -287,11 +287,59 @@ describe("MQTT gateway runtime", () => {
     expect(transport.publications.map(({ topic }) => topic)).toEqual([
       "omnihome/gateways/lab-gateway/devices/living-room-light/state",
       "omnihome/gateways/lab-gateway/commands/concurrent-duplicate-1/ack",
-      "omnihome/gateways/lab-gateway/commands/concurrent-duplicate-1/ack",
     ]);
     expect(parse(transport.publications[0])).toMatchObject({ state: { power: false } });
-    expect(parse(transport.publications[1])).toEqual(parse(transport.publications[2]));
     expect(devices.get("living-room-light")?.state.power).toBe(false);
+  });
+
+  it("does not add acknowledgement waiters for an active duplicate flood", async () => {
+    const transport = new FakeTransport();
+    const devices = (await import("../src/devices")).createGatewayDevices(1_700_000_000_000);
+    await startMqttGateway({ config, transport, devices, now: () => 1_700_000_001_000 });
+    await transport.triggerConnect();
+    transport.clearPublications();
+    const releaseState = transport.deferNextPublish();
+
+    const first = transport.receive(commandTopic(), command("active-flood-1", "living-room-light", { on: false }));
+    await Promise.resolve();
+    const duplicates = Array.from({ length: 16 }, () => transport.receive(
+      commandTopic(),
+      command("active-flood-1", "living-room-light", { on: true }),
+    ));
+    await Promise.resolve();
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/devices/living-room-light/state",
+    ]);
+    releaseState();
+    await Promise.all([first, ...duplicates]);
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/devices/living-room-light/state",
+      "omnihome/gateways/lab-gateway/commands/active-flood-1/ack",
+    ]);
+  });
+
+  it("coalesces acknowledgement replay while a completed duplicate flood is pending", async () => {
+    const transport = new FakeTransport();
+    await startMqttGateway({ config, transport });
+    await transport.triggerConnect();
+    transport.clearPublications();
+    await transport.receive(commandTopic(), command("completed-flood-1", "living-room-light", { on: false }));
+    transport.clearPublications();
+    const releaseAcknowledgement = transport.deferNextPublish();
+
+    const duplicates = Array.from({ length: 16 }, () => transport.receive(
+      commandTopic(),
+      command("completed-flood-1", "living-room-light", { on: true }),
+    ));
+    await Promise.resolve();
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/commands/completed-flood-1/ack",
+    ]);
+    releaseAcknowledgement();
+    await Promise.all(duplicates);
   });
 
   it("separates FIFO result eviction from an active delivery identity", async () => {
@@ -317,9 +365,7 @@ describe("MQTT gateway runtime", () => {
     expect(primaryPublications.map(({ topic }) => topic)).toEqual([
       "omnihome/gateways/lab-gateway/devices/living-room-light/state",
       "omnihome/gateways/lab-gateway/commands/blocked-identity-1/ack",
-      "omnihome/gateways/lab-gateway/commands/blocked-identity-1/ack",
     ]);
-    expect(parse(primaryPublications[1])).toEqual(parse(primaryPublications[2]));
     expect(parse(primaryPublications[1])).toMatchObject({ state: { power: false, updatedAt: 20 } });
     expect(devices.get("living-room-light")?.state).toMatchObject({ power: false, updatedAt: 20 });
     transport.clearPublications();
