@@ -97,6 +97,7 @@ export async function startMqttGateway(input: {
   const base = gatewayBase(input.config.gatewayId);
   const commandSubscription = `${base}/devices/+/commands`;
   const acknowledgements = new Map<string, GatewayAck>();
+  const inFlightCommands = new Map<string, Promise<GatewayAck | undefined>>();
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
 
@@ -179,24 +180,7 @@ export async function startMqttGateway(input: {
     acknowledgements.set(acknowledgement.requestId, acknowledgement);
   };
 
-  const handleCommand = async (topic: string, payload: string): Promise<void> => {
-    if (stopped) {
-      return;
-    }
-    const command = parseGatewayCommand(payload);
-    if (!command || topic !== `${base}/devices/${command.deviceId}/commands`) {
-      return;
-    }
-
-    const cached = acknowledgements.get(command.requestId);
-    if (cached) {
-      if (stopped) {
-        return;
-      }
-      await publishAcknowledgement(cached);
-      return;
-    }
-
+  const executeAndRemember = async (command: NonNullable<ReturnType<typeof parseGatewayCommand>>): Promise<GatewayAck | undefined> => {
     const acknowledgement = executeGatewayCommand(devices, command, now());
     if (acknowledgement.status === "SUCCESS") {
       const state: GatewayDeviceState = {
@@ -209,10 +193,46 @@ export async function startMqttGateway(input: {
       }
     }
     if (stopped) {
-      return;
+      return undefined;
     }
     remember(acknowledgement);
-    await publishAcknowledgement(acknowledgement);
+    return acknowledgement;
+  };
+
+  const handleCommand = async (topic: string, payload: string): Promise<void> => {
+    if (stopped) {
+      return;
+    }
+    const command = parseGatewayCommand(payload);
+    if (!command || topic !== `${base}/devices/${command.deviceId}/commands`) {
+      return;
+    }
+
+    const cached = acknowledgements.get(command.requestId);
+    if (cached) {
+      await publishAcknowledgement(cached);
+      return;
+    }
+
+    const pending = inFlightCommands.get(command.requestId);
+    if (pending) {
+      const acknowledgement = await pending;
+      if (acknowledgement && !stopped) {
+        await publishAcknowledgement(acknowledgement);
+      }
+      return;
+    }
+
+    const execution = executeAndRemember(command);
+    inFlightCommands.set(command.requestId, execution);
+    try {
+      const acknowledgement = await execution;
+      if (acknowledgement && !stopped) {
+        await publishAcknowledgement(acknowledgement);
+      }
+    } finally {
+      inFlightCommands.delete(command.requestId);
+    }
   };
 
   const removeConnectHandler = transport.onConnect(() => track(publishSnapshot()));

@@ -248,6 +248,30 @@ describe("MQTT gateway runtime", () => {
     expect(parse(transport.publications[2])).toEqual(parse(transport.publications[1]));
   });
 
+  it("serializes concurrent conflicting duplicate requests behind the first state publish", async () => {
+    const transport = new FakeTransport();
+    const devices = (await import("../src/devices")).createGatewayDevices(1_700_000_000_000);
+    await startMqttGateway({ config, transport, devices, now: () => 1_700_000_001_000 });
+    await transport.triggerConnect();
+    transport.clearPublications();
+    const releaseState = transport.deferNextPublish();
+
+    const first = transport.receive(commandTopic(), command("concurrent-duplicate-1", "living-room-light", { on: false }));
+    await Promise.resolve();
+    const second = transport.receive(commandTopic(), command("concurrent-duplicate-1", "living-room-light", { on: true }));
+    releaseState();
+    await Promise.all([first, second]);
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/devices/living-room-light/state",
+      "omnihome/gateways/lab-gateway/commands/concurrent-duplicate-1/ack",
+      "omnihome/gateways/lab-gateway/commands/concurrent-duplicate-1/ack",
+    ]);
+    expect(parse(transport.publications[0])).toMatchObject({ state: { power: false } });
+    expect(parse(transport.publications[1])).toEqual(parse(transport.publications[2]));
+    expect(devices.get("living-room-light")?.state.power).toBe(false);
+  });
+
   it("evicts the oldest cached acknowledgement after 256 requests", async () => {
     const transport = new FakeTransport();
     await startMqttGateway({ config, transport });
