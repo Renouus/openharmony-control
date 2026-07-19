@@ -45,5 +45,41 @@ export const DEVICE_CAPABILITIES: Record<string, DeviceCapability> = {
     actions: [
       { command: 'lock', type: 'boolean', label: '控制门锁' }
     ]
+  },
+  'environment-sensor': {
+    conditions: [
+      { property: 'temperature', type: 'number', label: '温度', range: [-10, 50] },
+      { property: 'humidity', type: 'number', label: '湿度', range: [0, 100] }
+    ],
+    actions: []
+  },
+  'motion-sensor': {
+    conditions: [
+      { property: 'motionDetected', type: 'boolean', label: '运动检测' }
+    ],
+    actions: []
+  },
+  'light-sensor': {
+    conditions: [
+      { property: 'illuminance', type: 'number', label: '光照强度', range: [0, 3000] }
+    ],
+    actions: []
+  },
+  'contact-sensor': {
+    conditions: [
+      { property: 'contactOpen', type: 'boolean', label: '门窗状态' }
+    ],
+    actions: []
   }
 };
+
+/**
+ * 判断设备 kind 是否为传感器类型（用于自动化条件选择器筛选）。
+ * 与 smart-home-mappers 中的 isSensorKind 保持一致，但避免循环依赖。
+ */
+export function isSensorKind(kind: string): boolean {
+  return kind === 'environment-sensor' ||
+    kind === 'motion-sensor' ||
+    kind === 'light-sensor' ||
+    kind === 'contact-sensor';
+}

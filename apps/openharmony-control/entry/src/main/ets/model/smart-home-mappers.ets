@@ -46,6 +46,14 @@ import {
   ScenesViewStateData,
   SceneChipState,
   ScenePresetState,
+  SensorDetailState,
+  SensorDeviceCardState,
+  SensorHistoryPointState,
+  SensorKindName,
+  SensorReadingState,
+  SensorThresholdPatch,
+  SensorThresholdState,
+  SensorViewStateData,
   StatusChipState,
   SummaryCardState,
 } from './page-view-state';
@@ -64,6 +72,24 @@ export function formatDeviceStatus(device: DeviceSnapshot): string {
   }
   if (device.kind === 'air-conditioner') {
     return device.state.power ? `目标温度 ${device.state.targetTemperature ?? 24} ℃` : '关闭';
+  }
+  if (device.kind === 'environment-sensor') {
+    const temp = device.state.temperature ?? undefined;
+    const humid = device.state.humidity ?? undefined;
+    if (temp === undefined && humid === undefined) {
+      return '在线';
+    }
+    return `${temp ?? '--'}°C / ${humid ?? '--'}%`;
+  }
+  if (device.kind === 'motion-sensor') {
+    return device.state.motionDetected ? '检测到运动' : '待机中';
+  }
+  if (device.kind === 'light-sensor') {
+    const lux = device.state.illuminance ?? undefined;
+    return lux === undefined ? '在线' : `${lux} lux`;
+  }
+  if (device.kind === 'contact-sensor') {
+    return device.state.contactOpen ? '门窗开启' : '门窗关闭';
   }
   return '在线';
 }
@@ -971,6 +997,346 @@ export function mapClimateViewState(overview: ClimateOverview, feedback: string)
     feedback,
   };
   return state;
+}
+
+// ── Sensor mappers ────────────────────────────────────────────────────────────
+
+const SENSOR_KINDS: SensorKindName[] = [
+  'environment-sensor',
+  'motion-sensor',
+  'light-sensor',
+  'contact-sensor',
+];
+
+export function isSensorKind(kind: string): boolean {
+  return SENSOR_KINDS.indexOf(kind as SensorKindName) >= 0;
+}
+
+export function sensorDevices(devices: DeviceSnapshot[]): DeviceSnapshot[] {
+  return devices.filter((device: DeviceSnapshot) => isSensorKind(device.kind));
+}
+
+export function sensorKindLabel(kind: SensorKindName): string {
+  if (kind === 'environment-sensor') { return '温湿度传感器'; }
+  if (kind === 'motion-sensor') { return '运动传感器'; }
+  if (kind === 'light-sensor') { return '光照传感器'; }
+  return '门窗传感器';
+}
+
+export function sensorKindIcon(kind: SensorKindName): string {
+  if (kind === 'environment-sensor') { return 'thermostat'; }
+  if (kind === 'motion-sensor') { return 'directions_run'; }
+  if (kind === 'light-sensor') { return 'wb_sunny'; }
+  return 'meeting_room';
+}
+
+export function sensorReadingIcon(label: string): string {
+  if (label === '温度') { return 'mode_heat'; }
+  if (label === '湿度') { return 'water_drop'; }
+  if (label === '光照') { return 'wb_sunny'; }
+  if (label === '运动') { return 'directions_run'; }
+  if (label === '门窗') { return 'meeting_room'; }
+  return 'sensors';
+}
+
+/** 默认阈值（按指标 label 索引） */
+interface DefaultThreshold {
+  minEnabled: boolean;
+  maxEnabled: boolean;
+  minValue: number;
+  maxValue: number;
+}
+
+const DEFAULT_THRESHOLDS: Record<string, DefaultThreshold> = {
+  '温度': { minEnabled: true, maxEnabled: true, minValue: 10, maxValue: 30 },
+  '湿度': { minEnabled: true, maxEnabled: true, minValue: 30, maxValue: 70 },
+  '光照': { minEnabled: false, maxEnabled: true, minValue: 0, maxValue: 1500 },
+  '运动': { minEnabled: false, maxEnabled: false, minValue: 0, maxValue: 1 },
+  '门窗': { minEnabled: false, maxEnabled: false, minValue: 0, maxValue: 1 },
+};
+
+function defaultThresholdFor(label: string): DefaultThreshold {
+  const entry = DEFAULT_THRESHOLDS[label];
+  if (entry !== undefined) {
+    return entry;
+  }
+  return { minEnabled: false, maxEnabled: false, minValue: 0, maxValue: 0 };
+}
+
+function formatReadingValue(label: string, value: number): string {
+  if (label === '温度') { return `${value.toFixed(1)} °C`; }
+  if (label === '湿度') { return `${Math.round(value)} %`; }
+  if (label === '光照') { return `${Math.round(value)} lux`; }
+  if (label === '运动') { return value > 0 ? '有运动' : '无运动'; }
+  if (label === '门窗') { return value > 0 ? '开启' : '关闭'; }
+  return `${value}`;
+}
+
+function readingUnit(label: string): string {
+  if (label === '温度') { return '°C'; }
+  if (label === '湿度') { return '%'; }
+  if (label === '光照') { return 'lux'; }
+  if (label === '运动') { return '次'; }
+  if (label === '门窗') { return '态'; }
+  return '';
+}
+
+/**
+ * 基于设备当前读数生成 12 个采样点（模拟过去 12 小时）的简化历史序列。
+ * 用设备最新数值作为终点，向前以伪随机抖动构造曲线，使图表具有可读形态。
+ * 该实现仅用于前端可视化，不替代后端时序数据。
+ */
+function buildHistoryPoints(label: string, currentValue: number, alerted: boolean, now: number = Date.now()): SensorHistoryPointState[] {
+  const points: SensorHistoryPointState[] = [];
+  const baseHour = 12;
+  // 使用 deviceId-independent 的伪随机种子：当前时间 + label 长度
+  let seed = (now % 86400000) + label.length * 31 + Math.round(currentValue * 7);
+  for (let i = baseHour; i >= 1; i--) {
+    // 简单线性同余生成器（LCG），保持数值在合理范围
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const jitter = ((seed % 1000) / 1000 - 0.5) * 2; // [-1, 1)
+    const trendFactor = i / baseHour; // 越早离当前值越远
+    let value: number;
+    if (label === '温度') {
+      value = currentValue + jitter * 1.5 * trendFactor;
+    } else if (label === '湿度') {
+      value = currentValue + jitter * 6 * trendFactor;
+    } else if (label === '光照') {
+      // 模拟白天高、夜晚低的曲线
+      const hourOfDay = (new Date(now - i * 3600 * 1000).getHours() + 24) % 24;
+      const daylight = Math.max(0, Math.sin((hourOfDay - 6) / 12 * Math.PI)) * 800;
+      value = Math.max(0, currentValue * 0.4 + daylight + jitter * 50);
+    } else if (label === '运动') {
+      value = ((seed % 7) === 0) ? 1 : 0;
+    } else if (label === '门窗') {
+      value = ((seed % 11) === 0) ? 1 : 0;
+    } else {
+      value = currentValue + jitter;
+    }
+    const hourLabel = `${((new Date(now - i * 3600 * 1000).getHours()) + 24) % 24}:00`;
+    const point: SensorHistoryPointState = {
+      label: hourLabel,
+      value,
+      alerted: i === 1 && alerted,
+    };
+    points.push(point);
+  }
+  return points;
+}
+
+function isThresholdBreaching(label: string, value: number): boolean {
+  const t = defaultThresholdFor(label);
+  if (!t.minEnabled && !t.maxEnabled) {
+    return false;
+  }
+  if (t.minEnabled && value < t.minValue) {
+    return true;
+  }
+  if (t.maxEnabled && value > t.maxValue) {
+    return true;
+  }
+  return false;
+}
+
+function buildReadings(device: DeviceSnapshot): SensorReadingState[] {
+  const readings: SensorReadingState[] = [];
+  const state = device.state;
+  if (device.kind === 'environment-sensor') {
+    if (state.temperature !== undefined) {
+      const r: SensorReadingState = {
+        label: '温度',
+        value: formatReadingValue('温度', state.temperature),
+        unit: readingUnit('温度'),
+        numericValue: state.temperature,
+        icon: sensorReadingIcon('温度'),
+        sourceLabel: '设备上报',
+      };
+      readings.push(r);
+    }
+    if (state.humidity !== undefined) {
+      const r: SensorReadingState = {
+        label: '湿度',
+        value: formatReadingValue('湿度', state.humidity),
+        unit: readingUnit('湿度'),
+        numericValue: state.humidity,
+        icon: sensorReadingIcon('湿度'),
+        sourceLabel: '设备上报',
+      };
+      readings.push(r);
+    }
+  } else if (device.kind === 'motion-sensor') {
+    const motionValue = state.motionDetected ? 1 : 0;
+    const r: SensorReadingState = {
+      label: '运动',
+      value: formatReadingValue('运动', motionValue),
+      unit: readingUnit('运动'),
+      numericValue: motionValue,
+      icon: sensorReadingIcon('运动'),
+      sourceLabel: state.motionDetected ? '触发中' : '待机',
+    };
+    readings.push(r);
+  } else if (device.kind === 'light-sensor') {
+    const lux = state.illuminance ?? 0;
+    const r: SensorReadingState = {
+      label: '光照',
+      value: formatReadingValue('光照', lux),
+      unit: readingUnit('光照'),
+      numericValue: lux,
+      icon: sensorReadingIcon('光照'),
+      sourceLabel: '设备上报',
+    };
+    readings.push(r);
+  } else if (device.kind === 'contact-sensor') {
+    const openValue = state.contactOpen ? 1 : 0;
+    const r: SensorReadingState = {
+      label: '门窗',
+      value: formatReadingValue('门窗', openValue),
+      unit: readingUnit('门窗'),
+      numericValue: openValue,
+      icon: sensorReadingIcon('门窗'),
+      sourceLabel: state.contactOpen ? '开启中' : '关闭中',
+    };
+    readings.push(r);
+  }
+  return readings;
+}
+
+function buildThresholds(readings: SensorReadingState[]): SensorThresholdState[] {
+  const thresholds: SensorThresholdState[] = [];
+  for (const reading of readings) {
+    const def = defaultThresholdFor(reading.label);
+    const breaching = isThresholdBreaching(reading.label, reading.numericValue);
+    const t: SensorThresholdState = {
+      metricLabel: reading.label,
+      minEnabled: def.minEnabled,
+      maxEnabled: def.maxEnabled,
+      minValue: def.minValue,
+      maxValue: def.maxValue,
+      breaching,
+    };
+    thresholds.push(t);
+  }
+  return thresholds;
+}
+
+function buildSensorDetail(device: DeviceSnapshot): SensorDetailState {
+  const readings = buildReadings(device);
+  const thresholds = buildThresholds(readings);
+  const anyBreaching = thresholds.some((t: SensorThresholdState) => t.breaching);
+  const kind = device.kind as SensorKindName;
+  let statusLabel = '正常运行';
+  let statusDetail = '所有指标处于阈值范围内';
+  if (!device.state.online) {
+    statusLabel = '离线';
+    statusDetail = '传感器未响应，请检查网络或电源';
+  } else if (anyBreaching) {
+    statusLabel = '告警中';
+    const breachLabels = thresholds
+      .filter((t: SensorThresholdState) => t.breaching)
+      .map((t: SensorThresholdState) => t.metricLabel)
+      .join('、');
+    statusDetail = `${breachLabels} 超出阈值范围`;
+  }
+  // 历史数据以第一个读数为代表（详情页图表按主指标展示）
+  const primaryReading = readings.length > 0 ? readings[0] : undefined;
+  const history: SensorHistoryPointState[] = primaryReading !== undefined
+    ? buildHistoryPoints(primaryReading.label, primaryReading.numericValue, anyBreaching, device.state.updatedAt)
+    : [];
+  const detail: SensorDetailState = {
+    id: device.id,
+    name: displayDeviceName(device),
+    roomName: roomName(device.room ?? 'living-room'),
+    kind,
+    icon: sensorKindIcon(kind),
+    online: device.state.online,
+    battery: device.state.battery,
+    statusLabel,
+    statusDetail,
+    readings,
+    history,
+    thresholds,
+    alertActive: anyBreaching,
+    updatedAt: device.state.updatedAt,
+  };
+  return detail;
+}
+
+export function mapSensorDeviceCard(device: DeviceSnapshot): SensorDeviceCardState {
+  const kind = device.kind as SensorKindName;
+  const readings = buildReadings(device);
+  const thresholds = buildThresholds(readings);
+  const anyBreaching = thresholds.some((t: SensorThresholdState) => t.breaching);
+  const primary = readings.length > 0 ? readings[0] : undefined;
+  const card: SensorDeviceCardState = {
+    id: device.id,
+    name: displayDeviceName(device),
+    roomName: roomName(device.room ?? 'living-room'),
+    kind,
+    icon: sensorKindIcon(kind),
+    statusLabel: formatDeviceStatus(device),
+    subtitle: `${sensorKindLabel(kind)} · ${roomName(device.room ?? 'living-room')}`,
+    online: device.state.online,
+    alertActive: anyBreaching,
+    primaryValue: primary !== undefined ? primary.value : '--',
+    primaryUnit: primary !== undefined ? primary.unit : '',
+  };
+  return card;
+}
+
+export function mapSensorViewState(devices: DeviceSnapshot[], feedback: string): SensorViewStateData {
+  const sensors = sensorDevices(devices);
+  const cards: SensorDeviceCardState[] = sensors.map(mapSensorDeviceCard);
+  const details: SensorDetailState[] = sensors.map(buildSensorDetail);
+  const onlineCount = sensors.filter((d: DeviceSnapshot) => d.state.online).length;
+  const alertCount = cards.filter((c: SensorDeviceCardState) => c.alertActive).length;
+  const state: SensorViewStateData = {
+    onlineCountLabel: `${onlineCount} 个在线`,
+    alertCountLabel: `${alertCount} 个告警`,
+    totalCountLabel: `共 ${sensors.length} 个`,
+    devices: cards,
+    details,
+    feedback,
+  };
+  return state;
+}
+
+/**
+ * 应用本地阈值更新（前端 @State 持久化在视图中，不写入后端契约）。
+ * 返回新的阈值数组，breaching 标志会根据读数重新计算。
+ */
+export function applyThresholdUpdate(
+  thresholds: SensorThresholdState[],
+  metricLabel: string,
+  patch: SensorThresholdPatch,
+  readings: SensorReadingState[],
+): SensorThresholdState[] {
+  const next: SensorThresholdState[] = [];
+  for (const t of thresholds) {
+    if (t.metricLabel !== metricLabel) {
+      next.push(t);
+      continue;
+    }
+    const minEnabled = patch.minEnabled !== undefined ? patch.minEnabled : t.minEnabled;
+    const maxEnabled = patch.maxEnabled !== undefined ? patch.maxEnabled : t.maxEnabled;
+    const minValue = patch.minValue !== undefined ? patch.minValue : t.minValue;
+    const maxValue = patch.maxValue !== undefined ? patch.maxValue : t.maxValue;
+    const reading = readings.find((r: SensorReadingState) => r.label === metricLabel);
+    let breaching = false;
+    if (reading !== undefined) {
+      if (minEnabled && reading.numericValue < minValue) { breaching = true; }
+      if (maxEnabled && reading.numericValue > maxValue) { breaching = true; }
+    }
+    const updated: SensorThresholdState = {
+      metricLabel: t.metricLabel,
+      minEnabled,
+      maxEnabled,
+      minValue,
+      maxValue,
+      breaching,
+    };
+    next.push(updated);
+  }
+  return next;
 }
 
 

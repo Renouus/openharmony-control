@@ -3,6 +3,7 @@
   AutomationViewStateData,
   CameraViewStateData,
   ClimateViewStateData,
+  SensorViewStateData,
   DevicePanelState,
   FamilyViewStateData,
   FamilySettingsStateData,
@@ -10,11 +11,15 @@
   LightingViewStateData,
   NotificationsViewStateData,
   ScenesViewStateData,
+  SensorDetailState,
+  SensorThresholdPatch,
+  SensorThresholdState,
   createEmptyHomeViewStateData,
   createEmptyLightingViewStateData,
   createEmptyAccessViewStateData,
   createEmptyCameraViewStateData,
   createEmptyClimateViewStateData,
+  createEmptySensorViewStateData,
   createEmptyScenesViewStateData,
   createEmptyAutomationViewStateData,
   createEmptyFamilyViewStateData,
@@ -22,7 +27,7 @@
   createEmptyNotificationsViewStateData,
   RoomItemState,
 } from '../model/page-view-state';
-import { mapAutomationViewState, mapRoomList, mapRoomViews, mapScenesViewState } from '../model/smart-home-mappers';
+import { mapAutomationViewState, mapRoomList, mapRoomViews, mapScenesViewState, applyThresholdUpdate } from '../model/smart-home-mappers';
 import { createRefreshPlan, AppPageRefreshTarget, IndexPageAction } from '../model/index-page-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import {
@@ -42,6 +47,7 @@ import { LightingViewModel } from '../viewmodel/lighting-view-model';
 import { AccessViewModel } from '../viewmodel/access-view-model';
 import { CameraViewModel } from '../viewmodel/camera-view-model';
 import { ClimateViewModel } from '../viewmodel/climate-view-model';
+import { SensorViewModel } from '../viewmodel/sensor-view-model';
 import { AutomationViewModel } from '../viewmodel/automation-view-model';
 import { NotificationsViewModel } from '../viewmodel/notifications-view-model';
 import { FamilyViewModel } from '../viewmodel/family-view-model';
@@ -68,6 +74,7 @@ export class AppController {
   readonly accessViewModel: AccessViewModel;
   readonly cameraViewModel: CameraViewModel;
   readonly climateViewModel: ClimateViewModel;
+  readonly sensorViewModel: SensorViewModel;
   readonly automationViewModel: AutomationViewModel;
   readonly notificationsViewModel: NotificationsViewModel;
   readonly familyViewModel: FamilyViewModel;
@@ -82,6 +89,7 @@ export class AppController {
     this.accessViewModel = new AccessViewModel(this.repository);
     this.cameraViewModel = new CameraViewModel(this.repository);
     this.climateViewModel = new ClimateViewModel(this.repository);
+    this.sensorViewModel = new SensorViewModel(this.repository);
     this.automationViewModel = new AutomationViewModel(this.repository);
     this.notificationsViewModel = new NotificationsViewModel(this.repository);
     this.familyViewModel = new FamilyViewModel(this.repository);
@@ -102,6 +110,7 @@ export class AppController {
     snapshot.assignAccess(await this.fetchAccess(feedback));
     snapshot.assignCamera(await this.fetchCamera(feedback));
     snapshot.assignClimate(await this.fetchClimate(feedback));
+    snapshot.assignSensors(await this.fetchSensors(feedback));
     snapshot.assignScenes(await this.fetchScenes(feedback));
     this.syncSceneSource(snapshot);
     this.syncAutomationSource(snapshot);
@@ -132,6 +141,9 @@ export class AppController {
           break;
         case 'climate':
           snapshot.assignClimate(await this.fetchClimate(feedback));
+          break;
+        case 'sensor':
+          snapshot.assignSensors(await this.fetchSensors(feedback));
           break;
         case 'scenesList':
           snapshot.assignScenes(await this.fetchScenes(feedback));
@@ -225,6 +237,16 @@ export class AppController {
     } catch {
       const next = createEmptyClimateViewStateData();
       next.feedback = 'Climate data unavailable';
+      return next;
+    }
+  }
+
+  private async fetchSensors(feedback: string = ''): Promise<SensorViewStateData> {
+    try {
+      return await this.sensorViewModel.load(feedback);
+    } catch {
+      const next = createEmptySensorViewStateData();
+      next.feedback = 'Sensor data unavailable';
       return next;
     }
   }
@@ -446,6 +468,55 @@ export class AppController {
       nextMode = snapshot.climate.isPowered ? 'off' : 'auto';
     }
     return this.handleClimateMode(snapshot, deviceId, nextMode);
+  }
+
+  // ====== Sensor handlers ======
+
+  /**
+   * 阈值告警更新是前端纯本地交互：直接在 snapshot.sensors.details 中
+   * 替换对应设备的 thresholds 数组，再触发 sensor 视图刷新。
+   *
+   * 不写后端契约，避免引入新的命令名；如未来需要持久化，可在此处追加
+   * repository 调用而无需改动调用方。
+   */
+  async handleSensorUpdateThreshold(
+    snapshot: AppStateSnapshot,
+    deviceId: string,
+    metricLabel: string,
+    patch: SensorThresholdPatch,
+  ): Promise<void> {
+    if (deviceId.length === 0) {
+      return;
+    }
+    const detail = snapshot.sensors.details.find((d: SensorDetailState) => d.id === deviceId);
+    if (detail === undefined) {
+      return;
+    }
+    const updated = applyThresholdUpdate(detail.thresholds, metricLabel, patch, detail.readings);
+    // 直接替换 thresholds 数组以触发 @Observed 通知
+    detail.thresholds = updated;
+    // 同步派生 alertActive，使详情页状态徽标实时刷新
+    const anyBreaching = updated.some((t: SensorThresholdState) => t.breaching);
+    detail.alertActive = anyBreaching;
+
+    // 同步更新状态摘要
+    if (!detail.online) {
+      detail.statusLabel = '离线';
+      detail.statusDetail = '传感器未响应，请检查网络或电源';
+    } else if (anyBreaching) {
+      detail.statusLabel = '告警中';
+      const breachLabels = updated
+        .filter((t: SensorThresholdState) => t.breaching)
+        .map((t: SensorThresholdState) => t.metricLabel)
+        .join('、');
+      detail.statusDetail = `${breachLabels} 超出阈值范围`;
+    } else {
+      detail.statusLabel = '正常运行';
+      detail.statusDetail = '所有指标处于阈值范围内';
+    }
+
+    const feedback = await this.sensorViewModel.updateThreshold(metricLabel);
+    return this.refreshPlannedTargets(snapshot, 'sensorUpdateThreshold', feedback);
   }
 
   // ====== Automation handlers ======

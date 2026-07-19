@@ -44,6 +44,8 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.chevron_right');
     case 'check_circle':
       return $r('sys.symbol.checkmark_circle');
+    case 'info':
+      return $r('sys.symbol.info_circle');
     case 'more_vert':
       return $r('sys.symbol.more');
     case 'person_add':
@@ -118,6 +120,14 @@ function resolveSymbolResource(name: string): Resource {
       return $r('sys.symbol.star');
     case 'meeting_room':
       return $r('sys.symbol.house');
+    case 'directions_run':
+      return $r('sys.symbol.figure_run');
+    case 'door_front':
+      return $r('sys.symbol.house');
+    case 'arrow_upward':
+      return $r('sys.symbol.arrow_up');
+    case 'arrow_downward':
+      return $r('sys.symbol.arrow_down');
     case 'weekend':
       return $r('sys.symbol.house');
     case 'desk':

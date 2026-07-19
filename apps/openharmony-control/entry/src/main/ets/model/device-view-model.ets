@@ -10,6 +10,12 @@ export interface DeviceState {
   aqi?: number;
   filterLife?: number;
   purifierActive?: boolean;
+  motionDetected?: boolean;
+  illuminance?: number;
+  contactOpen?: boolean;
+  lastMotionAt?: number;
+  lastContactAt?: number;
+  battery?: number;
   online: boolean;
   updatedAt: number;
 }

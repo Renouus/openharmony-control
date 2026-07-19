@@ -21,6 +21,7 @@ export type IndexPageAction =
   | 'cameraToggleRecording'
   | 'climateMode'
   | 'climateTarget'
+  | 'sensorUpdateThreshold'
   | 'automationToggleScene'
   | 'automationRunScene'
   | 'familyBroadcast';
@@ -69,6 +70,7 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'access' ||
     page === 'camera' ||
     page === 'climate' ||
+    page === 'sensor' ||
     page === 'sceneEditor' ||
     page === 'routineEditor' ||
     page === 'bathroom' ||
@@ -82,6 +84,7 @@ export function isSubPageId(page: AppPageId): boolean {
     page === 'emergencyContactEditor' ||
     page === 'scenesList' ||
     page === 'lightControl' ||
+    page === 'sensorControl' ||
     page === 'deviceEditor' ||
     page === 'room';
 }
@@ -135,6 +138,10 @@ export function createRefreshPlan(action: IndexPageAction): AppPageRefreshTarget
 
   if (action === 'homeTemperature' || action === 'climateMode' || action === 'climateTarget') {
     return ['home', 'climate'];
+  }
+
+  if (action === 'sensorUpdateThreshold') {
+    return ['home', 'sensor'];
   }
 
   if (action === 'cameraToggleRecording') {

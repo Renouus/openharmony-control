@@ -84,6 +84,19 @@ export struct CreateAutomationView {
     if (cond.type === 'time') {
       return `时间：${cond.time}`;
     }
+    if (cond.type === 'sensor') {
+      const device = this.appState.home.devices.find((item: DevicePanelState) => item.id === cond.deviceId);
+      if (!device) {
+        return '未知传感器';
+      }
+      const capability = DEVICE_CAPABILITIES[device.kind]?.conditions?.find(
+        (item: DevicePropertyConfig) => item.property === cond.property,
+      );
+      const propertyLabel = capability ? capability.label : cond.property;
+      const operatorLabel = this.operatorLabel(cond.operator);
+      const thresholdLabel = this.thresholdLabel(cond.property, cond.threshold);
+      return `${device.roomName} ${device.name} ${propertyLabel} ${operatorLabel} ${thresholdLabel}`;
+    }
     if (cond.type === 'device') {
       const device = this.appState.home.devices.find((item: DevicePanelState) => item.id === cond.deviceId);
       if (!device) {
@@ -94,10 +107,28 @@ export struct CreateAutomationView {
       );
       const propertyLabel = capability ? capability.label : cond.property;
       const thresholdLabel = cond.threshold === 'true' ? '开启' : (cond.threshold === 'false' ? '关闭' : cond.threshold);
-      const operatorLabel = cond.operator === '==' ? '等于' : (cond.operator === '>' ? '大于' : cond.operator);
+      const operatorLabel = this.operatorLabel(cond.operator);
       return `${device.roomName} ${device.name} ${propertyLabel} ${operatorLabel} ${thresholdLabel}`;
     }
     return '未知条件';
+  }
+
+  private operatorLabel(operator?: string): string {
+    if (operator === '>') { return '大于'; }
+    if (operator === '<') { return '小于'; }
+    if (operator === '>=') { return '大于等于'; }
+    if (operator === '<=') { return '小于等于'; }
+    return '等于';
+  }
+
+  private thresholdLabel(property: string | undefined, threshold: string | undefined): string {
+    if (threshold === undefined) { return ''; }
+    if (threshold === 'true') { return '触发'; }
+    if (threshold === 'false') { return '恢复'; }
+    if (property === 'temperature') { return `${threshold} °C`; }
+    if (property === 'humidity') { return `${threshold} %`; }
+    if (property === 'illuminance') { return `${threshold} lux`; }
+    return threshold;
   }
 
   getActionLabel(action: ActionDraft): string {

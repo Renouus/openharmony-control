@@ -162,6 +162,21 @@ export async function registerDemoRoutes(
       }
     }
 
+    // 同时分发 sensor_event，让基于传感器属性（温度/湿度）的自动化规则能被触发。
+    // device_state_changed 事件保留向后兼容，sensor_event 让前端 condition.type='sensor' 的规则生效。
+    if (sensorEventTriggerAdapter && updated) {
+      try {
+        if (body.temperature !== undefined) {
+          await sensorEventTriggerAdapter.dispatchTemperature("sensor-living-room", body.temperature);
+        }
+        if (body.humidity !== undefined) {
+          await sensorEventTriggerAdapter.dispatchHumidity("sensor-living-room", body.humidity);
+        }
+      } catch (error) {
+        app.log.error("Failed to dispatch demo/environment sensor event: " + String(error));
+      }
+    }
+
     return {
       deviceId: "sensor-living-room",
       state: updated?.state,

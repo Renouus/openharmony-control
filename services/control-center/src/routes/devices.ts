@@ -603,6 +603,8 @@ function toDeviceKind(type: string): DeviceKindName {
     case DeviceKind.EnvironmentSensor:
     case DeviceKind.AirConditioner:
     case DeviceKind.MotionSensor:
+    case DeviceKind.LightSensor:
+    case DeviceKind.ContactSensor:
       return type;
     default:
       return DeviceKind.Light;
@@ -619,6 +621,10 @@ function capabilitiesForKind(kind: DeviceKindName) {
       return [DeviceCapability.Switch, DeviceCapability.TargetTemperature];
     case DeviceKind.MotionSensor:
       return [DeviceCapability.MotionDetection];
+    case DeviceKind.LightSensor:
+      return [DeviceCapability.IlluminanceReading];
+    case DeviceKind.ContactSensor:
+      return [DeviceCapability.ContactDetection];
     case DeviceKind.Light:
     default:
       return [

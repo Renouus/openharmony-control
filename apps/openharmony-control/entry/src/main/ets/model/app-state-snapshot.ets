@@ -9,11 +9,13 @@ import {
   FamilyViewStateData,
   FamilySettingsStateData,
   ClimateViewStateData,
+  SensorViewStateData,
   HomeViewState,
   LightingViewState,
   AccessViewState,
   CameraViewState,
   ClimateViewState,
+  SensorViewState,
   ScenesViewState,
   AutomationViewState,
   NotificationsViewState,
@@ -33,6 +35,7 @@ export class AppStateSnapshot {
   access: AccessViewState = new AccessViewState();
   camera: CameraViewState = new CameraViewState();
   climate: ClimateViewState = new ClimateViewState();
+  sensors: SensorViewState = new SensorViewState();
   scenes: ScenesViewState = new ScenesViewState();
   sceneSource: PersistedSceneSnapshot[] = [];
   automation: AutomationViewState = new AutomationViewState();
@@ -103,6 +106,15 @@ export class AppStateSnapshot {
     this.climate.modes = data.modes;
     this.climate.usageBars = data.usageBars;
     this.climate.feedback = data.feedback;
+  }
+
+  assignSensors(data: SensorViewStateData): void {
+    this.sensors.onlineCountLabel = data.onlineCountLabel;
+    this.sensors.alertCountLabel = data.alertCountLabel;
+    this.sensors.totalCountLabel = data.totalCountLabel;
+    this.sensors.devices = data.devices;
+    this.sensors.details = data.details;
+    this.sensors.feedback = data.feedback;
   }
 
   assignScenes(data: ScenesViewStateData): void {

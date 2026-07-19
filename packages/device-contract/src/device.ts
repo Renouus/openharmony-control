@@ -20,6 +20,8 @@ export const DeviceKind = {
   EnvironmentSensor: "environment-sensor",
   AirConditioner: "air-conditioner",
   MotionSensor: "motion-sensor",
+  LightSensor: "light-sensor",
+  ContactSensor: "contact-sensor",
 } as const;
 
 /** 设备能力 */
@@ -31,6 +33,8 @@ export const DeviceCapability = {
   Brightness: "brightness",
   ColorTemperature: "color-temperature",
   MotionDetection: "motion-detection",
+  IlluminanceReading: "illuminance-reading",
+  ContactDetection: "contact-detection",
 } as const;
 
 export type DeviceKindName = (typeof DeviceKind)[keyof typeof DeviceKind];
@@ -67,6 +71,11 @@ export type DeviceState = {
   filterLife?: number;
   purifierActive?: boolean;
   motionDetected?: boolean;
+  illuminance?: number;
+  contactOpen?: boolean;
+  lastMotionAt?: number;
+  lastContactAt?: number;
+  battery?: number;
   updatedAt: number;
   online: boolean;
 };

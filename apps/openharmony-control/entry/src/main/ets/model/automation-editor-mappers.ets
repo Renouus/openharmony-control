@@ -96,7 +96,7 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
     .filter((trigger: AutomationTriggerRecord) => isAutomationTriggerRecord(trigger))
     .map((trigger: AutomationTriggerRecord, index: number): ConditionDraft => ({
       id: trigger.id || `condition-${index}`,
-      type: trigger.type === 'time' ? 'time' : 'device',
+      type: mapTriggerTypeToDraft(trigger.type),
       time: typeof trigger.time === 'string' ? trigger.time : '',
       deviceId: typeof trigger.deviceId === 'string' ? trigger.deviceId : '',
       property: typeof trigger.property === 'string' ? trigger.property : '',
@@ -115,6 +115,21 @@ export function hydrateAutomationDraft(automation: AutomationSnapshot): RoutineD
     }));
 
   return draft;
+}
+
+/**
+ * 把后端 trigger.type 映射为前端 ConditionDraft.type：
+ * - 'time' → 'time'
+ * - 'sensor_event' → 'sensor'
+ * - 'device_state_changed'（及其它） → 'device'
+ *
+ * 这样 hydrate 编辑现有自动化时，传感器规则能正确还原为 'sensor' 类型，
+ * 在 ConditionPickerSheet 中显示对应的传感器卡片样式。
+ */
+function mapTriggerTypeToDraft(triggerType?: string): 'time' | 'device' | 'sensor' {
+  if (triggerType === 'time') { return 'time'; }
+  if (triggerType === 'sensor_event') { return 'sensor'; }
+  return 'device';
 }
 
 export function buildAutomationPayloadDraft(
@@ -160,10 +175,23 @@ export function buildAutomationPayloadDraft(
   return payload;
 }
 
+/**
+ * 根据 ConditionDraft 推断后端 AutomationTriggerType。
+ *
+ * 优先级：
+ * 1. condition.type === 'time' → 'time'
+ * 2. condition.type === 'sensor' → 'sensor_event'
+ * 3. 兜底：基于 property/deviceId 的启发式识别（保留向后兼容）
+ * 4. 默认 → 'device_state_changed'
+ */
 function inferRuntimeTriggerType(condition: ConditionDraft): string {
   if (condition.type === 'time') {
     return 'time';
   }
+  if (condition.type === 'sensor') {
+    return 'sensor_event';
+  }
+  // 向后兼容：旧版本保存的传感器规则可能 type='device' 但 property='motionDetected'
   if (condition.property === 'motionDetected') {
     return 'sensor_event';
   }

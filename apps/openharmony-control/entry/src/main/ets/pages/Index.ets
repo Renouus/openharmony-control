@@ -27,6 +27,8 @@ import { LockControlView } from '../views/LockControlView';
 import { CameraView } from '../views/CameraView';
 import { ClimateView } from '../views/ClimateView';
 import { ClimateControlView } from '../views/ClimateControlView';
+import { SensorView } from '../views/SensorView';
+import { SensorControlView } from '../views/SensorControlView';
 import { SceneEditorView } from '../views/SceneEditorView';
 import { RoutineEditorView } from '../views/RoutineEditorView';
 import { FamilySettingsView } from '../views/FamilySettingsView';
@@ -298,7 +300,8 @@ struct Index {
   private isDeviceControlPage(): boolean {
     return this.currentSubPage === 'access' ||
       this.currentSubPage === 'lightControl' ||
-      this.currentSubPage === 'climate';
+      this.currentSubPage === 'climate' ||
+      this.currentSubPage === 'sensorControl';
   }
 
   private selectedControlDeviceId(): string {
@@ -404,6 +407,25 @@ struct Index {
               })
             }
           }
+            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
+        }
+        .scrollBar(BarState.Off)
+        .layoutWeight(1)
+        .align(Alignment.Top)
+      } else if (this.currentSubPage === 'sensor') {
+        Scroll() {
+          SensorView({ appState: this.appState })
+            .padding({ left: 20, right: 20, top: 16, bottom: 32 })
+        }
+        .scrollBar(BarState.Off)
+        .layoutWeight(1)
+      } else if (this.currentSubPage === 'sensorControl') {
+        Scroll() {
+          SensorControlView({
+            deviceId: this.selectedControlDeviceId(),
+            appState: this.appState,
+            home: this.appState.home,
+          })
             .padding({ left: 20, right: 20, top: 16, bottom: 32 })
         }
         .scrollBar(BarState.Off)

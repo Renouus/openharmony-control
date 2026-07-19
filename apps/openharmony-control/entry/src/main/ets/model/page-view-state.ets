@@ -6,6 +6,7 @@ export type AppPageId =
   | 'access'
   | 'camera'
   | 'climate'
+  | 'sensor'
   | 'automation'
   | 'notifications'
   | 'family'
@@ -22,6 +23,7 @@ export type AppPageId =
   | 'emergencyContactEditor'
   | 'scenesList'
   | 'lightControl'
+  | 'sensorControl'
   | 'deviceEditor'
   | 'room';
 
@@ -94,6 +96,12 @@ export function deviceTapTargetPage(kind: string): AppPageId {
   }
   if (kind === 'air-conditioner') {
     return 'climate';
+  }
+  if (kind === 'environment-sensor' ||
+    kind === 'motion-sensor' ||
+    kind === 'light-sensor' ||
+    kind === 'contact-sensor') {
+    return 'sensorControl';
   }
   return 'deviceEditor';
 }
@@ -463,6 +471,128 @@ export class ClimateViewState {
   feedback: string = '';
 }
 
+// ── Sensor view-state types ─────────────────────────────────────────────────
+
+/** 传感器种类标识，与后端 DeviceKind 对应（仅前端使用的字符串字面量） */
+export type SensorKindName =
+  | 'environment-sensor'
+  | 'motion-sensor'
+  | 'light-sensor'
+  | 'contact-sensor';
+
+/** 传感器实时读数 */
+export interface SensorReadingState {
+  /** 显示用字段名，如 '温度' / '湿度' / '光照' / '运动' / '门窗' */
+  label: string;
+  /** 当前数值（已格式化为字符串，如 '23.4 °C' / '65 %' / '420 lux'） */
+  value: string;
+  /** 单位（用于历史图表轴标签） */
+  unit: string;
+  /** 数值形式的当前读数，用于与阈值比较和绘图 */
+  numericValue: number;
+  /** 关联图标名（AppSymbol 资源名） */
+  icon: string;
+  /** 读数来源说明（如 '设备上报' / '推算'），用于详情页副标题 */
+  sourceLabel: string;
+}
+
+/** 传感器历史数据点（前端基于近期读数生成的简化序列） */
+export interface SensorHistoryPointState {
+  /** 时间标签，如 '14:00' / '周一' */
+  label: string;
+  /** 该时间点的数值 */
+  value: number;
+  /** 该点是否触发过告警（用于图表高亮） */
+  alerted: boolean;
+}
+
+/** 阈值告警配置 */
+export interface SensorThresholdState {
+  /** 关联读数标签，与 SensorReadingState.label 对应 */
+  metricLabel: string;
+  /** 阈值下限；为空表示不启用下限 */
+  minEnabled: boolean;
+  /** 阈值上限；为空表示不启用上限 */
+  maxEnabled: boolean;
+  /** 下限值 */
+  minValue: number;
+  /** 上限值 */
+  maxValue: number;
+  /** 当前是否处于告警状态（由前端比对读数生成） */
+  breaching: boolean;
+}
+
+/** 传感器卡片状态（总览页使用） */
+export interface SensorDeviceCardState {
+  id: string;
+  name: string;
+  roomName: string;
+  kind: SensorKindName;
+  /** 卡片图标 */
+  icon: string;
+  /** 状态标签，如 '在线 / 23.4°C' */
+  statusLabel: string;
+  /** 副标题，如 '客厅 · 温湿度' */
+  subtitle: string;
+  /** 在线状态 */
+  online: boolean;
+  /** 是否处于告警（任一阈值被触发） */
+  alertActive: boolean;
+  /** 主读数（用于卡片大字显示） */
+  primaryValue: string;
+  /** 主读数单位 */
+  primaryUnit: string;
+}
+
+/** 单个传感器在详情页的完整状态 */
+export interface SensorDetailState {
+  id: string;
+  name: string;
+  roomName: string;
+  kind: SensorKindName;
+  icon: string;
+  online: boolean;
+  /** 电池电量（百分比，无电池则为 undefined） */
+  battery?: number;
+  /** 状态摘要（如 '正常运行' / '温度过高'） */
+  statusLabel: string;
+  /** 详细说明（如 '当前温度超过阈值 30°C'） */
+  statusDetail: string;
+  /** 实时读数集合 */
+  readings: SensorReadingState[];
+  /** 历史数据（按指标分桶；key 为指标 label） */
+  history: SensorHistoryPointState[];
+  /** 阈值配置集合 */
+  thresholds: SensorThresholdState[];
+  /** 当前是否处于告警（任一阈值被触发，或设备离线时的派生标志） */
+  alertActive: boolean;
+  /** 最后更新时间戳（ms） */
+  updatedAt: number;
+}
+
+/** 阈值更新补丁（用于在视图与控制器之间传递增量修改） */
+export interface SensorThresholdPatch {
+  minEnabled?: boolean;
+  maxEnabled?: boolean;
+  minValue?: number;
+  maxValue?: number;
+}
+
+@Observed
+export class SensorViewState {
+  /** 总览页头部统计：在线传感器数 */
+  onlineCountLabel: string = '0 个在线';
+  /** 总览页头部统计：告警中的传感器数 */
+  alertCountLabel: string = '0 个告警';
+  /** 总览页头部统计：传感器总数 */
+  totalCountLabel: string = '共 0 个';
+  /** 总览页卡片列表 */
+  devices: SensorDeviceCardState[] = [];
+  /** 详情页用：当前选中的传感器详情（按 id 索引由 view-model 派生） */
+  details: SensorDetailState[] = [];
+  feedback: string = '';
+}
+
 @Observed
 export class RoomListState {
   rooms: RoomItemState[] = [];
@@ -576,6 +706,15 @@ export interface ClimateViewStateData {
   isPowered: boolean;
   modes: ClimateModeState[];
   usageBars: ClimateUsageBarState[];
+  feedback: string;
+}
+
+export interface SensorViewStateData {
+  onlineCountLabel: string;
+  alertCountLabel: string;
+  totalCountLabel: string;
+  devices: SensorDeviceCardState[];
+  details: SensorDetailState[];
   feedback: string;
 }
 
@@ -707,6 +846,17 @@ export function createEmptyClimateViewStateData(): ClimateViewStateData {
   };
 }
 
+export function createEmptySensorViewStateData(): SensorViewStateData {
+  return {
+    onlineCountLabel: '0 个在线',
+    alertCountLabel: '0 个告警',
+    totalCountLabel: '共 0 个',
+    devices: [],
+    details: [],
+    feedback: '',
+  };
+}
+
 export function createEmptyRoomListState(): RoomListState {
   return new RoomListState();
 }
@@ -746,7 +896,7 @@ export class RoutineDraft {
 
 export class ConditionDraft {
   id: string = '';
-  type: 'time' | 'device' = 'time';
+  type: 'time' | 'device' | 'sensor' = 'time';
   time?: string;
   deviceId?: string;
   property?: string;
