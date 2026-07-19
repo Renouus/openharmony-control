@@ -147,6 +147,13 @@ const sensorTypeTriggerSchema = z.object({
   type: z.literal("sensor_event").optional(),
   sensorType: shortText,
 }).strict();
+const sensorTriggerSchema = z.union([sensorConditionSchema, sensorTypeTriggerSchema]);
+const automationConditionSchema = z.union([
+  timeTriggerSchema,
+  deviceTriggerSchema,
+  sensorConditionSchema,
+  sensorTypeTriggerSchema,
+]);
 const automationTriggerTypeSchema = z.enum(["time", "device_state_changed", "sensor_event"]);
 
 const actionMetadata = { id: shortText.optional(), label: labelText.optional() };
@@ -182,16 +189,21 @@ function stringifyValidatedAutomationTrigger(value: JsonValue, triggerType: stri
     const context = parseWith(automationTriggerTypeSchema, triggerType);
     const normalized = normalizeAutomationTransport({ triggerType: context, triggerJson: json, actionJson: "[]" });
     const parsed = JSON.parse(normalized.triggerJson) as unknown;
-    const conditionSchema = context === "time"
+    const firstConditionSchema = context === "time"
       ? timeTriggerSchema
       : context === "device_state_changed"
         ? deviceTriggerSchema
-        : z.union([sensorConditionSchema, sensorTypeTriggerSchema]);
+        : sensorTriggerSchema;
     const payloadSchema = z.union([
-      z.array(conditionSchema).min(1).max(100),
-      z.object({ logic: z.enum(["all", "any"]), conditions: z.array(conditionSchema).min(1).max(100) }).strict(),
+      z.array(automationConditionSchema).min(1).max(100),
+      z.object({
+        logic: z.enum(["all", "any"]),
+        conditions: z.array(automationConditionSchema).min(1).max(100),
+      }).strict(),
     ]);
-    parseWith(payloadSchema, parsed);
+    const payload = parseWith(payloadSchema, parsed);
+    const conditions = Array.isArray(payload) ? payload : payload.conditions;
+    if (!firstConditionSchema.safeParse(conditions[0]).success) throw new EncryptedDataInvalidError();
     return json;
   } catch { throw new EncryptedDataInvalidError(); }
 }

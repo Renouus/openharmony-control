@@ -55,6 +55,45 @@ describe("encrypted field migration", () => {
     expect(existsSync(backupPath)).toBe(false);
   });
 
+  it("migrates a legacy condition array when later conditions use another supported trigger type", () => {
+    const { dbPath, backupPath } = fixture();
+    const triggerJson = JSON.stringify([
+      { id: "time-1", type: "time", label: "At 22:10", time: "22:10" },
+      {
+        id: "door-1", type: "device", label: "Door is locked", deviceId: "door-front",
+        property: "locked", operator: "==", threshold: "true",
+      },
+    ]);
+    const db = new Database(dbPath);
+    db.prepare("UPDATE automations SET trigger_json=? WHERE id='automation-1'").run(triggerJson);
+    db.close();
+
+    expect(migrateEncryptedFields({
+      dbPath, backupPath, write: false, encryptedRepositories: repositories(),
+    }).plaintextValues).toBe(9);
+    migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() });
+
+    const migrated = new Database(dbPath, { readonly: true });
+    const encrypted = migrated.prepare("SELECT trigger_json FROM automations WHERE id='automation-1'").pluck().get() as string;
+    expect(encrypted).toMatch(/^ENC1:/);
+    expect(repositories().automations.decodeTriggerJson("automation-1", "time", encrypted)).toBe(triggerJson);
+    migrated.close();
+  });
+
+  it("rejects a condition array whose first condition disagrees with trigger_type", () => {
+    const { dbPath, backupPath } = fixture();
+    const db = new Database(dbPath);
+    db.prepare("UPDATE automations SET trigger_json=? WHERE id='automation-1'").run(JSON.stringify([
+      { type: "device", deviceId: "door-front", property: "locked", operator: "==", threshold: true },
+      { type: "time", time: "22:10" },
+    ]));
+    db.close();
+
+    expect(() => migrateEncryptedFields({
+      dbPath, backupPath, write: false, encryptedRepositories: repositories(),
+    })).toThrow(/automations\.trigger_json/);
+  });
+
   it("backs up then transactionally encrypts every protected value and sets metadata last", () => {
     const { dbPath, backupPath } = fixture();
     const before = readFileSync(dbPath);
