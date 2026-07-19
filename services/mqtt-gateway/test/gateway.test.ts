@@ -486,6 +486,23 @@ describe("MQTT gateway runtime", () => {
     await expect(runtime.stop()).rejects.toThrow("close failed");
   });
 
+  it("rejects with a fixed close timeout when transport close rejects after the deadline", async () => {
+    const transport = new FakeTransport();
+    transport.close = () => new Promise<void>((_resolve, reject) => {
+      setTimeout(() => reject(new Error("mqtt://user:gateway-password@broker.example.test")), 10);
+    });
+    const runtime = await startMqttGateway({ config, transport, shutdownTimeoutMs: 1 });
+    const unhandled: unknown[] = [];
+    const capture = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", capture);
+
+    await expect(runtime.stop()).rejects.toThrow("MQTT_GATEWAY_CLOSE_TIMEOUT");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off("unhandledRejection", capture);
+
+    expect(unhandled).toEqual([]);
+  });
+
   it("drains an in-flight command before offline shutdown without publishing its acknowledgement", async () => {
     const transport = new FakeTransport();
     const runtime = await startMqttGateway({ config, transport });

@@ -361,6 +361,9 @@ export async function startMqttGateway(input: {
         if (deadlineTimer !== undefined) {
           clearTimeout(deadlineTimer);
         }
+        if (!closeResult.settled) {
+          throw new Error("MQTT_GATEWAY_CLOSE_TIMEOUT");
+        }
         if (closeResult.error !== undefined) {
           throw closeResult.error;
         }
