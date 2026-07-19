@@ -130,4 +130,27 @@ describe("MQTT gateway server entry", () => {
     expect(processRef.exitCode).toBe(1);
     expect(reports).toEqual(["MQTT gateway shutdown failed"]);
   });
+
+  it("passes a fixed event-code logger into the production gateway", async () => {
+    const events: string[] = [];
+    const processRef = { env: {}, exitCode: undefined as number | undefined, once: () => undefined };
+
+    await runServer({
+      processRef,
+      loadEnvironment: () => undefined,
+      loadConfig: () => config,
+      startGateway: async (input) => {
+        input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
+        input.logger?.("MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED");
+        return { stop: async () => undefined };
+      },
+      reportEvent: (event) => events.push(event),
+      reportError: () => undefined,
+    });
+
+    expect(events).toEqual([
+      "MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED",
+      "MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED",
+    ]);
+  });
 });

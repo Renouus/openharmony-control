@@ -16,6 +16,7 @@ import {
 } from "./devices";
 
 export type GatewayLogEvent =
+  | "MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED"
   | "MQTT_GATEWAY_COMMAND_DELIVERY_FAILED"
   | "MQTT_GATEWAY_SNAPSHOT_DELIVERY_FAILED";
 
@@ -126,9 +127,9 @@ export async function startMqttGateway(input: {
   const shutdownTimeoutMs = Math.max(0, input.shutdownTimeoutMs ?? 5_000);
   const base = gatewayBase(input.config.gatewayId);
   const commandSubscription = `${base}/devices/+/commands`;
-  const acknowledgements = new Map<string, CommandEntry>();
+  const completedResults = new Map<string, CommandEntry>();
+  const activeDeliveries = new Map<string, CommandEntry>();
   const deliveries = new Map<string, Promise<boolean>>();
-  const deliveryEntries = new Map<string, CommandEntry>();
   const inFlight = new Set<Promise<unknown>>();
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
@@ -168,10 +169,10 @@ export async function startMqttGateway(input: {
   };
 
   const reserveCacheSlot = (): void => {
-    if (acknowledgements.size === 256) {
-      const oldestRequestId = acknowledgements.keys().next().value as string | undefined;
+    if (completedResults.size === 256) {
+      const oldestRequestId = completedResults.keys().next().value as string | undefined;
       if (oldestRequestId !== undefined) {
-        acknowledgements.delete(oldestRequestId);
+        completedResults.delete(oldestRequestId);
       }
     }
   };
@@ -201,17 +202,23 @@ export async function startMqttGateway(input: {
     }
     const delivery = deliverCommand(entry);
     deliveries.set(requestId, delivery);
-    deliveryEntries.set(requestId, entry);
-    void delivery.finally(() => {
+    void delivery.then((delivered) => {
+      if (delivered && activeDeliveries.get(requestId) === entry) {
+        activeDeliveries.delete(requestId);
+      }
+    }).finally(() => {
       if (deliveries.get(requestId) === delivery) {
         deliveries.delete(requestId);
-        deliveryEntries.delete(requestId);
       }
     }).catch(() => undefined);
     return delivery;
   };
 
   const executeAndCache = (command: GatewayCommand): CommandEntry | undefined => {
+    if (activeDeliveries.size === 256) {
+      input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
+      return undefined;
+    }
     reserveCacheSlot();
     const acknowledgement = executeGatewayCommand(devices, command, now());
     const entry: CommandEntry = acknowledgement.status === "SUCCESS"
@@ -225,8 +232,15 @@ export async function startMqttGateway(input: {
           stateDelivered: false,
         }
       : { acknowledgement, stateDelivered: true };
-    acknowledgements.set(entry.acknowledgement.requestId, entry);
+    completedResults.set(entry.acknowledgement.requestId, entry);
+    activeDeliveries.set(entry.acknowledgement.requestId, entry);
     return entry;
+  };
+
+  const retryActiveDeliveries = (): void => {
+    for (const entry of activeDeliveries.values()) {
+      void track(getOrStartDelivery(entry)).catch(() => undefined);
+    }
   };
 
   const handleCommand = async (topic: string, payload: string): Promise<void> => {
@@ -237,8 +251,9 @@ export async function startMqttGateway(input: {
     if (!command || topic !== `${base}/devices/${command.deviceId}/commands`) {
       return;
     }
-    const entry = acknowledgements.get(command.requestId)
-      ?? deliveryEntries.get(command.requestId)
+    const activeEntry = activeDeliveries.get(command.requestId);
+    const entry = activeEntry
+      ?? completedResults.get(command.requestId)
       ?? executeAndCache(command);
     if (!entry) {
       return;
@@ -256,7 +271,18 @@ export async function startMqttGateway(input: {
       }
       return;
     }
-    await getOrStartDelivery(entry);
+    if (activeDeliveries.get(command.requestId) === entry) {
+      await getOrStartDelivery(entry);
+      return;
+    }
+    if (!await publishAcknowledgement(entry)) {
+      if (activeDeliveries.size === 256) {
+        input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
+        return;
+      }
+      activeDeliveries.set(command.requestId, entry);
+      await getOrStartDelivery(entry);
+    }
   };
 
   const runSnapshot = async (): Promise<void> => {
@@ -309,7 +335,10 @@ export async function startMqttGateway(input: {
     return snapshot;
   };
 
-  const removeConnectHandler = transport.onConnect(() => requestSnapshot());
+  const removeConnectHandler = transport.onConnect(() => {
+    retryActiveDeliveries();
+    return requestSnapshot();
+  });
   try {
     await transport.subscribe(commandSubscription, (topic, payload) => track(handleCommand(topic, payload)).catch(() => undefined));
   } catch (error) {
@@ -333,6 +362,7 @@ export async function startMqttGateway(input: {
         heartbeatPromise = undefined;
       }
     }).catch(() => undefined);
+    retryActiveDeliveries();
     if (snapshotDirty) {
       void requestSnapshot();
     }
@@ -347,20 +377,40 @@ export async function startMqttGateway(input: {
       clearIntervalFn(heartbeat);
       removeConnectHandler();
       stopPromise = (async () => {
-        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-        const deadline = new Promise<void>((resolve) => {
-          deadlineTimer = setTimeout(resolve, shutdownTimeoutMs);
+        const waitForDeadline = async (work: Promise<unknown>, timeoutMs: number): Promise<{ settled: boolean; error?: unknown }> => {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const timeout = new Promise<{ settled: false }>((resolve) => {
+            timer = setTimeout(() => resolve({ settled: false }), timeoutMs);
+          });
+          const result = await Promise.race([
+            work.then(
+              () => ({ settled: true }),
+              (error: unknown) => ({ settled: true, error }),
+            ),
+            timeout,
+          ]);
+          if (timer !== undefined) {
+            clearTimeout(timer);
+          }
+          return result;
+        };
+        let shutdownTimer: ReturnType<typeof setTimeout> | undefined;
+        const shutdownDeadline = new Promise<void>((resolve) => {
+          shutdownTimer = setTimeout(resolve, shutdownTimeoutMs);
         });
-        const waitUntilDeadline = async (work: Promise<unknown>): Promise<{ settled: boolean; error?: unknown }> => Promise.race([
-          work.then(() => ({ settled: true }), (error: unknown) => ({ settled: true, error })),
-          deadline.then(() => ({ settled: false })),
+        const waitForShutdownDeadline = (work: Promise<unknown>) => Promise.race([
+          work.then(
+            () => ({ settled: true }),
+            (error: unknown) => ({ settled: true, error }),
+          ),
+          shutdownDeadline.then(() => ({ settled: false })),
         ]);
-        await waitUntilDeadline(Promise.allSettled([...inFlight]));
-        await waitUntilDeadline(publishStatus(false));
-        const closeResult = await waitUntilDeadline(transport.close(true));
-        if (deadlineTimer !== undefined) {
-          clearTimeout(deadlineTimer);
+        await waitForShutdownDeadline(Promise.allSettled([...inFlight]));
+        await waitForShutdownDeadline(publishStatus(false));
+        if (shutdownTimer !== undefined) {
+          clearTimeout(shutdownTimer);
         }
+        const closeResult = await waitForDeadline(transport.close(true), shutdownTimeoutMs);
         if (!closeResult.settled) {
           throw new Error("MQTT_GATEWAY_CLOSE_TIMEOUT");
         }

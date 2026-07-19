@@ -3,7 +3,7 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GatewayConfig } from "./config";
 import { loadGatewayConfig } from "./config";
-import { startMqttGateway } from "./gateway";
+import { startMqttGateway, type GatewayLogEvent } from "./gateway";
 
 type Environment = Record<string, string | undefined>;
 type DotenvLoader = (options: { path: string; override: false; processEnv: Environment }) => unknown;
@@ -53,18 +53,20 @@ export async function runServer(input: {
   processRef?: ProcessRuntime;
   loadEnvironment?: (environment: Environment) => void;
   loadConfig?: (environment: Environment) => GatewayConfig;
-  startGateway?: (input: { config: GatewayConfig }) => Promise<GatewayRuntime>;
+  startGateway?: (input: { config: GatewayConfig; logger?: (event: GatewayLogEvent) => void }) => Promise<GatewayRuntime>;
+  reportEvent?: (event: GatewayLogEvent) => void;
   reportError?: (message: string) => void;
 } = {}): Promise<void> {
   const processRef = input.processRef ?? process;
   const reportError = input.reportError ?? ((message: string) => console.error(message));
+  const reportEvent = input.reportEvent ?? ((event: GatewayLogEvent) => console.error(event));
   try {
     (input.loadEnvironment ?? ((environment) => loadGatewayEnvironment({
       cwd: process.cwd(),
       environment,
     })))(processRef.env);
     const config = (input.loadConfig ?? loadGatewayConfig)(processRef.env);
-    const gateway = await (input.startGateway ?? startMqttGateway)({ config });
+    const gateway = await (input.startGateway ?? startMqttGateway)({ config, logger: reportEvent });
     let stopping: Promise<void> | undefined;
     const stop = (): void => {
       stopping ??= gateway.stop().then(() => {

@@ -429,6 +429,59 @@ describe("MQTT gateway runtime", () => {
     expect(transport.forceCloseCalls).toBe(1);
   });
 
+  it("gives forced close a fresh timeout window after the drain deadline expires", async () => {
+    const transport = new FakeTransport();
+    const timers = timerHarness();
+    transport.close = () => new Promise<void>((resolve) => setTimeout(resolve, 1));
+    const runtime = await startMqttGateway({ config, transport, ...timers, shutdownTimeoutMs: 5 });
+    transport.deferNextPublish();
+    await timers.tick();
+
+    await expect(runtime.stop()).resolves.toBeUndefined();
+  });
+
+  it("retries failed command delivery on heartbeat without another inbound command", async () => {
+    const transport = new FakeTransport();
+    const timers = timerHarness();
+    const devices = (await import("../src/devices")).createGatewayDevices(10);
+    await startMqttGateway({ config, transport, devices, now: () => 20, ...timers });
+    transport.rejectNextPublish = true;
+
+    await transport.receive(commandTopic(), command("autonomous-retry-1", "living-room-light", { on: false }));
+    transport.clearPublications();
+    await timers.tick();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/status",
+      "omnihome/gateways/lab-gateway/devices/living-room-light/state",
+      "omnihome/gateways/lab-gateway/commands/autonomous-retry-1/ack",
+    ]);
+    expect(parse(transport.publications[1])).toMatchObject({ state: { updatedAt: 20, power: false } });
+    expect(parse(transport.publications[2])).toMatchObject({ state: { updatedAt: 20, power: false } });
+  });
+
+  it("bounds active command delivery and ignores distinct overflow without mutation", async () => {
+    const transport = new FakeTransport();
+    const events: string[] = [];
+    const devices = (await import("../src/devices")).createGatewayDevices(10);
+    const runtime = await startMqttGateway({ config, transport, devices, shutdownTimeoutMs: 1, logger: (event) => events.push(event) });
+    transport.stallPublishesUntilForceClose();
+    const pending = Array.from({ length: 256 }, (_, index) => transport.receive(
+      commandTopic(),
+      command(`capacity-${index}`, "living-room-light", { on: index % 2 === 0 }),
+    ));
+    await Promise.resolve();
+    const stateBeforeOverflow = structuredClone(devices.get("living-room-light")?.state);
+    const overflow = transport.receive(commandTopic(), command("capacity-overflow", "living-room-light", { on: true }));
+    await Promise.resolve();
+
+    expect(transport.publications).toHaveLength(256);
+    expect(events).toEqual(["MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED"]);
+    expect(devices.get("living-room-light")?.state).toEqual(stateBeforeOverflow);
+    await Promise.all([...pending, overflow, runtime.stop()]);
+  });
+
   it("marks a failed snapshot dirty and recovers the full snapshot on a heartbeat", async () => {
     const transport = new FakeTransport();
     const timers = timerHarness();
