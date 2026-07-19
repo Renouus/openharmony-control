@@ -8,7 +8,10 @@ import {
   navigateBack,
   SubPageHistory,
 } from '../../../main/ets/model/index-page-state';
-import { createDeviceEditorRoute } from '../../../main/ets/model/page-view-state';
+import {
+  createDeviceEditorRoute,
+  deviceTapTargetPage,
+} from '../../../main/ets/model/page-view-state';
 
 function includesAll(
   actual: AppPageRefreshTarget[],
@@ -67,6 +70,14 @@ export default function indexPageStateTest() {
       expect(route.page).assertEqual('deviceEditor');
       expect(route.param.deviceId).assertEqual('light-1');
       expect(createDeviceEditorRoute('   ').valid).assertFalse();
+    });
+
+    it('routes only controllable device kinds to control pages', () => {
+      expect(deviceTapTargetPage('door-lock')).assertEqual('access');
+      expect(deviceTapTargetPage('light')).assertEqual('lightControl');
+      expect(deviceTapTargetPage('air-conditioner')).assertEqual('climate');
+      expect(deviceTapTargetPage('environment-sensor')).assertEqual('deviceEditor');
+      expect(deviceTapTargetPage('unknown')).assertEqual('deviceEditor');
     });
   });
 }

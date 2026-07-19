@@ -85,6 +85,19 @@ export function createDeviceEditorRoute(deviceId: string): DeviceEditorRouteTarg
   };
 }
 
+export function deviceTapTargetPage(kind: string): AppPageId {
+  if (kind === 'door-lock') {
+    return 'access';
+  }
+  if (kind === 'light') {
+    return 'lightControl';
+  }
+  if (kind === 'air-conditioner') {
+    return 'climate';
+  }
+  return 'deviceEditor';
+}
+
 export function createGlobalSceneEditorContext(): SceneEditorCreateContext {
   const context: SceneEditorCreateContext = {
     mode: 'create',

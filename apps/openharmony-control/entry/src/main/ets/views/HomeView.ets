@@ -6,6 +6,7 @@ import {
   SceneChipState,
   StatusChipState,
   createDeviceEditorRoute,
+  deviceTapTargetPage,
 } from '../model/page-view-state';
 import { AppStateSnapshot } from '../model/app-state-snapshot';
 import { AppController } from '../controllers/AppController';
@@ -145,15 +146,12 @@ struct HomeContent {
   @Consume('navStack') navStack: NavProxy;
 
   private handleDeviceTap(deviceId: string, kind: string): void {
-    if (kind === 'door-lock') {
-      this.navStack.pushPathByName('access', deviceId);
-    } else if (kind === 'light') {
-      this.navStack.pushPathByName('lightControl', deviceId);
-    } else if (kind === 'air-conditioner') {
-      this.navStack.pushPathByName('climate', deviceId);
-    } else {
-      this.navStack.pushPathByName('climate', deviceId);
+    const page = deviceTapTargetPage(kind);
+    if (page === 'deviceEditor') {
+      this.handleDeviceEdit(deviceId);
+      return;
     }
+    this.navStack.pushPathByName(page, deviceId);
   }
 
   private handleDeviceEdit(deviceId: string): void {

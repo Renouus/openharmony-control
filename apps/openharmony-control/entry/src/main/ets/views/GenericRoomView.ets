@@ -1,5 +1,10 @@
 import { AppStateSnapshot } from '../model/app-state-snapshot';
-import { RoomViewState, StatusChipState, createDeviceEditorRoute } from '../model/page-view-state';
+import {
+  RoomViewState,
+  StatusChipState,
+  createDeviceEditorRoute,
+  deviceTapTargetPage,
+} from '../model/page-view-state';
 import { AppController } from '../controllers/AppController';
 import { NavProxy } from '../controllers/NavProxy';
 import { DeviceGridLayout } from '../components/DeviceGridLayout';
@@ -44,13 +49,12 @@ export struct GenericRoomView {
   }
 
   private handleDeviceTap(deviceId: string, kind: string): void {
-    if (kind === 'door-lock') {
-      this.navStack.pushPathByName('access', deviceId);
-    } else if (kind === 'light') {
-      this.navStack.pushPathByName('lightControl', deviceId);
-    } else {
-      this.navStack.pushPathByName('climate', deviceId);
+    const page = deviceTapTargetPage(kind);
+    if (page === 'deviceEditor') {
+      this.handleDeviceEdit(deviceId);
+      return;
     }
+    this.navStack.pushPathByName(page, deviceId);
   }
 
   private handleDeviceEdit(deviceId: string): void {
