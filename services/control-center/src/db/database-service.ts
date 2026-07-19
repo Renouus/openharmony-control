@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import {
   mapDeviceRowToSyncDto,
-  mapVendorDeviceToSyncDto,
   type DeviceSyncDto,
   type DeviceSyncRow,
 } from './device-sync-mapper';
+import { listManagedVendorSyncDevices } from '../devices/provider-device-projection';
 import { SceneRegistry } from '../scenes/scene-registry';
 import type { VendorDeviceProvider } from '../integrations/vendor-provider';
 
@@ -214,33 +214,7 @@ export class DatabaseService {
   }
 
   private async loadAllVendorSyncDevices(): Promise<DeviceSyncDto[]> {
-    const vendorProvider = this.vendorProvider;
-    if (!vendorProvider) {
-      return [];
-    }
-
-    const devices = await vendorProvider.listDevices();
-    const lookupStoredDevice = this.db.prepare(`
-      SELECT custom_name, lifecycle_state, is_deleted
-      FROM devices
-      WHERE id = ?
-    `);
-
-    return devices
-      .filter((device) => vendorProvider.ownsDevice(device.id))
-      .flatMap((device) => {
-        const row = lookupStoredDevice.get(device.id) as {
-          custom_name?: string | null;
-          lifecycle_state?: string;
-          is_deleted?: number;
-        } | undefined;
-        if (row && (row.is_deleted !== 0 || row.lifecycle_state !== "active")) {
-          return [];
-        }
-
-        const customName = row?.custom_name ?? undefined;
-        return [mapVendorDeviceToSyncDto(customName ? { ...device, customName } : device)];
-      });
+    return await listManagedVendorSyncDevices(this.db, this.vendorProvider);
   }
 
   private ensureBuiltInScenesPersisted(): void {

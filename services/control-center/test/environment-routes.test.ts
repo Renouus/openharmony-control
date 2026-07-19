@@ -5,6 +5,8 @@ describe("environment and AC demo devices", () => {
   it("returns temperature and humidity for the sensor", async () => {
     const app = buildApp();
     const response = await app.inject({ method: "GET", url: "/api/devices" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toHaveProperty("devices");
     const sensor = response
       .json()
       .devices.find((device: { id: string }) => device.id === "sensor-living-room");

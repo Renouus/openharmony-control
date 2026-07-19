@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import type { EnhancedDeviceDescriptor } from "@smart-home/device-contract";
 import {
   mapDeviceRowToSyncDto,
+  mapVendorDeviceToSyncDto,
   type DeviceSyncDto,
   type DeviceSyncRow,
 } from "../db/device-sync-mapper";
@@ -78,14 +79,11 @@ export async function listManagedVendorSyncDevices(
   }
 
   const rows = loadActiveVendorRows(db, vendorProvider);
-  if (rows.length === 0) {
-    return [];
-  }
-
   const liveDevices = await vendorProvider.listDevices();
   const liveById = new Map(liveDevices.map((device) => [device.id, device]));
+  const storedVendorIds = loadStoredVendorIds(db, vendorProvider);
 
-  return rows.map((row) => {
+  const managedDevices = rows.map((row) => {
     const liveDevice = liveById.get(row.id);
     if (!liveDevice) {
       return mapDeviceRowToSyncDto(row);
@@ -107,6 +105,19 @@ export async function listManagedVendorSyncDevices(
       isDeleted: false,
     };
   });
+  const legacyConfiguredDevices = liveDevices
+    .filter((device) => vendorProvider.ownsDevice(device.id) && !storedVendorIds.has(device.id))
+    .map(mapVendorDeviceToSyncDto);
+
+  return [...managedDevices, ...legacyConfiguredDevices];
+}
+
+function loadStoredVendorIds(
+  db: Database.Database,
+  vendorProvider: VendorDeviceProvider,
+): Set<string> {
+  const rows = db.prepare("SELECT id FROM devices").all() as Array<{ id: string }>;
+  return new Set(rows.filter((row) => vendorProvider.ownsDevice(row.id)).map((row) => row.id));
 }
 
 function loadActiveVendorRows(

@@ -41,6 +41,36 @@ function fakeVendorProvider(updatedAt = 1720100000000): VendorDeviceProvider {
   };
 }
 
+function insertVendorDeviceRow(
+  db: ReturnType<typeof getDb>,
+  options: {
+    customName?: string | null;
+    roomId?: string;
+    state?: Record<string, unknown>;
+    updatedAt?: number;
+    version?: number;
+    lifecycleState?: string;
+    isDeleted?: number;
+  } = {},
+): void {
+  db.prepare(
+    `INSERT INTO devices (
+      id, name, custom_name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    'tuya-vdevo178318782505115',
+    'Stored ceiling lighting',
+    options.customName ?? null,
+    'light',
+    options.roomId ?? 'living-room',
+    JSON.stringify(options.state ?? {}),
+    options.updatedAt ?? 1,
+    options.version ?? 1,
+    options.isDeleted ?? 0,
+    options.lifecycleState ?? 'active',
+  );
+}
+
 describe('DatabaseService', () => {
   beforeEach(() => {
     initDatabase(':memory:');
@@ -165,22 +195,77 @@ describe('DatabaseService', () => {
   it('should exclude pending vendor devices from sync data', async () => {
     const db = getDb();
     const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
-    db.prepare(
-      `INSERT INTO devices (
-        id, name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending')`,
-    ).run(
-      'tuya-vdevo178318782505115',
-      'Ceiling lighting',
-      'light',
-      'living-room',
-      '{}',
-      1,
-      1,
-    );
+    insertVendorDeviceRow(db, { lifecycleState: 'pending' });
 
     const syncResult = await service.getSyncData(0);
 
     expect(syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
+  });
+
+  it('should exclude rejected vendor devices from sync data', async () => {
+    const db = getDb();
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+    insertVendorDeviceRow(db, { lifecycleState: 'rejected' });
+
+    const syncResult = await service.getSyncData(0);
+
+    expect(syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
+  });
+
+  it('should exclude deleted vendor devices from sync data', async () => {
+    const db = getDb();
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+    insertVendorDeviceRow(db, { isDeleted: 1 });
+
+    const syncResult = await service.getSyncData(0);
+
+    expect(syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115')).toBeUndefined();
+  });
+
+  it('should preserve active vendor device overlays and persisted versions', async () => {
+    const db = getDb();
+    const service = new DatabaseService(db, fakeVendorProvider(1720100000000));
+    insertVendorDeviceRow(db, {
+      customName: 'Local ceiling light',
+      roomId: 'bedroom',
+      updatedAt: 1720100001000,
+      version: 1720100002000,
+    });
+
+    const syncResult = await service.getSyncData(0);
+    const vendorDevice = syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115');
+
+    expect(vendorDevice).toEqual(expect.objectContaining({
+      customName: 'Local ceiling light',
+      roomId: 'bedroom',
+      updatedAt: 1720100001000,
+      version: 1720100002000,
+    }));
+  });
+
+  it('should use the active database row when the vendor provider temporarily omits the device', async () => {
+    const db = getDb();
+    const vendorProvider = fakeVendorProvider(1720100000000);
+    vendorProvider.listDevices = async () => [];
+    const service = new DatabaseService(db, vendorProvider);
+    insertVendorDeviceRow(db, {
+      customName: 'Fallback ceiling light',
+      roomId: 'bedroom',
+      state: { power: false, brightness: 17, online: false },
+      updatedAt: 1720100001000,
+      version: 1720100002000,
+    });
+
+    const syncResult = await service.getSyncData(0);
+    const vendorDevice = syncResult.devices.find((device) => device.id === 'tuya-vdevo178318782505115');
+
+    expect(vendorDevice).toEqual(expect.objectContaining({
+      customName: 'Fallback ceiling light',
+      roomId: 'bedroom',
+      payload: { power: false, brightness: 17, online: false },
+      updatedAt: 1720100001000,
+      version: 1720100002000,
+      isDeleted: false,
+    }));
   });
 });
