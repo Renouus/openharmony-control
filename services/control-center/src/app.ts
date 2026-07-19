@@ -39,7 +39,7 @@ import { registerProviderRoutes } from "./routes/providers";
 import { registerSceneRoutes } from "./routes/scenes";
 import { SceneRegistry } from "./scenes/scene-registry";
 import { SceneService } from "./services/scene-service";
-import { DeviceCommandService } from "./services/device-command-service";
+import { DeviceCommandService, persistActiveProviderStateUpdate } from "./services/device-command-service";
 import { RoomRegistry } from "./registry/rooms";
 import { registerRoomRoutes } from "./routes/rooms";
 import { ReplayGuard } from "./security/envelope";
@@ -83,6 +83,12 @@ export function buildApp(
   const faultState = createDemoFaultState();
   const roomRegistry = new RoomRegistry();
   const vendorProvider = options.vendorProvider ?? createVendorProviderFromEnv();
+  const removeProviderStateListener = vendorProvider?.onStateChange?.((deviceId, state) => {
+    persistActiveProviderStateUpdate(deviceId, state, app.log);
+  });
+  app.addHook("onClose", async () => {
+    removeProviderStateListener?.();
+  });
 
   // 9 个设备模拟器? 门锁 + 5 灯光 + 2 空调
   const simulators = new Map(

@@ -274,6 +274,36 @@ export class ProviderDeviceStore {
     return result.changes > 0;
   }
 
+  public updateActiveDeviceState(
+    deviceId: string,
+    state: DeviceState,
+  ): EnhancedDeviceDescriptor | undefined {
+    const updated = this.db.transaction(() => {
+      const currentVersionRow = this.db
+        .prepare("SELECT value FROM metadata WHERE key = 'global_version'")
+        .get() as { value: string };
+      const nextVersion = Number.parseInt(currentVersionRow.value, 10) + 1;
+      const result = this.db.prepare(`
+        UPDATE devices
+        SET state_json = ?, updated_at = ?, version = ?
+        WHERE id = ? AND lifecycle_state = 'active' AND is_deleted = 0
+      `).run(JSON.stringify(state), Date.now(), nextVersion, deviceId);
+
+      if (result.changes === 0) {
+        return false;
+      }
+
+      this.db.prepare("UPDATE metadata SET value = ? WHERE key = 'global_version'")
+        .run(String(nextVersion));
+      return true;
+    })();
+
+    if (!updated) {
+      return undefined;
+    }
+    return this.listActiveDevices().find((device) => device.id === deviceId);
+  }
+
   private incrementVersion(): number {
     this.db
       .prepare(

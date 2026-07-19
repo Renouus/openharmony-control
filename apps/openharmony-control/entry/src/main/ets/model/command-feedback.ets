@@ -8,6 +8,8 @@ export function commandFeedbackLabel(code: string): string {
       return 'Device is offline';
     case 'COMMAND_INVALID':
       return 'Command not supported';
+    case 'COMMAND_TIMEOUT':
+      return 'Command timed out';
     default:
       return 'Command failed';
   }

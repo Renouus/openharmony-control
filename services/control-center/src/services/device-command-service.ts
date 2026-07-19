@@ -11,6 +11,8 @@ import type { CommandHistory } from "../history/command-history";
 import type { DeviceRegistry } from "../registry/device-registry";
 import type { DeviceStateTriggerAdapter } from "../automation/triggers/device-state-trigger-adapter";
 import type { VendorDeviceProvider } from "../integrations/vendor-provider";
+import type { DeviceState } from "@smart-home/device-contract";
+import { ProviderDeviceStore } from "../devices/provider-device-store";
 import { ReplayGuard, verifyEnvelope } from "../security/envelope";
 import { broadcastEvent } from "../routes/websocket";
 
@@ -126,6 +128,31 @@ export function persistDeviceStateUpdate(input: PersistDeviceStateInput): Device
   }
 }
 
+export function persistActiveProviderStateUpdate(
+  deviceId: string,
+  state: DeviceState,
+  logger: ServiceLogger = noopLogger,
+): DeviceSyncDto | undefined {
+  try {
+    const db = getDb();
+    const store = new ProviderDeviceStore(db);
+    if (!store.updateActiveDeviceState(deviceId, state)) {
+      return undefined;
+    }
+    const row = db.prepare("SELECT * FROM devices WHERE id = ?")
+      .get(deviceId) as DeviceSyncRow | undefined;
+    if (!row) {
+      return undefined;
+    }
+    const syncedDevice = mapDeviceRowToSyncDto(row);
+    broadcastEvent("DeviceStateUpdated", syncedDevice);
+    return syncedDevice;
+  } catch (error) {
+    logger.error(`Failed to persist provider device state:${String(error)}`);
+    return undefined;
+  }
+}
+
 export class DeviceCommandService {
   constructor(
     private readonly registry: DeviceRegistry,
@@ -201,6 +228,21 @@ export class DeviceCommandService {
     },
   ): Promise<DeviceCommandExecutionResult> {
     if (this.vendorProvider?.ownsDevice(command.deviceId)) {
+      let active = false;
+      try {
+        active = new ProviderDeviceStore(getDb())
+          .listActiveDevices()
+          .some((device) => device.id === command.deviceId);
+      } catch (error) {
+        this.logger.error(`Failed to verify active provider device:${String(error)}`);
+      }
+      if (!active) {
+        return {
+          ok: false,
+          statusCode: 404,
+          body: { code: "DEVICE_NOT_FOUND" },
+        };
+      }
       return await this.executeVendorCommand(command);
     }
 
@@ -368,6 +410,11 @@ export class DeviceCommandService {
       status: CommandStatus.Success,
       message: "Vendor command executed successfully",
     });
+    const syncedDevice = persistActiveProviderStateUpdate(
+      command.deviceId,
+      result.state,
+      this.logger,
+    );
 
     return {
       ok: true,
@@ -376,7 +423,7 @@ export class DeviceCommandService {
         status: CommandStatus.Success,
         deviceId: command.deviceId,
         state: result.state as Record<string, unknown>,
-        syncedDevice: result.syncedDevice as DeviceSyncDto | undefined,
+        syncedDevice,
         historyEntry,
       },
     };

@@ -133,7 +133,7 @@ export function createMqttTransport(
 }
 
 export interface MqttDeviceProvider extends VendorDeviceProvider {
-  ready(timeoutMs: number): Promise<void>;
+  ready(timeoutMs?: number): Promise<void>;
   close(): Promise<void>;
   onStateChange(listener: (deviceId: string, state: DeviceState) => void): Unsubscribe;
 }
@@ -370,7 +370,7 @@ export function createMqttProvider(input: CreateMqttProviderInput): MqttDevicePr
 
   return {
     providerId: "mqtt",
-    ready: async (timeoutMs) => {
+    ready: async (timeoutMs = config.commandTimeoutMs) => {
       if (closed) throw new Error("MQTT provider is closed");
       const generation = subscriptionGeneration;
       await withinTimeout(async () => {

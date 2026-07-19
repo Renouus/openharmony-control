@@ -7,5 +7,9 @@ export default function commandFeedbackTest() {
       expect(commandFeedbackLabel('COMMAND_UNAUTHORIZED'))
         .assertEqual('Command rejected by security check');
     });
+
+    it('turns acknowledgement timeouts into a visible timeout message', () => {
+      expect(commandFeedbackLabel('COMMAND_TIMEOUT')).assertEqual('Command timed out');
+    });
   });
 }

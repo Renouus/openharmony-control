@@ -486,6 +486,14 @@ describe("secure device commands", () => {
   });
 
   it("rejects commands for read-only Tuya sensor devices", async () => {
+    getDb().prepare(`
+      INSERT INTO devices (id, name, type, room_id, state_json, updated_at, version, is_deleted, lifecycle_state)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'active')
+    `).run(
+      "tuya-sensor-1", "Living Sensor", "environment-sensor", "living-room",
+      JSON.stringify({ temperature: 23.5, humidity: 48, online: true, updatedAt: 60 }),
+      60, 1,
+    );
     const app = buildApp(undefined, undefined, { vendorProvider: fakeVendorProvider() });
     const envelope = await sign(app, {
       requestId: "cmd-sensor",

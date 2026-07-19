@@ -29,4 +29,7 @@ export interface VendorDeviceProvider extends DeviceProviderDiscovery {
   listDevices(): Promise<EnhancedDeviceDescriptor[]>;
   getDevice(deviceId: string): Promise<EnhancedDeviceDescriptor | undefined>;
   executeCommand(command: DeviceCommand): Promise<VendorExecutionResult>;
+  ready?(): Promise<void>;
+  close?(): Promise<void>;
+  onStateChange?(listener: (deviceId: string, state: DeviceState) => void): () => void;
 }

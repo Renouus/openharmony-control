@@ -505,6 +505,7 @@ function extractErrorCode(message: string): string {
     'DEVICE_NOT_FOUND',
     'DEVICE_OFFLINE',
     'COMMAND_INVALID',
+    'COMMAND_TIMEOUT',
     'DEVICE_TEMPLATE_NOT_FOUND',
     'DEVICE_ALREADY_EXISTS',
     'BAD_REQUEST',

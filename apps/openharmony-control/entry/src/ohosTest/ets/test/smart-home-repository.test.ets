@@ -14,5 +14,11 @@ export default function smartHomeRepositoryTest() {
 
       expect(message).assertEqual('Device already added');
     });
+
+    it('maps a command acknowledgement timeout', () => {
+      const message = normalizeRepositoryError(new Error('{"code":"COMMAND_TIMEOUT"}'));
+
+      expect(message).assertEqual('Command timed out');
+    });
   });
 }
