@@ -94,6 +94,45 @@ describe("encrypted field migration", () => {
     })).toThrow(/automations\.trigger_json/);
   });
 
+  it("migrates historical empty-string editor placeholders without rewriting the payload", () => {
+    const { dbPath, backupPath } = fixture();
+    const triggerJson = JSON.stringify([{
+      id: "time-1", type: "time", label: "At 14:52", time: "14:52",
+      deviceId: "", property: "", operator: "==", threshold: "",
+    }]);
+    const actionJson = JSON.stringify([{
+      id: "action-1", type: "device_command", label: "Set brightness",
+      deviceId: "light-entry", command: "brightness:25", sceneId: "",
+    }]);
+    const db = new Database(dbPath);
+    db.prepare("UPDATE automations SET trigger_json=?, action_json=? WHERE id='automation-1'")
+      .run(triggerJson, actionJson);
+    db.close();
+
+    migrateEncryptedFields({ dbPath, backupPath, write: true, encryptedRepositories: repositories() });
+
+    const migrated = new Database(dbPath, { readonly: true });
+    const row = migrated.prepare("SELECT trigger_json, action_json FROM automations WHERE id='automation-1'")
+      .get() as { trigger_json: string; action_json: string };
+    expect(repositories().automations.decodeTriggerJson("automation-1", "time", row.trigger_json)).toBe(triggerJson);
+    expect(repositories().automations.decodeActionJson("automation-1", row.action_json)).toBe(actionJson);
+    migrated.close();
+  });
+
+  it("does not discard non-empty fields from an incompatible trigger", () => {
+    const { dbPath, backupPath } = fixture();
+    const db = new Database(dbPath);
+    db.prepare("UPDATE automations SET trigger_json=? WHERE id='automation-1'").run(JSON.stringify([{
+      type: "time", time: "14:52", deviceId: "door-front",
+      property: "", operator: "==", threshold: "",
+    }]));
+    db.close();
+
+    expect(() => migrateEncryptedFields({
+      dbPath, backupPath, write: false, encryptedRepositories: repositories(),
+    })).toThrow(/automations\.trigger_json/);
+  });
+
   it("backs up then transactionally encrypts every protected value and sets metadata last", () => {
     const { dbPath, backupPath } = fixture();
     const before = readFileSync(dbPath);

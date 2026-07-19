@@ -103,6 +103,25 @@ function normalizeJson(value: unknown): JsonValue {
 function assertObject(value: unknown): asserts value is JsonObject {
   if (!value || Array.isArray(value) || typeof value !== "object") throw new EncryptedDataInvalidError();
 }
+function omitEmptyEditorPlaceholders(value: unknown): unknown {
+  const omitFromRecord = (record: unknown): unknown => {
+    if (!record || Array.isArray(record) || typeof record !== "object") return record;
+    const fields = { ...(record as Record<string, unknown>) };
+    if (fields.type === "time" && fields.deviceId === "" && fields.property === "" &&
+      fields.threshold === "" && fields.operator === "==") {
+      delete fields.operator;
+    }
+    return Object.fromEntries(Object.entries(fields).filter(([, fieldValue]) => fieldValue !== ""));
+  };
+  if (Array.isArray(value)) return value.map(omitFromRecord);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.conditions)) {
+      return { ...record, conditions: record.conditions.map(omitFromRecord) };
+    }
+  }
+  return omitFromRecord(value);
+}
 const deviceStateSchema = z.object({
   power: z.boolean().optional(), locked: z.boolean().optional(), mode: z.enum(["heat", "cool", "auto", "off"]).optional(),
   temperature: z.number().finite().min(-100).max(100).optional(), humidity: z.number().finite().min(0).max(100).optional(),
@@ -188,7 +207,7 @@ function stringifyValidatedAutomationTrigger(value: JsonValue, triggerType: stri
     const json = JSON.stringify(value);
     const context = parseWith(automationTriggerTypeSchema, triggerType);
     const normalized = normalizeAutomationTransport({ triggerType: context, triggerJson: json, actionJson: "[]" });
-    const parsed = JSON.parse(normalized.triggerJson) as unknown;
+    const parsed = omitEmptyEditorPlaceholders(JSON.parse(normalized.triggerJson));
     const firstConditionSchema = context === "time"
       ? timeTriggerSchema
       : context === "device_state_changed"
@@ -212,7 +231,7 @@ function stringifyValidatedAutomationActions(value: JsonValue): string {
   try {
     const json = JSON.stringify(value);
     const normalized = normalizeAutomationTransport({ triggerType: "time", triggerJson: "[]", actionJson: json });
-    parseWith(automationActionsSchema, JSON.parse(normalized.actionJson));
+    parseWith(automationActionsSchema, omitEmptyEditorPlaceholders(JSON.parse(normalized.actionJson)));
     return json;
   } catch { throw new EncryptedDataInvalidError(); }
 }

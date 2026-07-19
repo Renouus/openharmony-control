@@ -131,6 +131,8 @@ Expected: all migration tests PASS and the commit succeeds.
 
 ### Task 3: Verify and migrate the real database
 
+Before real-database migration, add a red-green regression for historical top-level empty-string placeholders on trigger and action records. Validation may omit only those empty top-level fields while preserving the original JSON for encryption and decode round-trip; non-empty unknown fields must remain rejected.
+
 **Files:**
 - Read: `services/control-center/.env`
 - Modify at runtime: `services/control-center/smarthome.db`
