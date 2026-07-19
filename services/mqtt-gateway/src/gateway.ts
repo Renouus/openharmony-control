@@ -130,7 +130,8 @@ export async function startMqttGateway(input: {
   const completedResults = new Map<string, CommandEntry>();
   const activeDeliveries = new Map<string, CommandEntry>();
   const deliveries = new Map<string, Promise<boolean>>();
-  const acknowledgementReplays = new Map<string, Promise<boolean>>();
+  const acknowledgementReplayQueue: string[] = [];
+  const queuedAcknowledgementReplays = new Set<string>();
   const inFlight = new Set<Promise<unknown>>();
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
@@ -138,6 +139,7 @@ export async function startMqttGateway(input: {
   let snapshotQueued = false;
   let snapshotDirty = false;
   let heartbeatPromise: Promise<boolean> | undefined;
+  let acknowledgementReplayPromise: Promise<boolean> | undefined;
 
   const track = <Result>(work: Promise<Result>): Promise<Result> => {
     inFlight.add(work);
@@ -167,15 +169,6 @@ export async function startMqttGateway(input: {
       entry.acknowledgement.requestId,
     );
     return safePublish(topics.ack, entry.acknowledgement, false);
-  };
-
-  const reserveCacheSlot = (): void => {
-    if (completedResults.size === 256) {
-      const oldestRequestId = completedResults.keys().next().value as string | undefined;
-      if (oldestRequestId !== undefined) {
-        completedResults.delete(oldestRequestId);
-      }
-    }
   };
 
   const deliverCommand = async (entry: CommandEntry): Promise<boolean> => {
@@ -222,28 +215,78 @@ export async function startMqttGateway(input: {
     void track(getOrStartDelivery(entry)).catch(() => undefined);
   };
 
-  const replayAcknowledgement = (entry: CommandEntry): void => {
-    const requestId = entry.acknowledgement.requestId;
-    if (acknowledgementReplays.has(requestId) || acknowledgementReplays.size === 256) {
+  const removeQueuedAcknowledgementReplay = (requestId: string): void => {
+    if (!queuedAcknowledgementReplays.delete(requestId)) {
+      return;
+    }
+    const index = acknowledgementReplayQueue.indexOf(requestId);
+    if (index >= 0) {
+      acknowledgementReplayQueue.splice(index, 1);
+    }
+  };
+
+  const processAcknowledgementReplays = (): void => {
+    if (stopped || acknowledgementReplayPromise) {
+      return;
+    }
+    let requestId: string | undefined;
+    let entry: CommandEntry | undefined;
+    while (acknowledgementReplayQueue.length > 0 && !entry) {
+      requestId = acknowledgementReplayQueue.shift();
+      if (requestId === undefined) {
+        continue;
+      }
+      entry = completedResults.get(requestId);
+    }
+    if (!requestId || !entry) {
       return;
     }
     const replay = publishAcknowledgement(entry);
-    acknowledgementReplays.set(requestId, replay);
-    void track(replay).then((published) => {
-      if (published || stopped || activeDeliveries.has(requestId)) {
-        return;
+    acknowledgementReplayPromise = replay;
+    let published = false;
+    const requeue = (): void => {
+      if (!stopped && completedResults.get(requestId) === entry && !acknowledgementReplayQueue.includes(requestId)) {
+        acknowledgementReplayQueue.push(requestId);
       }
-      if (activeDeliveries.size === 256) {
-        input.logger?.("MQTT_GATEWAY_COMMAND_CAPACITY_EXCEEDED");
-        return;
+    };
+    void track(replay).then((didPublish) => {
+      published = didPublish;
+      if (!didPublish) {
+        requeue();
       }
-      activeDeliveries.set(requestId, entry);
-      ensureDelivery(entry);
-    }).catch(() => undefined).finally(() => {
-      if (acknowledgementReplays.get(requestId) === replay) {
-        acknowledgementReplays.delete(requestId);
+    }).catch(() => {
+      requeue();
+    }).finally(() => {
+      if (acknowledgementReplayPromise === replay) {
+        acknowledgementReplayPromise = undefined;
+      }
+      if (published && completedResults.get(requestId) === entry) {
+        queuedAcknowledgementReplays.delete(requestId);
+      }
+      if (published) {
+        processAcknowledgementReplays();
       }
     });
+  };
+
+  const replayAcknowledgement = (entry: CommandEntry): void => {
+    const requestId = entry.acknowledgement.requestId;
+    if (completedResults.get(requestId) !== entry || queuedAcknowledgementReplays.has(requestId)) {
+      return;
+    }
+    queuedAcknowledgementReplays.add(requestId);
+    acknowledgementReplayQueue.push(requestId);
+    processAcknowledgementReplays();
+  };
+
+  const reserveCacheSlot = (): void => {
+    if (completedResults.size === 256) {
+      const oldestRequestId = completedResults.keys().next().value as string | undefined;
+      if (oldestRequestId !== undefined) {
+        completedResults.delete(oldestRequestId);
+        removeQueuedAcknowledgementReplay(oldestRequestId);
+      }
+    }
   };
 
   const executeAndCache = (command: GatewayCommand): CommandEntry | undefined => {
@@ -273,6 +316,10 @@ export async function startMqttGateway(input: {
     for (const entry of activeDeliveries.values()) {
       ensureDelivery(entry);
     }
+  };
+
+  const retryAcknowledgementReplays = (): void => {
+    processAcknowledgementReplays();
   };
 
   const handleCommand = async (topic: string, payload: string): Promise<void> => {
@@ -352,6 +399,7 @@ export async function startMqttGateway(input: {
 
   const removeConnectHandler = transport.onConnect(() => {
     retryActiveDeliveries();
+    retryAcknowledgementReplays();
     return requestSnapshot();
   });
   try {
@@ -378,6 +426,7 @@ export async function startMqttGateway(input: {
       }
     }).catch(() => undefined);
     retryActiveDeliveries();
+    retryAcknowledgementReplays();
     if (snapshotDirty) {
       void requestSnapshot();
     }

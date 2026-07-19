@@ -121,6 +121,16 @@ function parse(publication: Publication): unknown {
   return JSON.parse(publication.payload);
 }
 
+async function waitForPublication(transport: FakeTransport, topic: string): Promise<void> {
+  for (let attempt = 0; attempt < 1_024; attempt += 1) {
+    if (transport.publications.some((publication) => publication.topic === topic)) {
+      return;
+    }
+    await Promise.resolve();
+  }
+  throw new Error(`Timed out waiting for publication: ${topic}`);
+}
+
 function timerHarness() {
   let callback: (() => void) | undefined;
   let clearCalls = 0;
@@ -340,6 +350,49 @@ describe("MQTT gateway runtime", () => {
     ]);
     releaseAcknowledgement();
     await Promise.all(duplicates);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await Promise.resolve();
+    }
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/commands/completed-flood-1/ack",
+    ]);
+  });
+
+  it("serializes replay through cache churn and eventually acknowledges the newest cached request", async () => {
+    const transport = new FakeTransport();
+    await startMqttGateway({ config, transport });
+    await transport.triggerConnect();
+    transport.clearPublications();
+    for (let index = 0; index < 256; index += 1) {
+      await transport.receive(commandTopic("environment-sensor"), command(`cached-replay-${index}`, "environment-sensor"));
+    }
+    transport.clearPublications();
+    const releaseAcknowledgement = transport.deferNextPublish();
+    const queuedReplays = Array.from({ length: 256 }, (_, index) => transport.receive(
+      commandTopic("environment-sensor"),
+      command(`cached-replay-${index}`, "environment-sensor"),
+    ));
+    await Promise.resolve();
+
+    expect(transport.publications.map(({ topic }) => topic)).toEqual([
+      "omnihome/gateways/lab-gateway/commands/cached-replay-0/ack",
+    ]);
+
+    await transport.receive(commandTopic("environment-sensor"), command("cached-replay-256", "environment-sensor"));
+    transport.clearPublications();
+    const newestReplay = transport.receive(
+      commandTopic("environment-sensor"),
+      command("cached-replay-256", "environment-sensor"),
+    );
+    await Promise.resolve();
+
+    expect(transport.publications).toEqual([]);
+    releaseAcknowledgement();
+    await Promise.all([...queuedReplays, newestReplay]);
+    await waitForPublication(transport, "omnihome/gateways/lab-gateway/commands/cached-replay-256/ack");
+
+    expect(transport.publications.some(({ topic }) => topic === "omnihome/gateways/lab-gateway/commands/cached-replay-0/ack")).toBe(false);
   });
 
   it("separates FIFO result eviction from an active delivery identity", async () => {
