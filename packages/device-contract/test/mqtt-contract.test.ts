@@ -136,6 +136,145 @@ describe("MQTT device contract", () => {
     expect(parseGatewayDeviceState(JSON.stringify({ gatewayId: "home-gateway-1", deviceId: "living-room-light", state: [] }))).toBeNull();
   });
 
+  it("validates and sanitizes recognized device-state fields", () => {
+    const state = {
+      power: true,
+      locked: false,
+      temperature: 21.5,
+      humidity: 45,
+      targetTemperature: 22,
+      brightness: 75,
+      colorTemperature: 4000,
+      aqi: 12,
+      filterLife: 80,
+      purifierActive: true,
+      motionDetected: false,
+      online: true,
+      updatedAt: 101,
+      ignored: "not part of DeviceState",
+    };
+    const expectedState = {
+      power: true,
+      locked: false,
+      temperature: 21.5,
+      humidity: 45,
+      targetTemperature: 22,
+      brightness: 75,
+      colorTemperature: 4000,
+      aqi: 12,
+      filterLife: 80,
+      purifierActive: true,
+      motionDetected: false,
+      online: true,
+      updatedAt: 101,
+    };
+
+    expect(
+      parseGatewayDeviceState(
+        JSON.stringify({ gatewayId: "home-gateway-1", deviceId: "living-room-light", state }),
+      ),
+    ).toEqual({ gatewayId: "home-gateway-1", deviceId: "living-room-light", state: expectedState });
+    expect(
+      parseGatewayAck(
+        JSON.stringify({
+          requestId: "cmd-1",
+          deviceId: "living-room-light",
+          status: "SUCCESS",
+          state,
+          message: "Command executed",
+        }),
+      ),
+    ).toEqual({
+      requestId: "cmd-1",
+      deviceId: "living-room-light",
+      status: "SUCCESS",
+      state: expectedState,
+      message: "Command executed",
+    });
+  });
+
+  it("rejects wrong optional device-state field types in state and ACK payloads", () => {
+    const invalidStates = [
+      { power: "true" },
+      { locked: "false" },
+      { purifierActive: 1 },
+      { motionDetected: 0 },
+      { temperature: "21" },
+      { humidity: "45" },
+      { targetTemperature: "22" },
+      { brightness: "75" },
+      { colorTemperature: "4000" },
+      { aqi: "12" },
+      { filterLife: "80" },
+    ];
+
+    for (const invalidState of invalidStates) {
+      const state = { ...validState, ...invalidState };
+      expect(
+        parseGatewayDeviceState(
+          JSON.stringify({ gatewayId: "home-gateway-1", deviceId: "living-room-light", state }),
+        ),
+      ).toBeNull();
+      expect(
+        parseGatewayAck(
+          JSON.stringify({
+            requestId: "cmd-1",
+            deviceId: "living-room-light",
+            status: "SUCCESS",
+            state,
+            message: "Invalid state",
+          }),
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it("requires non-negative safe-integer timestamps in every payload", () => {
+    for (const timestamp of [100.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(
+        parseGatewayInventory(
+          JSON.stringify({ gatewayId: "home-gateway-1", updatedAt: timestamp, devices: [] }),
+        ),
+      ).toBeNull();
+      expect(
+        parseGatewayStatus(
+          JSON.stringify({ gatewayId: "home-gateway-1", online: true, updatedAt: timestamp }),
+        ),
+      ).toBeNull();
+      expect(
+        parseGatewayDeviceState(
+          JSON.stringify({
+            gatewayId: "home-gateway-1",
+            deviceId: "living-room-light",
+            state: { online: true, updatedAt: timestamp },
+          }),
+        ),
+      ).toBeNull();
+      expect(
+        parseGatewayCommand(
+          JSON.stringify({
+            requestId: "cmd-1",
+            timestamp,
+            deviceId: "living-room-light",
+            name: "switch",
+            payload: {},
+          }),
+        ),
+      ).toBeNull();
+      expect(
+        parseGatewayAck(
+          JSON.stringify({
+            requestId: "cmd-1",
+            deviceId: "living-room-light",
+            status: "SUCCESS",
+            state: { online: true, updatedAt: timestamp },
+            message: "Invalid timestamp",
+          }),
+        ),
+      ).toBeNull();
+    }
+  });
+
   it("requires valid command identity, time, name, and object payload", () => {
     const valid = JSON.stringify({
       requestId: "cmd-1",
@@ -179,5 +318,18 @@ describe("MQTT device contract", () => {
     expect(parseGatewayAck(JSON.stringify({ requestId: "cmd-1", deviceId: "living-room-light", status: "UNKNOWN", message: "Invalid status" }))).toBeNull();
     expect(parseGatewayAck(JSON.stringify({ requestId: "bad/id", deviceId: "living-room-light", status: "PENDING", message: "Invalid id" }))).toBeNull();
     expect(parseGatewayAck(JSON.stringify({ requestId: "cmd-1", deviceId: "living-room-light", status: "PENDING" }))).toBeNull();
+  });
+
+  it("rejects non-terminal acknowledgement statuses", () => {
+    expect(
+      parseGatewayAck(
+        JSON.stringify({
+          requestId: "cmd-1",
+          deviceId: "living-room-light",
+          status: "PENDING",
+          message: "Not acknowledged yet",
+        }),
+      ),
+    ).toBeNull();
   });
 });

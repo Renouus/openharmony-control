@@ -54,7 +54,11 @@ export type GatewayAck = {
 const segment = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const kinds = new Set<string>(Object.values(DeviceKind));
 const capabilities = new Set<string>(Object.values(DeviceCapability));
-const statuses = new Set<string>(Object.values(CommandStatus));
+const terminalStatuses = new Set<CommandStatusName>(
+  Object.values(CommandStatus).filter(
+    (status) => status !== CommandStatus.Pending,
+  ),
+);
 const commands = new Set<DeviceCommandName>([
   "switch",
   "lock",
@@ -72,7 +76,7 @@ function isNonEmptyText(value: unknown): value is string {
 }
 
 function isTimestamp(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isTopicSegment(value: unknown): value is string {
@@ -87,12 +91,57 @@ function parseJson(raw: string): unknown {
   }
 }
 
-function isDeviceState(value: unknown): value is DeviceState {
-  return (
-    isRecord(value) &&
-    typeof value.online === "boolean" &&
-    isTimestamp(value.updatedAt)
-  );
+function parseDeviceState(value: unknown): DeviceState | null {
+  if (
+    !isRecord(value) ||
+    typeof value.online !== "boolean" ||
+    !isTimestamp(value.updatedAt)
+  ) {
+    return null;
+  }
+
+  const state: DeviceState = {
+    online: value.online,
+    updatedAt: value.updatedAt,
+  };
+  const booleanFields = [
+    "power",
+    "locked",
+    "purifierActive",
+    "motionDetected",
+  ] as const;
+  for (const field of booleanFields) {
+    const fieldValue = value[field];
+    if (fieldValue === undefined) {
+      continue;
+    }
+    if (typeof fieldValue !== "boolean") {
+      return null;
+    }
+    state[field] = fieldValue;
+  }
+
+  const numericFields = [
+    "temperature",
+    "humidity",
+    "targetTemperature",
+    "brightness",
+    "colorTemperature",
+    "aqi",
+    "filterLife",
+  ] as const;
+  for (const field of numericFields) {
+    const fieldValue = value[field];
+    if (fieldValue === undefined) {
+      continue;
+    }
+    if (typeof fieldValue !== "number" || !Number.isFinite(fieldValue)) {
+      return null;
+    }
+    state[field] = fieldValue;
+  }
+
+  return state;
 }
 
 export function assertTopicSegment(value: string, label: string): string {
@@ -188,11 +237,12 @@ export function parseGatewayStatus(raw: string): GatewayStatus | null {
 
 export function parseGatewayDeviceState(raw: string): GatewayDeviceState | null {
   const value = parseJson(raw);
+  const state = isRecord(value) ? parseDeviceState(value.state) : null;
   if (
     !isRecord(value) ||
     !isTopicSegment(value.gatewayId) ||
     !isTopicSegment(value.deviceId) ||
-    !isDeviceState(value.state)
+    state === null
   ) {
     return null;
   }
@@ -200,7 +250,7 @@ export function parseGatewayDeviceState(raw: string): GatewayDeviceState | null 
   return {
     gatewayId: value.gatewayId,
     deviceId: value.deviceId,
-    state: value.state,
+    state,
   };
 }
 
@@ -234,16 +284,17 @@ export function parseGatewayAck(raw: string): GatewayAck | null {
     !isTopicSegment(value.requestId) ||
     !isTopicSegment(value.deviceId) ||
     !isNonEmptyText(value.status) ||
-    !statuses.has(value.status) ||
+    !terminalStatuses.has(value.status as CommandStatusName) ||
     !isNonEmptyText(value.message)
   ) {
     return null;
   }
 
-  if (value.status === CommandStatus.Success && !isDeviceState(value.state)) {
+  const state = value.state === undefined ? undefined : parseDeviceState(value.state);
+  if (state === null) {
     return null;
   }
-  if (value.state !== undefined && !isDeviceState(value.state)) {
+  if (value.status === CommandStatus.Success && state === undefined) {
     return null;
   }
 
@@ -251,7 +302,7 @@ export function parseGatewayAck(raw: string): GatewayAck | null {
     requestId: value.requestId,
     deviceId: value.deviceId,
     status: value.status as CommandStatusName,
-    ...(value.state === undefined ? {} : { state: value.state as DeviceState }),
+    ...(state === undefined ? {} : { state }),
     message: value.message,
   };
 }
